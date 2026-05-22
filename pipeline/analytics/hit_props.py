@@ -41,9 +41,10 @@ def score_hit_props(game: dict, cache: dict) -> list[dict]:
             if signal >= 7.0:
                 batter_name = b.get("name", f"Batter {batter_id}")
                 picks.append({
-                    "bet_type": "HIT_PROP",
-                    "subject": batter_name,
-                    "direction": "OVER",
+                    "bet_type":   "HIT_PROP",
+                    "subject":    batter_name,
+                    "subject_id": batter_id,
+                    "direction":  "OVER",
                     "headline": f"{batter_name} to Record a Hit",
                     "signal": signal,
                     "reasons": _build_reasons(b, opp_sp),

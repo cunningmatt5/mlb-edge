@@ -26,7 +26,7 @@ def fetch_schedule(game_date: date) -> list[dict]:
     params = {
         "sportId": 1,
         "date": game_date.strftime("%m/%d/%Y"),
-        "hydrate": "probablePitcher,lineups,venue",
+        "hydrate": "probablePitcher,lineups,venue,officials",
     }
     try:
         resp = requests.get(url, params=params, timeout=TIMEOUT)
@@ -80,7 +80,16 @@ def _parse_game(raw: dict) -> dict | None:
         "away_sp_name": away_sp.get("fullName", ""),
         "home_lineup": _extract_lineup(home),
         "away_lineup": _extract_lineup(away),
+        "umpire": _extract_hp_umpire(raw),
     }
+
+
+def _extract_hp_umpire(raw: dict) -> str:
+    """Return the home plate umpire's full name, or empty string if not posted."""
+    for official in raw.get("officials", []):
+        if official.get("officialType") == "Home Plate":
+            return official.get("official", {}).get("fullName", "")
+    return ""
 
 
 def _extract_lineup(team_data: dict) -> list[int]:

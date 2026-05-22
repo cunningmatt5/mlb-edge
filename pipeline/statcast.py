@@ -329,9 +329,46 @@ def _merge_rolling_pitcher(entry: dict, mlbam_id: int, start: str, end: str) -> 
             return
         agg = _aggregate_pitcher_pitch_data(df)
         entry.update(agg)
+        recent = _aggregate_pitcher_recent_starts(df, n=3)
+        entry.update(recent)
         log.debug("Rolling Statcast merged for pitcher %d: %s", mlbam_id, agg)
     except Exception as exc:
         log.warning("Rolling pitcher Statcast failed for %d: %s", mlbam_id, exc)
+
+
+def _aggregate_pitcher_recent_starts(df: pd.DataFrame, n: int = 3) -> dict:
+    """Compute K% and BB% from the last n starts in the rolling pitch dataset."""
+    if "game_pk" not in df.columns or "events" not in df.columns:
+        return {}
+    terminal = df[df["events"].notna() & (df["events"] != "")].copy()
+    if terminal.empty:
+        return {}
+
+    starts = []
+    for game_pk, gdf in terminal.groupby("game_pk"):
+        total_pa = len(gdf)
+        if total_pa < 8:
+            continue
+        ks  = int(gdf["events"].isin(["strikeout", "strikeout_double_play"]).sum())
+        bbs = int(gdf["events"].isin(["walk", "intent_walk"]).sum())
+        date_col = "game_date" if "game_date" in gdf.columns else None
+        game_date = str(gdf[date_col].max()) if date_col else ""
+        starts.append({"game_date": game_date, "pa": total_pa, "k": ks, "bb": bbs})
+
+    if not starts:
+        return {}
+
+    starts.sort(key=lambda s: s["game_date"])
+    recent = starts[-n:]
+    total_pa = sum(s["pa"] for s in recent)
+    if total_pa == 0:
+        return {}
+
+    return {
+        "recent_k_pct":    sum(s["k"]  for s in recent) / total_pa,
+        "recent_bb_pct":   sum(s["bb"] for s in recent) / total_pa,
+        "recent_starts_n": len(recent),
+    }
 
 
 def _aggregate_pitcher_pitch_data(df: pd.DataFrame) -> dict:

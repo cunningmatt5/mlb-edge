@@ -1,0 +1,16 @@
+{
+  "picks": [],
+  "summary": {
+    "total": 0,
+    "wins": 0,
+    "losses": 0,
+    "pending": 0,
+    "win_rate": null,
+    "by_type": {},
+    "by_signal_band": {
+      "7.0-7.9": {"total": 0, "wins": 0, "losses": 0, "win_rate": null},
+      "8.0-8.9": {"total": 0, "wins": 0, "losses": 0, "win_rate": null},
+      "9.0+":    {"total": 0, "wins": 0, "losses": 0, "win_rate": null}
+    }
+  }
+}

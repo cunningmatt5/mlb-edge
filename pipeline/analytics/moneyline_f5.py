@@ -46,9 +46,10 @@ def score_moneyline_f5(game: dict, cache: dict) -> list[dict]:
 
     if ml_signal >= 7.0:
         picks.append({
-            "bet_type": "ML_F5",
-            "subject": f"{away_name} @ {home_name}",
-            "direction": ml_direction,
+            "bet_type":     "ML_F5",
+            "subject":      f"{away_name} @ {home_name}",
+            "subject_side": "home" if ml_direction == "HOME" else "away",
+            "direction":    ml_direction,
             "headline": f"{fav_ml} Moneyline",
             "signal": ml_signal,
             "reasons": _build_reasons(
@@ -67,9 +68,10 @@ def score_moneyline_f5(game: dict, cache: dict) -> list[dict]:
 
     if f5_signal >= 7.0:
         picks.append({
-            "bet_type": "ML_F5",
-            "subject": f"{away_name} @ {home_name}",
-            "direction": f5_direction,
+            "bet_type":     "ML_F5",
+            "subject":      f"{away_name} @ {home_name}",
+            "subject_side": "home" if f5_direction == "HOME" else "away",
+            "direction":    f5_direction,
             "headline": f"{fav_f5} First 5 Innings",
             "signal": f5_signal,
             "reasons": _build_reasons(

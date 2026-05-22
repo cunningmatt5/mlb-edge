@@ -48,9 +48,10 @@ def score_total_bases_props(game: dict, cache: dict) -> list[dict]:
             if signal >= 7.0:
                 batter_name = b.get("name", f"Batter {batter_id}")
                 picks.append({
-                    "bet_type": "TB_PROP",
-                    "subject": batter_name,
-                    "direction": "OVER",
+                    "bet_type":   "TB_PROP",
+                    "subject":    batter_name,
+                    "subject_id": batter_id,
+                    "direction":  "OVER",
                     "headline": f"{batter_name} Total Bases — OVER",
                     "signal": signal,
                     "reasons": _build_reasons(b, opp_sp, venue),

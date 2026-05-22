@@ -1,8 +1,10 @@
 'use strict';
 
-const PICKS_URL = './picks.json';
+const PICKS_URL   = './picks.json';
+const HISTORY_URL = './picks_history.json';
 
-let allGames = [];
+let allGames    = [];
+let historyData = null;
 let activeFilter = 'ALL';
 
 // ── Service Worker ────────────────────────────────────────────────────────────
@@ -17,12 +19,21 @@ async function loadPicks() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (networkErr) {
-    // Fallback to SW cache for offline support
     try {
       const cached = await caches.match(PICKS_URL);
       if (cached) return await cached.json();
     } catch (_) {}
     throw networkErr;
+  }
+}
+
+async function loadHistory() {
+  try {
+    const res = await fetch(`${HISTORY_URL}?t=${Date.now()}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (_) {
+    return null;
   }
 }
 
@@ -45,8 +56,7 @@ function signalColor(signal) {
 }
 
 function renderSignalBar(signal) {
-  // Map [7, 10] → [0%, 100%]
-  const pct = Math.round(((signal - 7) / 3) * 100);
+  const pct   = Math.round(((signal - 7) / 3) * 100);
   const color = signalColor(signal);
   return `<div class="signal-row">
     <div class="signal-track">
@@ -124,13 +134,111 @@ function renderGame(game, filter) {
   </section>`;
 }
 
+// ── Record view ───────────────────────────────────────────────────────────────
+function renderRecord(history) {
+  if (!history || !history.summary) {
+    return '<div class="state-view"><p class="state-icon">📋</p><p>No record data yet.</p><p class="state-sub">Results will appear after picks are graded.</p></div>';
+  }
+
+  const s  = history.summary;
+  const wr = s.win_rate !== null ? (s.win_rate * 100).toFixed(1) + '%' : '—';
+  const graded = s.wins + s.losses;
+
+  let html = `<div class="record-summary">
+    <div class="record-stat">
+      <span class="record-num">${s.wins}–${s.losses}</span>
+      <span class="record-label">W – L</span>
+    </div>
+    <div class="record-stat">
+      <span class="record-num ${s.win_rate !== null ? (s.win_rate >= 0.55 ? 'good' : s.win_rate < 0.45 ? 'bad' : '') : ''}">${wr}</span>
+      <span class="record-label">Win Rate</span>
+    </div>
+    <div class="record-stat">
+      <span class="record-num muted">${s.pending}</span>
+      <span class="record-label">Pending</span>
+    </div>
+  </div>`;
+
+  if (graded === 0) {
+    html += '<p class="record-empty">No graded picks yet — check back after today\'s games finish.</p>';
+    return html;
+  }
+
+  // By bet type
+  const byType = s.by_type || {};
+  if (Object.keys(byType).length > 0) {
+    html += '<div class="record-section-title">By Bet Type</div><div class="record-table">';
+    for (const [type, data] of Object.entries(byType)) {
+      if (data.total === 0) continue;
+      const label  = BET_LABELS[type] || type;
+      const typeWR = data.win_rate !== null ? (data.win_rate * 100).toFixed(0) + '%' : '—';
+      const cls    = data.win_rate !== null ? (data.win_rate >= 0.55 ? 'good' : data.win_rate < 0.45 ? 'bad' : '') : '';
+      html += `<div class="record-row">
+        <span class="record-type">${label}</span>
+        <span class="record-wl">${data.wins}–${data.losses}</span>
+        <span class="record-wr ${cls}">${typeWR}</span>
+      </div>`;
+    }
+    html += '</div>';
+  }
+
+  // By signal band
+  const byBand = s.by_signal_band || {};
+  const hasBandData = Object.values(byBand).some(b => b.total > 0);
+  if (hasBandData) {
+    html += '<div class="record-section-title">By Signal Strength</div><div class="record-table">';
+    for (const [band, data] of Object.entries(byBand)) {
+      if (data.total === 0) continue;
+      const bandWR = data.win_rate !== null ? (data.win_rate * 100).toFixed(0) + '%' : '—';
+      const cls    = data.win_rate !== null ? (data.win_rate >= 0.55 ? 'good' : data.win_rate < 0.45 ? 'bad' : '') : '';
+      html += `<div class="record-row">
+        <span class="record-type">Signal ${band}</span>
+        <span class="record-wl">${data.wins}–${data.losses}</span>
+        <span class="record-wr ${cls}">${bandWR}</span>
+      </div>`;
+    }
+    html += '</div>';
+  }
+
+  // Recent picks list (last 20 graded)
+  const recent = (history.picks || [])
+    .filter(p => p.outcome !== 'PENDING')
+    .slice(-20)
+    .reverse();
+
+  if (recent.length > 0) {
+    html += '<div class="record-section-title">Recent Results</div><div class="record-table">';
+    for (const p of recent) {
+      const label    = BET_LABELS[p.bet_type] || p.bet_type;
+      const outcomeClass = p.outcome === 'WIN' ? 'win' : 'loss';
+      html += `<div class="record-row">
+        <span class="record-type">${p.subject}<span class="record-date"> · ${p.date}</span></span>
+        <span class="record-type-badge badge badge-${p.bet_type.toLowerCase().replaceAll('_','')} badge-sm">${label}</span>
+        <span class="record-outcome ${outcomeClass}">${p.outcome}</span>
+      </div>`;
+    }
+    html += '</div>';
+  }
+
+  return html;
+}
+
+// ── Render picks or record ────────────────────────────────────────────────────
 function renderAll() {
-  const container = document.getElementById('games-container');
+  const container  = document.getElementById('games-container');
+  const noPicks    = document.getElementById('no-picks-state');
+
+  if (activeFilter === 'RECORD') {
+    container.innerHTML = renderRecord(historyData);
+    noPicks.classList.add('hidden');
+    return;
+  }
+
   const html = allGames.map(g => renderGame(g, activeFilter)).join('');
   container.innerHTML = html;
 
   const hasContent = html.trim().length > 0;
-  document.getElementById('no-picks-state').classList.toggle('hidden', hasContent);
+  noPicks.classList.toggle('hidden', hasContent);
 }
 
 // ── Filter bar ────────────────────────────────────────────────────────────────
@@ -153,10 +261,11 @@ async function init() {
   const errorEl = document.getElementById('error-state');
 
   try {
-    const data = await loadPicks();
+    const [data, hist] = await Promise.all([loadPicks(), loadHistory()]);
+    historyData = hist;
     allGames = data.games || [];
 
-    const genAt = new Date(data.generated_at);
+    const genAt  = new Date(data.generated_at);
     const timeStr = genAt.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
@@ -166,7 +275,7 @@ async function init() {
 
     loading.classList.add('hidden');
 
-    if (allGames.length === 0) {
+    if (allGames.length === 0 && activeFilter !== 'RECORD') {
       document.getElementById('no-picks-state').classList.remove('hidden');
     } else {
       renderAll();

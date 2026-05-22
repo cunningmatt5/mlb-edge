@@ -3,15 +3,22 @@
 Signal logic: Both the pitcher quality AND the opposing lineup K-vulnerability
 must be strong. Geometric mean enforces that — a dominant pitcher vs. a
 contact-heavy lineup produces a weaker signal than when both dimensions align.
+
+Enhancements:
+- K% blends season (60%) and last-3-starts (40%) for recency weighting
+- HP umpire zone tendency applies a small signal modifier
 """
 
 from __future__ import annotations
 
 from pipeline.scorer import normalize, weighted_avg, safe_mean
+from pipeline.umpire import compute_umpire_modifier
 
 
 def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
     picks = []
+    umpire = game.get("umpire", "")
+
     for sp_side, opp_side in [("home", "away"), ("away", "home")]:
         sp_id = game.get(f"{sp_side}_sp_id")
         if not sp_id or sp_id not in cache:
@@ -23,10 +30,18 @@ def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
             continue
 
         # --- Pitcher quality component ---
+        # Blend season K% with last-3-starts K% (60/40)
+        season_k = sp.get("k_pct")
+        recent_k = sp.get("recent_k_pct")
+        if season_k is not None and recent_k is not None:
+            blended_k = 0.60 * season_k + 0.40 * recent_k
+        else:
+            blended_k = season_k if season_k is not None else recent_k
+
         stuff_s = normalize(sp.get("stuff_plus"), lo=80, hi=130)
         whiff_s = normalize(sp.get("whiff_pct"), lo=0.12, hi=0.38)
         chase_s = normalize(sp.get("o_swing_pct") or sp.get("o_swing_pct_fg"), lo=0.20, hi=0.40)
-        k_s = normalize(sp.get("k_pct"), lo=0.14, hi=0.36)
+        k_s     = normalize(blended_k, lo=0.14, hi=0.36)
 
         pitcher_comp = weighted_avg([
             (stuff_s, 0.30),
@@ -36,13 +51,12 @@ def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
         ])
 
         # --- Opposing lineup K-vulnerability component ---
-        opp_k_pcts = [b.get("k_pct") for b in opp_lineup]
-        opp_contacts = [b.get("contact_pct") for b in opp_lineup]
-
-        opp_k_mean = safe_mean(opp_k_pcts)
+        opp_k_pcts    = [b.get("k_pct")      for b in opp_lineup]
+        opp_contacts  = [b.get("contact_pct") for b in opp_lineup]
+        opp_k_mean    = safe_mean(opp_k_pcts)
         opp_contact_mean = safe_mean(opp_contacts)
 
-        opp_k_s = normalize(opp_k_mean, lo=0.16, hi=0.30)
+        opp_k_s       = normalize(opp_k_mean,      lo=0.16, hi=0.30)
         opp_contact_s = 1.0 - normalize(opp_contact_mean, lo=0.68, hi=0.90)
 
         lineup_comp = weighted_avg([
@@ -50,43 +64,53 @@ def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
             (opp_contact_s, 0.40),
         ])
 
-        # Geometric mean — both conditions must be strong simultaneously
         combined = (pitcher_comp ** 0.6) * (lineup_comp ** 0.4)
-        signal = round(combined * 10, 1)
+        ump_mod, ump_reason = compute_umpire_modifier(umpire, "K_PROP", "OVER")
+        signal = max(0.0, min(10.0, round(combined * 10 + ump_mod, 1)))
 
         if signal >= 7.0:
-            sp_name = sp.get("name") or game.get(f"{sp_side}_sp_name", "SP")
+            sp_name  = sp.get("name") or game.get(f"{sp_side}_sp_name", "SP")
             opp_team = game.get(f"{opp_side}Team", "Opponent")
+            reasons  = _build_reasons(sp, opp_k_mean, opp_contact_mean, opp_team, blended_k, recent_k)
+            if ump_reason:
+                reasons = (reasons + [ump_reason])[:4]
+
             picks.append({
-                "bet_type": "K_PROP",
-                "subject": sp_name,
-                "direction": "OVER",
-                "headline": f"{sp_name} Strikeouts — OVER",
-                "signal": signal,
-                "reasons": _build_reasons(sp, opp_k_mean, opp_contact_mean, opp_team),
+                "bet_type":   "K_PROP",
+                "subject":    sp_name,
+                "subject_id": sp_id,
+                "direction":  "OVER",
+                "headline":   f"{sp_name} Strikeouts — OVER",
+                "signal":     signal,
+                "reasons":    reasons,
                 "raw_scores": {
-                    "stuff_plus": sp.get("stuff_plus"),
-                    "whiff_pct": _pct(sp.get("whiff_pct")),
-                    "o_swing_pct": _pct(sp.get("o_swing_pct") or sp.get("o_swing_pct_fg")),
-                    "sp_k_pct": _pct(sp.get("k_pct")),
-                    "opp_k_pct": _pct(opp_k_mean),
-                    "opp_contact_pct": _pct(opp_contact_mean),
+                    "stuff_plus":        sp.get("stuff_plus"),
+                    "whiff_pct":         _pct(sp.get("whiff_pct")),
+                    "o_swing_pct":       _pct(sp.get("o_swing_pct") or sp.get("o_swing_pct_fg")),
+                    "sp_k_pct":          _pct(blended_k),
+                    "opp_k_pct":         _pct(opp_k_mean),
+                    "opp_contact_pct":   _pct(opp_contact_mean),
                     "pitcher_component": round(pitcher_comp, 3),
-                    "lineup_component": round(lineup_comp, 3),
+                    "lineup_component":  round(lineup_comp, 3),
+                    "umpire":            umpire or None,
                 },
             })
 
     return picks
 
 
-def _build_reasons(sp: dict, opp_k_mean, opp_contact_mean, opp_team: str) -> list[str]:
+def _build_reasons(sp, opp_k_mean, opp_contact_mean, opp_team, blended_k, recent_k) -> list[str]:
     reasons = []
     if sp.get("stuff_plus"):
         reasons.append(f"Stuff+ of {int(sp['stuff_plus'])} (100 = avg; higher is better pitch quality)")
     if sp.get("whiff_pct"):
         reasons.append(f"Whiff rate of {sp['whiff_pct']:.1%} on swings this season")
-    if sp.get("k_pct"):
-        reasons.append(f"K% of {sp['k_pct']:.1%} — strikeout rate vs. MLB average ~22%")
+    if blended_k and recent_k:
+        reasons.append(
+            f"K% {blended_k:.1%} (blended: season + last {sp.get('recent_starts_n', 3)} starts)"
+        )
+    elif blended_k:
+        reasons.append(f"K% of {blended_k:.1%} — strikeout rate vs. MLB avg ~22%")
     if opp_k_mean:
         reasons.append(f"{opp_team} lineup averages {opp_k_mean:.1%} K rate — favorable matchup")
     return reasons[:4]

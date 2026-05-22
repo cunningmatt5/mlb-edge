@@ -344,6 +344,118 @@ h1 {
   line-height: 1.2;
 }
 
+/* ── Record filter button ───────────────────────────────────────────────────── */
+.filter-btn-record { border-color: var(--purple); color: var(--purple); }
+.filter-btn-record.active { background: var(--purple); border-color: var(--purple); color: #fff; }
+
+/* ── Record view ─────────────────────────────────────────────────────────────── */
+.record-summary {
+  display: flex;
+  justify-content: space-around;
+  padding: 20px 16px;
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.record-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.record-num {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--text);
+}
+.record-num.good   { color: var(--green); }
+.record-num.bad    { color: var(--red); }
+.record-num.muted  { color: var(--text-muted); }
+
+.record-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.record-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
+  padding: 12px 0 6px;
+}
+
+.record-table {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.record-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-light);
+}
+.record-row:last-child { border-bottom: none; }
+
+.record-type {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.record-date { color: var(--text-dim); font-size: 11px; }
+
+.badge-sm { font-size: 9px; padding: 2px 6px; flex-shrink: 0; }
+
+.record-wl {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.record-wr {
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 38px;
+  text-align: right;
+  color: var(--text-muted);
+}
+.record-wr.good { color: var(--green); }
+.record-wr.bad  { color: var(--red); }
+
+.record-outcome {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  min-width: 36px;
+  text-align: right;
+}
+.record-outcome.win  { color: var(--green); }
+.record-outcome.loss { color: var(--red); }
+
+.record-empty {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 13px;
+  padding: 24px 0;
+}
+
 /* ── Responsive tweaks for wider screens ────────────────────────────────────── */
 @media (min-width: 640px) {
   #main-content {
