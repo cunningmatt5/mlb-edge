@@ -266,12 +266,16 @@ async function init() {
     allGames = data.games || [];
 
     const genAt  = new Date(data.generated_at);
-    const timeStr = genAt.toLocaleTimeString('en-US', {
+    const isToday = new Date().toDateString() === new Date(genAt.toLocaleDateString('en-US', {timeZone: 'America/New_York'})).toDateString();
+    const timeStr = genAt.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
       timeZone: 'America/New_York',
+      timeZoneName: 'short',
     });
-    document.getElementById('last-updated').textContent = `Updated ${timeStr} ET`;
+    document.getElementById('last-updated').textContent = `Updated ${timeStr}`;
 
     loading.classList.add('hidden');
 
