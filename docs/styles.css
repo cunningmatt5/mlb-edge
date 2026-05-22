@@ -1,0 +1,347 @@
+/* ── Variables ──────────────────────────────────────────────────────────────── */
+:root {
+  --bg:            #0f172a;
+  --bg-card:       #1e293b;
+  --bg-header:     #0f172a;
+  --bg-game-hdr:   #1a2744;
+  --text:          #f1f5f9;
+  --text-muted:    #94a3b8;
+  --text-dim:      #64748b;
+  --border:        #334155;
+  --border-light:  #1e293b;
+
+  --green:  #22c55e;
+  --amber:  #f59e0b;
+  --blue:   #60a5fa;
+  --red:    #f87171;
+  --purple: #a78bfa;
+
+  /* Bet-type badge colors */
+  --badge-kprop:   #7c3aed;
+  --badge-hrprop:  #dc2626;
+  --badge-hitprop: #0891b2;
+  --badge-total:   #059669;
+  --badge-mlf5:    #d97706;
+
+  --radius: 12px;
+  --radius-sm: 6px;
+}
+
+/* ── Reset ──────────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Base ───────────────────────────────────────────────────────────────────── */
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  /* Safe area for notch and home bar */
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 20px);
+  min-height: 100dvh;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────────── */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border);
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.header-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px 10px;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-logo { font-size: 20px; }
+
+h1 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.last-updated {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* ── Filter bar ─────────────────────────────────────────────────────────────── */
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 12px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.filter-bar::-webkit-scrollbar { display: none; }
+
+.filter-btn {
+  flex-shrink: 0;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.filter-btn.active {
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
+}
+
+/* ── Main content ───────────────────────────────────────────────────────────── */
+#main-content {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── State views (loading / error / empty) ──────────────────────────────────── */
+.state-view {
+  text-align: center;
+  padding: 64px 20px;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.state-icon { font-size: 36px; }
+
+.state-sub {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.retry-btn {
+  margin-top: 8px;
+  background: var(--bg-card);
+  color: var(--blue);
+  border: 1px solid var(--blue);
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.hidden { display: none !important; }
+
+/* ── Game block ─────────────────────────────────────────────────────────────── */
+.game-block {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.game-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-game-hdr);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.matchup {
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.at {
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.game-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+
+.venue::before { content: '· '; }
+
+.starters {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-dim);
+  flex-wrap: wrap;
+}
+
+.vs-sep {
+  opacity: 0.5;
+  font-size: 11px;
+}
+
+/* ── Pick cards ─────────────────────────────────────────────────────────────── */
+.picks-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.pick-card {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+.pick-card:last-child { border-bottom: none; }
+
+.pick-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* Bet-type badges */
+.badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  color: #fff;
+  white-space: nowrap;
+}
+
+.badge-kprop   { background: var(--badge-kprop); }
+.badge-hrprop  { background: var(--badge-hrprop); }
+.badge-hitprop { background: var(--badge-hitprop); }
+.badge-total   { background: var(--badge-total); }
+.badge-mlf5    { background: var(--badge-mlf5); }
+
+/* Direction pills */
+.direction-pill {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 3px 9px;
+  border-radius: 20px;
+}
+
+.dir-over  { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+.dir-under { background: rgba(248, 113, 113, 0.15); color: var(--red); }
+.dir-home,
+.dir-away  { background: rgba(96, 165, 250, 0.15); color: var(--blue); }
+
+/* Pick headline */
+.pick-headline {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-bottom: 10px;
+  color: var(--text);
+}
+
+/* Signal bar */
+.signal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.signal-track {
+  flex: 1;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.signal-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.signal-label {
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 28px;
+  text-align: right;
+}
+
+/* Reasons list */
+.pick-reasons {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.pick-reasons li {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.45;
+  padding-left: 14px;
+  position: relative;
+}
+
+.pick-reasons li::before {
+  content: '·';
+  position: absolute;
+  left: 3px;
+  color: var(--blue);
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+/* ── Responsive tweaks for wider screens ────────────────────────────────────── */
+@media (min-width: 640px) {
+  #main-content {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+}

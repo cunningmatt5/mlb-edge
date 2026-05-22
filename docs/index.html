@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="Daily MLB betting analytics powered by Statcast">
+
+  <!-- iOS PWA meta tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MLB Edge">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+  <title>MLB Edge</title>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="header-title">
+        <span class="header-logo">⚾</span>
+        <h1>MLB Edge</h1>
+      </div>
+      <span id="last-updated" class="last-updated"></span>
+    </div>
+    <div class="filter-bar" id="filter-bar" role="tablist" aria-label="Filter by bet type">
+      <button class="filter-btn active" data-filter="ALL" role="tab" aria-selected="true">All</button>
+      <button class="filter-btn" data-filter="K_PROP" role="tab" aria-selected="false">Strikeouts</button>
+      <button class="filter-btn" data-filter="HR_PROP" role="tab" aria-selected="false">HRs</button>
+      <button class="filter-btn" data-filter="HIT_PROP" role="tab" aria-selected="false">Hits</button>
+      <button class="filter-btn" data-filter="TOTAL" role="tab" aria-selected="false">Totals</button>
+      <button class="filter-btn" data-filter="ML_F5" role="tab" aria-selected="false">ML/F5</button>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <div id="loading-state" class="state-view">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Loading today's picks…</p>
+    </div>
+    <div id="error-state" class="state-view hidden">
+      <p class="state-icon">📡</p>
+      <p>Could not load picks. Check back soon.</p>
+      <button class="retry-btn" id="retry-btn">Retry</button>
+    </div>
+    <div id="no-picks-state" class="state-view hidden">
+      <p class="state-icon">🧐</p>
+      <p>No high-confidence picks for today.</p>
+      <p class="state-sub">The model only surfaces plays above the signal threshold.</p>
+    </div>
+    <div id="games-container"></div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

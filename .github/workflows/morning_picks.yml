@@ -1,0 +1,66 @@
+name: MLB Morning Picks
+
+on:
+  schedule:
+    - cron: '0 12 * * *'   # 8:00 AM ET — first attempt
+    - cron: '0 13 * * *'   # 9:00 AM ET — second attempt
+    - cron: '0 14 * * *'   # 10:00 AM ET — third attempt
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-picks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Skip if picks already generated today
+        id: check
+        run: |
+          TODAY=$(date -u +%Y-%m-%d)
+          echo "Today is $TODAY"
+          if python3 -c "
+          import json, sys
+          try:
+              d = json.load(open('docs/picks.json'))
+              sys.exit(0 if d.get('date') == '$TODAY' else 1)
+          except Exception:
+              sys.exit(1)
+          " 2>/dev/null; then
+            echo "ran=true" >> \$GITHUB_OUTPUT
+            echo "Picks already generated for $TODAY — skipping."
+          else
+            echo "ran=false" >> \$GITHUB_OUTPUT
+            echo "Picks not yet generated for $TODAY — proceeding."
+          fi
+
+      - name: Set up Python
+        if: steps.check.outputs.ran == 'false'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        if: steps.check.outputs.ran == 'false'
+        run: pip install -r requirements.txt
+
+      - name: Run analytics pipeline
+        if: steps.check.outputs.ran == 'false'
+        run: python -m pipeline.main
+
+      - name: Commit picks.json
+        if: steps.check.outputs.ran == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/picks.json
+          git diff --staged --quiet || git commit -m "chore: update picks [skip ci]"
+          git push
