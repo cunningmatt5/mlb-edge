@@ -139,6 +139,10 @@ def _merge_fg_pitching(entry: dict, df: pd.DataFrame, fg_id) -> None:
         "stuff_plus": g("Stuff+"),
         "era": g("ERA"),
         "ip": g("IP"),
+        # Plate discipline — used by walk_props
+        "zone_pct": g("Zone%"),
+        "f_strike_pct": g("F-Strike%"),
+        "swstr_pct": g("SwStr%"),
     })
 
 

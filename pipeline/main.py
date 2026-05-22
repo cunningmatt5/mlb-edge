@@ -17,6 +17,9 @@ from pipeline.analytics.hit_props import score_hit_props
 from pipeline.analytics.hr_props import score_hr_props
 from pipeline.analytics.moneyline_f5 import score_moneyline_f5
 from pipeline.analytics.strikeout_props import score_strikeout_props
+from pipeline.analytics.team_totals import score_team_totals
+from pipeline.analytics.total_bases import score_total_bases_props
+from pipeline.analytics.walk_props import score_walk_props
 from pipeline.formatter import build_game_block, build_output, write_picks_json
 from pipeline.schedule import fetch_schedule
 from pipeline.statcast import build_player_cache
@@ -56,8 +59,11 @@ def main(dry_run: bool = False) -> None:
         candidates += score_strikeout_props(game, cache)
         candidates += score_hr_props(game, cache)
         candidates += score_hit_props(game, cache)
+        candidates += score_total_bases_props(game, cache)
         candidates += score_game_total(game, cache)
+        candidates += score_team_totals(game, cache)
         candidates += score_moneyline_f5(game, cache)
+        candidates += score_walk_props(game, cache)
 
         total_candidates += len(candidates)
         qualifying = [c for c in candidates if c["signal"] >= SIGNAL_THRESHOLD]

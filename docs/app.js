@@ -28,11 +28,14 @@ async function loadPicks() {
 
 // ── Rendering helpers ─────────────────────────────────────────────────────────
 const BET_LABELS = {
-  K_PROP:   'Strikeouts',
-  HR_PROP:  'Home Run',
-  HIT_PROP: 'Hit Prop',
-  TOTAL:    'Total',
-  ML_F5:    'ML / F5',
+  K_PROP:     'Strikeouts',
+  HR_PROP:    'Home Run',
+  HIT_PROP:   'Hit Prop',
+  TB_PROP:    'Total Bases',
+  WALK_PROP:  'Walks',
+  TOTAL:      'Game Total',
+  TEAM_TOTAL: 'Team Total',
+  ML_F5:      'ML / F5',
 };
 
 function signalColor(signal) {
@@ -55,7 +58,7 @@ function renderSignalBar(signal) {
 
 function renderBadge(betType) {
   const label = BET_LABELS[betType] || betType;
-  return `<span class="badge badge-${betType.toLowerCase().replace('_', '')}">${label}</span>`;
+  return `<span class="badge badge-${betType.toLowerCase().replaceAll('_', '')}">${label}</span>`;
 }
 
 function renderDirectionPill(direction) {
