@@ -2,9 +2,10 @@
 
 Strategy:
   1. FanGraphs season stats via pybaseball (xFIP, SIERA, K%, Stuff+, wRC+, etc.)
-  2. Baseball Savant expected-stats CSV (xwOBA, xBA, barrel%, hard-hit%)
-  3. Per-player 21-day rolling Statcast (whiff%, chase rate) aggregated from pitch data
-  4. MLBAM → FanGraphs ID crosswalk via pybaseball playerid_reverse_lookup
+  2. Baseball Savant expected-stats CSV (xwOBA, xBA for pitchers and batters)
+  3. Baseball Savant statcast leaderboard CSV (barrel%, hard-hit%, avg EV, launch angle)
+  4. Per-player 21-day rolling Statcast (whiff%, chase rate) aggregated from pitch data
+  5. MLBAM → FanGraphs ID crosswalk via pybaseball playerid_reverse_lookup
 """
 
 from __future__ import annotations
@@ -52,7 +53,8 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
     fg_pitch = _fetch_fg_pitching(season)
     fg_bat = _fetch_fg_batting(season)
     sav_pitch = _fetch_savant_pitcher_stats(season)
-    sav_bat = _fetch_savant_batter_stats(season)
+    sav_bat_expected = _fetch_savant_batter_expected_stats(season)
+    sav_bat_batted = _fetch_savant_batter_batted_ball_stats(season)
 
     # --- ID crosswalk: MLBAM → FanGraphs ---
     crosswalk = _build_crosswalk(all_ids)
@@ -71,7 +73,8 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
         fg_id = crosswalk.get(mlbam_id)
         entry = cache.get(mlbam_id, {"mlbam_id": mlbam_id, "role": "batter"})
         _merge_fg_batting(entry, fg_bat, fg_id)
-        _merge_savant_batter(entry, sav_bat, mlbam_id)
+        _merge_savant_batter_expected(entry, sav_bat_expected, mlbam_id)
+        _merge_savant_batter_batted_ball(entry, sav_bat_batted, mlbam_id)
         cache[mlbam_id] = entry
 
     # --- 21-day rolling (whiff%, chase rate for SPs) ---
@@ -189,12 +192,27 @@ def _fetch_savant_pitcher_stats(season: int) -> pd.DataFrame:
     return _fetch_savant_csv(url, "pitcher-expected")
 
 
-def _fetch_savant_batter_stats(season: int) -> pd.DataFrame:
+def _fetch_savant_batter_expected_stats(season: int) -> pd.DataFrame:
+    """xBA, xwOBA, xSLG per batter from the expected-statistics leaderboard."""
     url = (
         f"{SAVANT_BASE}/expected_statistics"
         f"?type=batter&year={season}&position=&team=&min=q&csv=true"
     )
     return _fetch_savant_csv(url, "batter-expected")
+
+
+def _fetch_savant_batter_batted_ball_stats(season: int) -> pd.DataFrame:
+    """Barrel%, hard-hit%, avg exit velocity, avg launch angle from statcast leaderboard.
+
+    Columns confirmed from live endpoint:
+      player_id, brl_percent (whole %, e.g. 8.5), ev95percent (whole %, e.g. 42.1),
+      avg_hit_speed (mph), avg_hit_angle (degrees)
+    """
+    url = (
+        f"{SAVANT_BASE}/leaderboard/statcast"
+        f"?type=batter&year={season}&position=&team=&min=q&csv=true"
+    )
+    return _fetch_savant_csv(url, "batter-batted-ball")
 
 
 def _merge_savant_pitcher(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
@@ -225,7 +243,8 @@ def _merge_savant_pitcher(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
     })
 
 
-def _merge_savant_batter(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
+def _merge_savant_batter_expected(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
+    """Merge xBA, xwOBA, xSLG from the expected-statistics CSV."""
     if df.empty:
         return
     id_col = _find_id_col(df)
@@ -252,13 +271,46 @@ def _merge_savant_batter(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
         "xslg": g("est_slg"),
     })
 
-    # Barrel% and hard-hit% come from a separate Savant leaderboard; merge if present
-    for col, key in [("barrel_batted_rate", "barrel_pct"), ("hard_hit_percent", "hard_hit_pct"),
-                     ("avg_exit_velocity", "avg_ev"), ("avg_launch_angle", "avg_launch_angle")]:
-        val = g(col)
-        if val is not None:
-            # Savant returns barrel% as a whole number (e.g., 8.5 = 8.5%)
-            entry[key] = val / 100.0 if col in ("barrel_batted_rate", "hard_hit_percent") else val
+
+def _merge_savant_batter_batted_ball(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
+    """Merge barrel%, hard-hit%, avg EV, avg launch angle from the statcast leaderboard CSV.
+
+    Savant stores brl_percent and ev95percent as whole numbers (e.g., 8.5 means 8.5%),
+    so we divide by 100 to match the decimal fractions used by normalize().
+    """
+    if df.empty:
+        return
+    id_col = _find_id_col(df)
+    if not id_col:
+        return
+    row = df[df[id_col] == mlbam_id]
+    if row.empty:
+        return
+    r = row.iloc[0]
+
+    def g(col, default=None):
+        try:
+            v = r.get(col)
+            return float(v) if v is not None and str(v) not in ("", "nan") else default
+        except Exception:
+            return default
+
+    if not entry.get("name") and r.get("last_name, first_name"):
+        entry["name"] = str(r["last_name, first_name"])
+
+    brl = g("brl_percent")
+    hh = g("ev95percent")
+    ev = g("avg_hit_speed")
+    la = g("avg_hit_angle")
+
+    if brl is not None:
+        entry["barrel_pct"] = brl / 100.0
+    if hh is not None:
+        entry["hard_hit_pct"] = hh / 100.0
+    if ev is not None:
+        entry["avg_ev"] = ev
+    if la is not None:
+        entry["avg_launch_angle"] = la
 
 
 # ---------------------------------------------------------------------------

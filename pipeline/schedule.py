@@ -50,8 +50,16 @@ def fetch_schedule(game_date: date) -> list[dict]:
     return games
 
 
+_SKIP_STATES = {"D", "C"}  # D = Postponed, C = Cancelled
+
+
 def _parse_game(raw: dict) -> dict | None:
-    """Parse a single game entry. Returns None if either starter is missing."""
+    """Parse a single game entry. Returns None if game is postponed/cancelled or either starter is missing."""
+    status = raw.get("status", {})
+    if status.get("codedGameState") in _SKIP_STATES:
+        log.debug("Skipping game %s: %s", raw.get("gamePk"), status.get("detailedState"))
+        return None
+
     home = raw.get("teams", {}).get("home", {})
     away = raw.get("teams", {}).get("away", {})
 
