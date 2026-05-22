@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generate MLB Edge Icons</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: #0f172a; color: #f1f5f9;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 100vh; gap: 24px; margin: 0;
+    }
+    h1 { font-size: 22px; font-weight: 700; margin: 0; }
+    p  { color: #94a3b8; font-size: 14px; margin: 0; text-align: center; max-width: 380px; }
+    .previews { display: flex; gap: 24px; align-items: flex-end; }
+    .preview-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .preview-label { font-size: 12px; color: #64748b; }
+    button {
+      background: #60a5fa; color: #0f172a; border: none;
+      border-radius: 8px; padding: 10px 28px;
+      font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    button:hover { background: #93c5fd; }
+    .note { font-size: 12px; color: #475569; }
+  </style>
+</head>
+<body>
+  <h1>⚾ MLB Edge — Icon Generator</h1>
+  <p>Previews below. Click <strong>Download Icons</strong> to save both PNG files, then move them into <code>docs/icons/</code>.</p>
+
+  <div class="previews">
+    <div class="preview-wrap">
+      <canvas id="c192" width="192" height="192"></canvas>
+      <span class="preview-label">192 × 192</span>
+    </div>
+    <div class="preview-wrap">
+      <canvas id="c512" width="96" height="96" style="image-rendering:pixelated"></canvas>
+      <span class="preview-label">512 × 512 (preview scaled)</span>
+    </div>
+  </div>
+
+  <button id="dl-btn">Download Icons</button>
+  <p class="note">Files will download as <code>icon-192.png</code> and <code>icon-512.png</code></p>
+
+  <script>
+    function drawBaseball(canvas, size) {
+      const ctx = canvas.getContext('2d');
+      const cx = size / 2, cy = size / 2;
+
+      // Background — dark navy
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, size, size);
+
+      // Outer glow ring
+      const gradient = ctx.createRadialGradient(cx, cy, size * 0.28, cx, cy, size * 0.48);
+      gradient.addColorStop(0, 'rgba(96,165,250,0.25)');
+      gradient.addColorStop(1, 'rgba(96,165,250,0)');
+      ctx.beginPath();
+      ctx.arc(cx, cy, size * 0.48, 0, Math.PI * 2);
+      ctx.fillStyle = gradient;
+      ctx.fill();
+
+      // Baseball base — off-white
+      const r = size * 0.33;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fill();
+
+      // Baseball shadow (subtle depth)
+      const shadow = ctx.createRadialGradient(cx + r*0.15, cy - r*0.15, 0, cx, cy, r);
+      shadow.addColorStop(0, 'rgba(255,255,255,0)');
+      shadow.addColorStop(1, 'rgba(0,0,0,0.12)');
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = shadow;
+      ctx.fill();
+
+      // Red stitching curves
+      const lw = Math.max(1.5, size * 0.038);
+      ctx.strokeStyle = '#dc2626';
+      ctx.lineWidth = lw;
+      ctx.lineCap = 'round';
+
+      // Left seam curve
+      ctx.beginPath();
+      ctx.moveTo(cx - r * 0.30, cy - r * 0.72);
+      ctx.bezierCurveTo(
+        cx - r * 0.70, cy - r * 0.18,
+        cx - r * 0.70, cy + r * 0.18,
+        cx - r * 0.30, cy + r * 0.72
+      );
+      ctx.stroke();
+
+      // Right seam curve
+      ctx.beginPath();
+      ctx.moveTo(cx + r * 0.30, cy - r * 0.72);
+      ctx.bezierCurveTo(
+        cx + r * 0.70, cy - r * 0.18,
+        cx + r * 0.70, cy + r * 0.18,
+        cx + r * 0.30, cy + r * 0.72
+      );
+      ctx.stroke();
+
+      // Stitch marks on left seam
+      const stitchW = lw * 0.9;
+      const stitchL = r * 0.18;
+      ctx.lineWidth = stitchW;
+      drawStitches(ctx, cx, cy, r, -1, stitchL, 5);
+      drawStitches(ctx, cx, cy, r, +1, stitchL, 5);
+    }
+
+    function drawStitches(ctx, cx, cy, r, side, len, count) {
+      // Approximate points along the seam curve
+      for (let i = 0; i < count; i++) {
+        const t = (i + 0.5) / count;
+        // Parametric point along the bezier (simplified as linear along x, cubic along y)
+        const px = cx + side * r * lerp(0.30, 0.70, Math.abs(t - 0.5) * 2);
+        const py = cy + r * (t * 1.44 - 0.72);
+        // Draw perpendicular tick
+        const angle = Math.atan2(0.8, side * (0.5 - t)) + Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(px - Math.cos(angle) * len / 2, py - Math.sin(angle) * len / 2);
+        ctx.lineTo(px + Math.cos(angle) * len / 2, py + Math.sin(angle) * len / 2);
+        ctx.strokeStyle = '#dc2626';
+        ctx.stroke();
+      }
+    }
+
+    function lerp(a, b, t) { return a + (b - a) * t; }
+
+    // Draw preview for 192
+    const c192 = document.getElementById('c192');
+    drawBaseball(c192, 192);
+
+    // Draw real 512 on an off-screen canvas, show scaled preview
+    const real512 = document.createElement('canvas');
+    real512.width = real512.height = 512;
+    drawBaseball(real512, 512);
+
+    // Show 512 scaled to 96px preview
+    const previewCtx = document.getElementById('c512').getContext('2d');
+    previewCtx.drawImage(real512, 0, 0, 96, 96);
+
+    // Download both
+    document.getElementById('dl-btn').addEventListener('click', () => {
+      download(c192, 'icon-192.png');
+      setTimeout(() => download(real512, 'icon-512.png'), 300);
+    });
+
+    function download(canvas, filename) {
+      const a = document.createElement('a');
+      a.download = filename;
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    }
+  </script>
+</body>
+</html>

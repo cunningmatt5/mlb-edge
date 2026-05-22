@@ -2,10 +2,13 @@ name: MLB Morning Picks
 
 on:
   schedule:
-    - cron: '0 12 * * *'   # 8:00 AM ET — first attempt
-    - cron: '0 13 * * *'   # 9:00 AM ET — second attempt
-    - cron: '0 14 * * *'   # 10:00 AM ET — third attempt
+    - cron: '*/15 * * * *'   # every 15 minutes
   workflow_dispatch:
+
+# Prevent two runs from stepping on each other — queue, don't cancel
+concurrency:
+  group: generate-picks
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -13,7 +16,7 @@ permissions:
 jobs:
   generate-picks:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 12
 
     steps:
       - name: Checkout repo
@@ -21,43 +24,47 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Skip if picks already generated today
+      - name: Skip if picks are fresh (< 13 min old)
         id: check
         run: |
-          TODAY=$(date -u +%Y-%m-%d)
-          echo "Today is $TODAY"
-          if python3 -c "
+          NOW=$(date -u +%s)
+          GENERATED=$(python3 -c "
           import json, sys
+          from datetime import datetime, timezone
           try:
               d = json.load(open('docs/picks.json'))
-              sys.exit(0 if d.get('date') == '$TODAY' else 1)
+              ts = datetime.fromisoformat(d['generated_at'].replace('Z', '+00:00'))
+              print(int(ts.timestamp()))
           except Exception:
-              sys.exit(1)
-          " 2>/dev/null; then
-            echo "ran=true" >> \$GITHUB_OUTPUT
-            echo "Picks already generated for $TODAY — skipping."
+              print(0)
+          " 2>/dev/null)
+          AGE=$((NOW - GENERATED))
+          echo "Picks age: ${AGE}s"
+          if [ "$AGE" -lt 780 ]; then
+            echo "stale=false" >> $GITHUB_OUTPUT
+            echo "Picks are ${AGE}s old — still fresh, skipping."
           else
-            echo "ran=false" >> \$GITHUB_OUTPUT
-            echo "Picks not yet generated for $TODAY — proceeding."
+            echo "stale=true" >> $GITHUB_OUTPUT
+            echo "Picks are ${AGE}s old — regenerating."
           fi
 
       - name: Set up Python
-        if: steps.check.outputs.ran == 'false'
+        if: steps.check.outputs.stale == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
 
       - name: Install dependencies
-        if: steps.check.outputs.ran == 'false'
+        if: steps.check.outputs.stale == 'true'
         run: pip install -r requirements.txt
 
       - name: Run analytics pipeline
-        if: steps.check.outputs.ran == 'false'
+        if: steps.check.outputs.stale == 'true'
         run: python -m pipeline.main
 
       - name: Commit picks.json
-        if: steps.check.outputs.ran == 'false'
+        if: steps.check.outputs.stale == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
