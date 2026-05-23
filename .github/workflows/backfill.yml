@@ -1,0 +1,51 @@
+name: Backfill Historical Data & Calibrate
+
+on:
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: 'Comma-separated seasons to backfill (e.g. 2023,2024)'
+        required: false
+        default: '2023,2024'
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4.2.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Pull historical season data
+        run: python -m pipeline.historical --seasons "${{ github.event.inputs.seasons }}"
+
+      - name: Run backtest
+        run: python -m pipeline.backtest --seasons "${{ github.event.inputs.seasons }}"
+
+      - name: Compute calibration
+        run: python -m pipeline.calibrate
+
+      - name: Commit calibration results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/calibration.json
+          git diff --staged --quiet || git commit -m "chore: update signal calibration [skip ci]"
+          git push

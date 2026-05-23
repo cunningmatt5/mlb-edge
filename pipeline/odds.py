@@ -1,9 +1,12 @@
 """Odds fetching, matching, and expected-value computation via The Odds API."""
 from __future__ import annotations
 
+import json
 import logging
 import re
+from functools import lru_cache
 from math import exp
+from pathlib import Path
 from typing import Optional
 
 import requests
@@ -154,13 +157,27 @@ def no_vig_prob(over_odds: int, under_odds: int) -> tuple[float, float]:
     return round(over_raw / total, 4), round(under_raw / total, 4)
 
 
+@lru_cache(maxsize=1)
+def _load_calibration_params() -> tuple[float, float]:
+    """Return (midpoint, slope) from data/calibration.json, or defaults (7.5, 0.45)."""
+    cal_path = Path(__file__).parent.parent / "data" / "calibration.json"
+    try:
+        d = json.loads(cal_path.read_text())
+        p = d["logistic_params"]
+        return float(p["midpoint"]), float(p["slope"])
+    except Exception:
+        return 7.5, 0.45
+
+
 def signal_to_model_prob(signal: float) -> float:
     """Map 5–10 signal to win probability via logistic curve.
 
-    signal 5.0 → ~26%, signal 7.5 → 50%, signal 9.0 → ~67%, signal 10.0 → ~76%.
-    Recalibrate slope/midpoint once 100+ graded picks accumulate.
+    Parameters are loaded from data/calibration.json when available;
+    falls back to hardcoded defaults (midpoint=7.5, slope=0.45).
+    signal 7.5 always → 0.5 regardless of midpoint (by logistic design).
     """
-    return round(1.0 / (1.0 + exp(-(signal - 7.5) * 0.45)), 4)
+    midpoint, slope = _load_calibration_params()
+    return round(1.0 / (1.0 + exp(-(signal - midpoint) * slope)), 4)
 
 
 # ── Matching ──────────────────────────────────────────────────────────────────

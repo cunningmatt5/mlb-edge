@@ -8,3 +8,7 @@ __pycache__/
 dist/
 build/
 .pytest_cache/
+
+# Historical data — large Parquet files; only calibration.json is committed
+data/seasons/
+data/backtest_results.parquet
