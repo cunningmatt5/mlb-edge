@@ -45,7 +45,7 @@ def score_total_bases_props(game: dict, cache: dict) -> list[dict]:
             combined = (batter_comp ** 0.55) * (context_comp ** 0.45)
             signal = round(combined * 10, 1)
 
-            if signal >= 7.0:
+            if signal >= 5.0:
                 batter_name = b.get("name", f"Batter {batter_id}")
                 picks.append({
                     "bet_type":   "TB_PROP",

@@ -68,7 +68,7 @@ def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
         ump_mod, ump_reason = compute_umpire_modifier(umpire, "K_PROP", "OVER")
         signal = max(0.0, min(10.0, round(combined * 10 + ump_mod, 1)))
 
-        if signal >= 7.0:
+        if signal >= 5.0:
             sp_name  = sp.get("name") or game.get(f"{sp_side}_sp_name", "SP")
             opp_team = game.get(f"{opp_side}Team", "Opponent")
             reasons  = _build_reasons(sp, opp_k_mean, opp_contact_mean, opp_team, blended_k, recent_k)

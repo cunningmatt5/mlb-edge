@@ -51,7 +51,7 @@ def score_hr_props(game: dict, cache: dict) -> list[dict]:
             combined = (batter_comp ** 0.55) * (context_comp ** 0.45)
             signal   = max(0.0, min(10.0, round(combined * 10 + weather_mod, 1)))
 
-            if signal >= 7.0:
+            if signal >= 5.0:
                 batter_name = b.get("name", f"Batter {batter_id}")
                 reasons = _build_reasons(b, opp_sp, venue, hr_park)
                 if weather_reason:

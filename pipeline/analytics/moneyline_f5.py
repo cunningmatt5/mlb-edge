@@ -44,7 +44,7 @@ def score_moneyline_f5(game: dict, cache: dict) -> list[dict]:
     fav_ml = home_name if ml_direction == "HOME" else away_name
     fav_f5 = home_name if f5_direction == "HOME" else away_name
 
-    if ml_signal >= 7.0:
+    if ml_signal >= 5.0:
         picks.append({
             "bet_type":     "ML_F5",
             "subject":      f"{away_name} @ {home_name}",
@@ -66,7 +66,7 @@ def score_moneyline_f5(game: dict, cache: dict) -> list[dict]:
             },
         })
 
-    if f5_signal >= 7.0:
+    if f5_signal >= 5.0:
         picks.append({
             "bet_type":     "ML_F5",
             "subject":      f"{away_name} @ {home_name}",

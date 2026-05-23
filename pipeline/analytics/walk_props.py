@@ -68,7 +68,7 @@ def score_walk_props(game: dict, cache: dict) -> list[dict]:
             ump_mod, ump_reason = compute_umpire_modifier(umpire, "WALK_PROP", direction)
             signal = max(0.0, min(10.0, round(raw_sig + ump_mod, 1)))
 
-            if signal >= 7.0:
+            if signal >= 5.0:
                 reasons = _build_reasons(direction, sp, blended_bb, opp_bb_mean, opp_team, recent_bb)
                 if ump_reason:
                     reasons = (reasons + [ump_reason])[:4]

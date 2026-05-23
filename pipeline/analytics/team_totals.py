@@ -45,7 +45,7 @@ def score_team_totals(game: dict, cache: dict) -> list[dict]:
         sp_name      = opp_sp.get("name", "Opposing SP")
 
         for direction, signal in [("OVER", over_signal), ("UNDER", under_signal)]:
-            if signal >= 7.0:
+            if signal >= 5.0:
                 reasons = _build_reasons(
                     direction, offense_team, sp_name, opp_sp,
                     lineup_xwoba, get_run_factor(venue), venue

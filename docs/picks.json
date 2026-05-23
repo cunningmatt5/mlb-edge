@@ -1,6 +1,162 @@
 {
-  "generated_at": "2025-05-22T00:00:00Z",
-  "date": "1970-01-01",
-  "pick_count": 0,
-  "games": []
+  "generated_at": "2026-05-22T11:00:00Z",
+  "date": "2026-05-22",
+  "pick_count": 9,
+  "games": [
+    {
+      "gamePk": 1001,
+      "game_time": "2026-05-22T18:10:00Z",
+      "home_team": "New York Yankees",
+      "away_team": "Boston Red Sox",
+      "venue": "Yankee Stadium",
+      "home_sp": "Gerrit Cole",
+      "away_sp": "Brayan Bello",
+      "picks": [
+        {
+          "bet_type": "K_PROP",
+          "subject": "Gerrit Cole",
+          "direction": "OVER",
+          "headline": "Gerrit Cole Strikeouts — OVER",
+          "signal": 9.2,
+          "tier": "ELITE",
+          "reasons": [
+            "Stuff+ of 138 (100 = avg; higher is better pitch quality)",
+            "Whiff rate of 34.1% on swings this season",
+            "K% 28.7% (blended: season + last 3 starts)",
+            "BOS lineup averages 24.3% K rate — favorable matchup"
+          ]
+        },
+        {
+          "bet_type": "HR_PROP",
+          "subject": "Aaron Judge",
+          "direction": "OVER",
+          "headline": "Aaron Judge to Hit Home Run",
+          "signal": 8.3,
+          "tier": "ELITE",
+          "reasons": [
+            "Barrel rate of 22.1% (MLB avg ~8%)",
+            "Hard-hit rate of 58.4% (exit velocity ≥95 mph)",
+            "Brayan Bello allows 1.84 HR/9 this season",
+            "Yankee Stadium park HR factor: 113 (HR-friendly)"
+          ]
+        },
+        {
+          "bet_type": "WALK_PROP",
+          "subject": "Brayan Bello",
+          "direction": "OVER",
+          "headline": "Brayan Bello Walks — OVER",
+          "signal": 6.8,
+          "tier": "GREAT",
+          "reasons": [
+            "Brayan Bello BB% of 9.8% — elevated walk rate this season",
+            "Zone rate of 43.2% — misses the zone frequently",
+            "NYY lineup BB% of 10.4% — disciplined, patient approach"
+          ]
+        },
+        {
+          "bet_type": "TOTAL",
+          "subject": "Boston Red Sox @ New York Yankees",
+          "direction": "OVER",
+          "headline": "BOS @ NYY Total Runs — OVER",
+          "signal": 5.4,
+          "tier": "APPEALING",
+          "reasons": [
+            "Combined lineup xwOBA of 0.338 — above-average run environment",
+            "Yankee Stadium run factor of 113 — offense-friendly park",
+            "Both SPs project to weak xFIP (4.31 combined avg)"
+          ]
+        }
+      ]
+    },
+    {
+      "gamePk": 1002,
+      "game_time": "2026-05-22T20:10:00Z",
+      "home_team": "Los Angeles Dodgers",
+      "away_team": "San Francisco Giants",
+      "venue": "Dodger Stadium",
+      "home_sp": "Tyler Glasnow",
+      "away_sp": "Logan Webb",
+      "picks": [
+        {
+          "bet_type": "K_PROP",
+          "subject": "Tyler Glasnow",
+          "direction": "OVER",
+          "headline": "Tyler Glasnow Strikeouts — OVER",
+          "signal": 8.7,
+          "tier": "ELITE",
+          "reasons": [
+            "Stuff+ of 144 — elite pitch quality",
+            "Whiff rate of 37.2% on swings this season",
+            "K% 31.4% blended with recent 3 starts",
+            "SF lineup averages 23.9% K rate"
+          ]
+        },
+        {
+          "bet_type": "ML_F5",
+          "subject": "LAD @ SF",
+          "direction": "HOME",
+          "headline": "Los Angeles Dodgers First 5 Innings",
+          "signal": 7.1,
+          "tier": "GREAT",
+          "reasons": [
+            "Glasnow xFIP 2.91 vs. Webb xFIP 3.44",
+            "Glasnow K-BB% of 24.8% — elite command/stuff combo",
+            "LAD lineup wRC+ 118 vs. SF wRC+ 96",
+            "F5 bet isolates SP matchup — removes bullpen variance"
+          ]
+        },
+        {
+          "bet_type": "HIT_PROP",
+          "subject": "Mookie Betts",
+          "direction": "OVER",
+          "headline": "Mookie Betts to Record a Hit",
+          "signal": 6.6,
+          "tier": "GREAT",
+          "reasons": [
+            "xBA of 0.312 — expected batting average based on exit velocity/angle",
+            "Contact rate of 84.3% (MLB avg ~77%)",
+            "Logan Webb has an xBA-against of 0.274 this season",
+            "BB% of 11.2% — disciplined plate approach"
+          ]
+        },
+        {
+          "bet_type": "TB_PROP",
+          "subject": "Freddie Freeman",
+          "direction": "OVER",
+          "headline": "Freddie Freeman Total Bases — OVER",
+          "signal": 5.2,
+          "tier": "APPEALING",
+          "reasons": [
+            "xSLG of 0.514 — expected slugging based on exit velocity/angle",
+            "Barrel rate of 11.3% driving extra-base hit upside",
+            "Logan Webb xSLG-against of 0.371 — allows moderate contact"
+          ]
+        }
+      ]
+    },
+    {
+      "gamePk": 1003,
+      "game_time": "2026-05-22T19:15:00Z",
+      "home_team": "Atlanta Braves",
+      "away_team": "Philadelphia Phillies",
+      "venue": "Truist Park",
+      "home_sp": "Chris Sale",
+      "away_sp": "Zack Wheeler",
+      "picks": [
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Philadelphia Phillies",
+          "direction": "UNDER",
+          "headline": "Philadelphia Phillies Team Total — UNDER",
+          "signal": 5.7,
+          "tier": "APPEALING",
+          "reasons": [
+            "Chris Sale xFIP of 3.18 — elite run suppression",
+            "Sale SIERA of 3.04 — elite expected ERA",
+            "PHI lineup xwOBA of 0.298 — slightly below-average offense vs Sale"
+          ]
+        }
+      ]
+    }
+  ]
 }

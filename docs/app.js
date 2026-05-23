@@ -61,13 +61,20 @@ const BET_COLORS = {
 };
 
 function signalColor(signal) {
-  if (signal >= 9)  return '#00e676';
-  if (signal >= 8)  return '#ffab00';
-  return '#00d4ff';
+  if (signal >= 9.0) return '#00e676';
+  if (signal >= 8.0) return '#ffab00';
+  if (signal >= 6.5) return '#00d4ff';
+  return '#7a88a0';
 }
 
+const TIERS = [
+  { id: 'ELITE',     label: 'Elite',     color: '#ffab00' },
+  { id: 'GREAT',     label: 'Great',     color: '#00d4ff' },
+  { id: 'APPEALING', label: 'Appealing', color: '#7a88a0' },
+];
+
 function renderSignalBar(signal) {
-  const pct   = Math.round(((signal - 7) / 3) * 100);
+  const pct   = Math.round(((signal - 5) / 5) * 100);
   const color = signalColor(signal);
   return `<div class="signal-row">
     <div class="signal-track">
@@ -114,11 +121,7 @@ function formatGameTime(isoString) {
   }
 }
 
-function renderGame(game, filter, idx = 0) {
-  const picks = filter === 'ALL'
-    ? game.picks
-    : game.picks.filter(p => p.bet_type === filter);
-
+function renderGame(game, picks, idx = 0) {
   if (!picks || picks.length === 0) return '';
 
   const gameTime = formatGameTime(game.game_time);
@@ -144,6 +147,18 @@ function renderGame(game, filter, idx = 0) {
       ${picks.map(renderPick).join('')}
     </div>
   </section>`;
+}
+
+function renderTierDivider(tier, count) {
+  const label = count === 1 ? '1 pick' : `${count} picks`;
+  return `<div class="tier-divider" style="--tier-color:${tier.color}">
+    <div class="tier-divider-line"></div>
+    <span class="tier-label">
+      <span class="tier-name">${tier.label}</span>
+      <span class="tier-count">${label}</span>
+    </span>
+    <div class="tier-divider-line"></div>
+  </div>`;
 }
 
 // ── Record view ───────────────────────────────────────────────────────────────
@@ -237,8 +252,8 @@ function renderRecord(history) {
 
 // ── Render picks or record ────────────────────────────────────────────────────
 function renderAll() {
-  const container  = document.getElementById('games-container');
-  const noPicks    = document.getElementById('no-picks-state');
+  const container = document.getElementById('games-container');
+  const noPicks   = document.getElementById('no-picks-state');
 
   if (activeFilter === 'RECORD') {
     container.innerHTML = renderRecord(historyData);
@@ -246,11 +261,33 @@ function renderAll() {
     return;
   }
 
-  const html = allGames.map((g, i) => renderGame(g, activeFilter, i)).join('');
-  container.innerHTML = html;
+  let html = '';
+  let totalPicks = 0;
+  let blockIdx = 0;
 
-  const hasContent = html.trim().length > 0;
-  noPicks.classList.toggle('hidden', hasContent);
+  for (const tier of TIERS) {
+    // For each game find picks that match this tier + active filter, sorted by signal desc
+    const tierGames = allGames.map(game => {
+      const picks = game.picks
+        .filter(p => p.tier === tier.id && (activeFilter === 'ALL' || p.bet_type === activeFilter))
+        .sort((a, b) => b.signal - a.signal);
+      return { game, picks };
+    }).filter(({ picks }) => picks.length > 0);
+
+    if (tierGames.length === 0) continue;
+
+    const tierCount = tierGames.reduce((n, { picks }) => n + picks.length, 0);
+    html += renderTierDivider(tier, tierCount);
+
+    for (const { game, picks } of tierGames) {
+      html += renderGame(game, picks, blockIdx++);
+    }
+
+    totalPicks += tierCount;
+  }
+
+  container.innerHTML = html;
+  noPicks.classList.toggle('hidden', totalPicks > 0);
 }
 
 // ── Filter bar ────────────────────────────────────────────────────────────────

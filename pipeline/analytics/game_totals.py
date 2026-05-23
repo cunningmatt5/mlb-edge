@@ -54,7 +54,7 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
     matchup   = f"{away_name} @ {home_name}"
 
     for direction, signal, raw in [("OVER", over_signal, over_raw), ("UNDER", under_signal, under_raw)]:
-        if signal >= 7.0:
+        if signal >= 5.0:
             reasons = _build_reasons(direction, home_sp, away_sp, avg_xwoba, park_run, venue)
             if weather_reason:
                 reasons = (reasons + [weather_reason])[:4]

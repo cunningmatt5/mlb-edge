@@ -534,6 +534,43 @@ h1 {
   padding: 28px 0;
 }
 
+/* ── Tier dividers ──────────────────────────────────────────────────────────── */
+.tier-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0 2px;
+}
+
+.tier-divider-line {
+  flex: 1;
+  height: 1px;
+  background: var(--tier-color, var(--border));
+  opacity: 0.35;
+}
+
+.tier-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tier-name {
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1.3px;
+  color: var(--tier-color, var(--text-muted));
+}
+
+.tier-count {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
 /* ── Responsive ─────────────────────────────────────────────────────────────── */
 @media (min-width: 640px) {
   #main-content {

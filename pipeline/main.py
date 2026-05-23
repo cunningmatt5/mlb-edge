@@ -26,7 +26,19 @@ from pipeline.schedule import fetch_schedule
 from pipeline.statcast import build_player_cache
 from pipeline.weather import fetch_game_weather
 
-SIGNAL_THRESHOLD = 7.0
+SIGNAL_THRESHOLD = 5.0   # Appealing floor — anything below is not surfaced
+
+TIER_ELITE     = 8.0
+TIER_GREAT     = 6.5
+TIER_APPEALING = 5.0
+
+
+def _assign_tier(signal: float) -> str:
+    if signal >= TIER_ELITE:
+        return "ELITE"
+    if signal >= TIER_GREAT:
+        return "GREAT"
+    return "APPEALING"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -87,10 +99,15 @@ def main(dry_run: bool = False) -> None:
 
         total_candidates += len(candidates)
         qualifying = [c for c in candidates if c["signal"] >= SIGNAL_THRESHOLD]
+        for pick in qualifying:
+            pick["tier"] = _assign_tier(pick["signal"])
 
+        tier_counts = {t: sum(1 for p in qualifying if p.get("tier") == t)
+                       for t in ("ELITE", "GREAT", "APPEALING")}
         log.info(
-            "  %s @ %s: %d candidates, %d above threshold",
-            away, home, len(candidates), len(qualifying),
+            "  %s @ %s: %d candidates → Elite %d / Great %d / Appealing %d",
+            away, home, len(candidates),
+            tier_counts["ELITE"], tier_counts["GREAT"], tier_counts["APPEALING"],
         )
 
         if qualifying:
