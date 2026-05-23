@@ -60,7 +60,7 @@ def fetch_mlb_game_lines(api_key: str, date_str: str) -> dict:
         for event in events:
             home = event.get("home_team", "")
             away = event.get("away_team", "")
-            key = f"{_norm(away)}@{_norm(home)}"
+            key = f"{_norm_team(away)}@{_norm_team(home)}"
             markets: dict[str, list] = {}
             for bm in event.get("bookmakers", []):
                 if bm.get("key") != "pinnacle":
@@ -219,10 +219,10 @@ def match_game_line(pick: dict, game: dict, game_lines: dict) -> Optional[dict]:
         outcomes = markets.get("h2h_h1") or markets.get("h2h", [])
         if not outcomes:
             return None
-        norm_home = _norm(home)
-        norm_away = _norm(away)
-        home_out = next((o for o in outcomes if _norm(o.get("name", "")) == norm_home), None)
-        away_out = next((o for o in outcomes if _norm(o.get("name", "")) == norm_away), None)
+        norm_home = _norm_team(home)
+        norm_away = _norm_team(away)
+        home_out = next((o for o in outcomes if _norm_team(o.get("name", "")) == norm_home), None)
+        away_out = next((o for o in outcomes if _norm_team(o.get("name", "")) == norm_away), None)
         if not home_out or not away_out:
             return None
         # HOME direction uses over_price slot; AWAY uses under_price slot
@@ -261,7 +261,7 @@ def get_event_id(game: dict, game_lines: dict) -> Optional[str]:
     """Return the Odds API event_id for a game dict, or None if not matched."""
     away = game.get("awayTeam", "")
     home = game.get("homeTeam", "")
-    event = game_lines.get(f"{_norm(away)}@{_norm(home)}")
+    event = game_lines.get(f"{_norm_team(away)}@{_norm_team(home)}")
     return event.get("event_id") if event else None
 
 
@@ -292,3 +292,25 @@ def compute_ev(pick: dict, matched_line: dict) -> dict:
 def _norm(name: str) -> str:
     """Normalize team/player name for fuzzy matching (lowercase alphanum only)."""
     return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
+# Map Odds API team name variants → canonical normalized form that matches
+# the MLB Stats API team names used by the schedule module.
+_TEAM_CANON: dict[str, str] = {
+    # Athletics (city changed Oakland→Sacramento 2025; Stats API omits city)
+    "oaklandathletics":    "athletics",
+    "sacramentoathletics": "athletics",
+    # Angels (historical "of Anaheim" suffix)
+    "losangelesangelsofanaheim": "losangelesangels",
+    "anaheimangels":             "losangelesangels",
+    # Marlins (pre-2012 Florida name)
+    "floridamarlins": "miamimarlins",
+    # Guardians (pre-2022 Indians name)
+    "clevelandindians": "clevelandguardians",
+}
+
+
+def _norm_team(name: str) -> str:
+    """Normalize a team name and resolve known alias variants."""
+    n = _norm(name)
+    return _TEAM_CANON.get(n, n)
