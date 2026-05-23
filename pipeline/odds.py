@@ -32,10 +32,14 @@ def fetch_mlb_game_lines(api_key: str, date_str: str) -> dict:
         log.debug("No ODDS_API_KEY set — skipping odds fetch")
         return {}
     try:
+        # Free tier supports h2h + totals. team_totals requires a paid plan.
+        # Set ODDS_MARKETS env var to override (e.g., "h2h,totals,team_totals").
+        import os as _os
+        markets = _os.environ.get("ODDS_MARKETS", "h2h,totals")
         params = {
             "apiKey": api_key,
             "regions": "us",
-            "markets": "h2h,h2h_h1,totals,team_totals",
+            "markets": markets,
             "bookmakers": "pinnacle",
             "oddsFormat": "american",
             "dateFormat": "iso",
@@ -211,9 +215,8 @@ def match_game_line(pick: dict, game: dict, game_lines: dict) -> Optional[dict]:
         }
 
     if bet_type == "ML_F5":
-        is_f5 = "First 5" in pick.get("headline", "")
-        # Try F5 market first; fall back to full-game h2h
-        outcomes = markets.get("h2h_h1" if is_f5 else "h2h") or markets.get("h2h", [])
+        # h2h_h1 (first-half ML) requires a paid plan; always fall back to h2h
+        outcomes = markets.get("h2h_h1") or markets.get("h2h", [])
         if not outcomes:
             return None
         norm_home = _norm(home)
