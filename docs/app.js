@@ -131,13 +131,26 @@ function renderSpLine(game) {
 }
 
 // ── Insights panel ─────────────────────────────────────────────────────────────
+function insightRow(dirCls, label, hist, impl, edge) {
+  return `<div class="insight-row">
+    <span class="insight-dir ${dirCls}">${label}</span>
+    <div class="insight-data">
+      <div class="insight-data-top">
+        <span class="insight-hist">${fmtPct(hist)}</span>
+        ${edgeBadge(edge)}
+      </div>
+      <span class="insight-impl">vs ${fmtPct(impl)}</span>
+    </div>
+  </div>`;
+}
+
 function renderInsightsPanel(game) {
   const ins = game.insights;
 
   if (!ins || (!ins.total && !ins.moneyline)) {
     const msg = !ins
-      ? 'Comps analysis unavailable — run backfill to build game_comps.json'
-      : 'No Pinnacle line available for comps analysis';
+      ? 'Comps unavailable — trigger backfill to build game_comps.json'
+      : 'No Pinnacle line';
     return `<div class="insights-panel insights-na">
       <span class="insights-na-msg">${msg}</span>
     </div>`;
@@ -150,26 +163,8 @@ function renderInsightsPanel(game) {
     const lineStr = t.line != null ? `O/U ${t.line}` : '';
     totalCol = `<div class="insight-col">
       <div class="insight-mkt-label">TOTAL <span class="insight-line-val">${lineStr}</span></div>
-      <div class="insight-row">
-        <div class="insight-side">
-          <span class="insight-dir ins-over">OVER</span>
-          <div class="insight-probs">
-            <span class="insight-hist">${fmtPct(t.historical_over_rate)}</span>
-            <span class="insight-impl">vs ${fmtPct(t.pinnacle_over_prob)} impl</span>
-          </div>
-        </div>
-        ${edgeBadge(t.over_edge)}
-      </div>
-      <div class="insight-row">
-        <div class="insight-side">
-          <span class="insight-dir ins-under">UNDER</span>
-          <div class="insight-probs">
-            <span class="insight-hist">${fmtPct(t.historical_under_rate)}</span>
-            <span class="insight-impl">vs ${fmtPct(t.pinnacle_under_prob)} impl</span>
-          </div>
-        </div>
-        ${edgeBadge(t.under_edge)}
-      </div>
+      ${insightRow('ins-over',  'OVER',  t.historical_over_rate,  t.pinnacle_over_prob,  t.over_edge)}
+      ${insightRow('ins-under', 'UNDER', t.historical_under_rate, t.pinnacle_under_prob, t.under_edge)}
     </div>`;
   } else {
     totalCol = `<div class="insight-col insight-col-empty">
@@ -184,26 +179,8 @@ function renderInsightsPanel(game) {
     const m = ins.moneyline;
     mlCol = `<div class="insight-col">
       <div class="insight-mkt-label">MONEYLINE</div>
-      <div class="insight-row">
-        <div class="insight-side">
-          <span class="insight-dir ins-home">${teamAbbr(game.home_team)}</span>
-          <div class="insight-probs">
-            <span class="insight-hist">${fmtPct(m.historical_home_rate)}</span>
-            <span class="insight-impl">vs ${fmtPct(m.pinnacle_home_prob)} impl</span>
-          </div>
-        </div>
-        ${edgeBadge(m.home_edge)}
-      </div>
-      <div class="insight-row">
-        <div class="insight-side">
-          <span class="insight-dir ins-away">${teamAbbr(game.away_team)}</span>
-          <div class="insight-probs">
-            <span class="insight-hist">${fmtPct(m.historical_away_rate)}</span>
-            <span class="insight-impl">vs ${fmtPct(m.pinnacle_away_prob)} impl</span>
-          </div>
-        </div>
-        ${edgeBadge(m.away_edge)}
-      </div>
+      ${insightRow('ins-home', teamAbbr(game.home_team), m.historical_home_rate, m.pinnacle_home_prob, m.home_edge)}
+      ${insightRow('ins-away', teamAbbr(game.away_team), m.historical_away_rate, m.pinnacle_away_prob, m.away_edge)}
     </div>`;
   } else {
     mlCol = `<div class="insight-col insight-col-empty">
