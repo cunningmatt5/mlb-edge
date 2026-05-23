@@ -153,16 +153,20 @@ function renderInsightsPanel(game) {
       <div class="insight-row">
         <div class="insight-side">
           <span class="insight-dir ins-over">OVER</span>
-          <span class="insight-hist">${fmtPct(t.historical_over_rate)}</span>
-          <span class="insight-impl">vs ${fmtPct(t.pinnacle_over_prob)} impl</span>
+          <div class="insight-probs">
+            <span class="insight-hist">${fmtPct(t.historical_over_rate)}</span>
+            <span class="insight-impl">vs ${fmtPct(t.pinnacle_over_prob)} impl</span>
+          </div>
         </div>
         ${edgeBadge(t.over_edge)}
       </div>
       <div class="insight-row">
         <div class="insight-side">
           <span class="insight-dir ins-under">UNDER</span>
-          <span class="insight-hist">${fmtPct(t.historical_under_rate)}</span>
-          <span class="insight-impl">vs ${fmtPct(t.pinnacle_under_prob)} impl</span>
+          <div class="insight-probs">
+            <span class="insight-hist">${fmtPct(t.historical_under_rate)}</span>
+            <span class="insight-impl">vs ${fmtPct(t.pinnacle_under_prob)} impl</span>
+          </div>
         </div>
         ${edgeBadge(t.under_edge)}
       </div>
@@ -183,16 +187,20 @@ function renderInsightsPanel(game) {
       <div class="insight-row">
         <div class="insight-side">
           <span class="insight-dir ins-home">${teamAbbr(game.home_team)}</span>
-          <span class="insight-hist">${fmtPct(m.historical_home_rate)}</span>
-          <span class="insight-impl">vs ${fmtPct(m.pinnacle_home_prob)} impl</span>
+          <div class="insight-probs">
+            <span class="insight-hist">${fmtPct(m.historical_home_rate)}</span>
+            <span class="insight-impl">vs ${fmtPct(m.pinnacle_home_prob)} impl</span>
+          </div>
         </div>
         ${edgeBadge(m.home_edge)}
       </div>
       <div class="insight-row">
         <div class="insight-side">
           <span class="insight-dir ins-away">${teamAbbr(game.away_team)}</span>
-          <span class="insight-hist">${fmtPct(m.historical_away_rate)}</span>
-          <span class="insight-impl">vs ${fmtPct(m.pinnacle_away_prob)} impl</span>
+          <div class="insight-probs">
+            <span class="insight-hist">${fmtPct(m.historical_away_rate)}</span>
+            <span class="insight-impl">vs ${fmtPct(m.pinnacle_away_prob)} impl</span>
+          </div>
         </div>
         ${edgeBadge(m.away_edge)}
       </div>

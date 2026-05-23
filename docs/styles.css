@@ -736,10 +736,18 @@ h1 {
 
 .insight-side {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
   flex: 1;
+}
+
+.insight-probs {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.2;
 }
 
 .insight-dir {
