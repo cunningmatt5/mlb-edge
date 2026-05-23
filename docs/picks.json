@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-05-23T14:44:58.331063+00:00",
+  "generated_at": "2026-05-23T15:03:44.009251+00:00",
   "date": "2026-05-23",
-  "pick_count": 66,
+  "pick_count": 69,
   "games": [
     {
       "gamePk": 824518,
@@ -1591,13 +1591,144 @@
           "has_line": false
         },
         {
+          "bet_type": "WALK_PROP",
+          "subject": "Lorenzen, Michael",
+          "subject_id": 547179,
+          "direction": "OVER",
+          "headline": "Lorenzen, Michael Walks \u2014 OVER",
+          "signal": 5.4,
+          "reasons": [
+            "Lorenzen, Michael BB% of 11.0% \u2014 elevated walk rate this season"
+          ],
+          "raw_scores": {
+            "bb_pct": "11.0%",
+            "zone_pct": null,
+            "f_strike_pct": null,
+            "opp_lineup_bb_pct": null,
+            "command_component": 0.422,
+            "lineup_patience": 0.5,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TOTAL",
+          "subject": "Colorado Rockies @ Arizona Diamondbacks",
+          "direction": "OVER",
+          "headline": "Colorado Rockies @ Arizona Diamondbacks Total Runs \u2014 OVER",
+          "signal": 5.0,
+          "reasons": [
+            "Combined lineup xwOBA of 0.310 \u2014 above-average run environment",
+            "Chase Field run factor of 103 \u2014 offense-friendly park",
+            "Hot (92\u00b0F) \u2014 ball carries well in warm air"
+          ],
+          "raw_scores": {
+            "home_sp_xfip": null,
+            "away_sp_xfip": null,
+            "home_sp_siera": null,
+            "away_sp_siera": null,
+            "avg_lineup_xwoba": 0.31,
+            "park_run_factor": 103,
+            "avg_suppression": 0.5,
+            "offense_score": 0.4,
+            "weather_modifier": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TOTAL",
+          "subject": "Colorado Rockies @ Arizona Diamondbacks",
+          "direction": "UNDER",
+          "headline": "Colorado Rockies @ Arizona Diamondbacks Total Runs \u2014 UNDER",
+          "signal": 5.0,
+          "reasons": [
+            "Hot (92\u00b0F) \u2014 ball carries well in warm air"
+          ],
+          "raw_scores": {
+            "home_sp_xfip": null,
+            "away_sp_xfip": null,
+            "home_sp_siera": null,
+            "away_sp_siera": null,
+            "avg_lineup_xwoba": 0.31,
+            "park_run_factor": 103,
+            "avg_suppression": 0.5,
+            "offense_score": 0.4,
+            "weather_modifier": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Arizona Diamondbacks",
+          "subject_side": "home",
+          "direction": "OVER",
+          "headline": "Arizona Diamondbacks Team Total \u2014 OVER",
+          "signal": 5.0,
+          "reasons": [
+            "Arizona Diamondbacks lineup xwOBA of 0.310 \u2014 above-average offensive unit",
+            "Chase Field run factor of 103 \u2014 boosts run scoring environment",
+            "Hot (92\u00b0F) \u2014 ball carries well in warm air"
+          ],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 103,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
           "bet_type": "TEAM_TOTAL",
           "subject": "Arizona Diamondbacks",
           "subject_side": "home",
           "direction": "UNDER",
           "headline": "Arizona Diamondbacks Team Total \u2014 UNDER",
-          "signal": 5.5,
-          "reasons": [],
+          "signal": 5.0,
+          "reasons": [
+            "Hot (92\u00b0F) \u2014 ball carries well in warm air"
+          ],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 103,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Colorado Rockies",
+          "subject_side": "away",
+          "direction": "OVER",
+          "headline": "Colorado Rockies Team Total \u2014 OVER",
+          "signal": 5.0,
+          "reasons": [
+            "Colorado Rockies lineup xwOBA of 0.310 \u2014 above-average offensive unit",
+            "Chase Field run factor of 103 \u2014 boosts run scoring environment",
+            "Hot (92\u00b0F) \u2014 ball carries well in warm air"
+          ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
             "sp_xfip": null,
@@ -1618,8 +1749,10 @@
           "subject_side": "away",
           "direction": "UNDER",
           "headline": "Colorado Rockies Team Total \u2014 UNDER",
-          "signal": 5.5,
-          "reasons": [],
+          "signal": 5.0,
+          "reasons": [
+            "Hot (92\u00b0F) \u2014 ball carries well in warm air"
+          ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
             "sp_xfip": null,
@@ -1628,53 +1761,6 @@
             "sp_suppress": 0.5,
             "offense_score": 0.4,
             "umpire_modifier": null,
-            "umpire": null
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TOTAL",
-          "subject": "Colorado Rockies @ Arizona Diamondbacks",
-          "direction": "UNDER",
-          "headline": "Colorado Rockies @ Arizona Diamondbacks Total Runs \u2014 UNDER",
-          "signal": 5.4,
-          "reasons": [],
-          "raw_scores": {
-            "home_sp_xfip": null,
-            "away_sp_xfip": null,
-            "home_sp_siera": null,
-            "away_sp_siera": null,
-            "avg_lineup_xwoba": 0.31,
-            "park_run_factor": 103,
-            "avg_suppression": 0.5,
-            "offense_score": 0.4,
-            "weather_modifier": null,
-            "umpire_modifier": null,
-            "umpire": null
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Lorenzen, Michael",
-          "subject_id": 547179,
-          "direction": "OVER",
-          "headline": "Lorenzen, Michael Walks \u2014 OVER",
-          "signal": 5.4,
-          "reasons": [
-            "Lorenzen, Michael BB% of 11.0% \u2014 elevated walk rate this season"
-          ],
-          "raw_scores": {
-            "bb_pct": "11.0%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.422,
-            "lineup_patience": 0.5,
             "umpire": null
           },
           "tier": "APPEALING",
