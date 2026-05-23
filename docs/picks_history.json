@@ -437,8 +437,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 3.0
     },
     {
       "date": "2026-05-23",
@@ -461,8 +461,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 0
     },
     {
       "date": "2026-05-23",
@@ -485,8 +485,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 3
     },
     {
       "date": "2026-05-23",
@@ -512,8 +512,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 3
     },
     {
       "date": "2026-05-23",
@@ -535,8 +535,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 3.0
     },
     {
       "date": "2026-05-23",
@@ -558,8 +558,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 1.0
     },
     {
       "date": "2026-05-23",
@@ -585,8 +585,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 7
     },
     {
       "date": "2026-05-23",
@@ -609,8 +609,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 5
     },
     {
       "date": "2026-05-23",
@@ -633,8 +633,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 2
     },
     {
       "date": "2026-05-23",
@@ -656,8 +656,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 0.0
     },
     {
       "date": "2026-05-23",
@@ -1088,8 +1088,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 1.0
     },
     {
       "date": "2026-05-23",
@@ -1115,8 +1115,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 5
     },
     {
       "date": "2026-05-23",
@@ -1139,8 +1139,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 5
     },
     {
       "date": "2026-05-23",
@@ -1163,8 +1163,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 0
     },
     {
       "date": "2026-05-23",
@@ -1186,8 +1186,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 0.0
     },
     {
       "date": "2026-05-23",
@@ -1451,8 +1451,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 2.0
     },
     {
       "date": "2026-05-23",
@@ -1478,8 +1478,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 5
     },
     {
       "date": "2026-05-23",
@@ -1502,8 +1502,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 4
     },
     {
       "date": "2026-05-23",
@@ -1526,8 +1526,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 1
     },
     {
       "date": "2026-05-23",
@@ -1549,8 +1549,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 3.0
     },
     {
       "date": "2026-05-23",
@@ -2133,27 +2133,72 @@
       },
       "outcome": "PENDING",
       "actual_value": null
+    },
+    {
+      "date": "2026-05-23",
+      "game_pk": 823787,
+      "bet_type": "WALK_PROP",
+      "subject": "Robert Gasser",
+      "subject_id": 688107,
+      "subject_side": null,
+      "direction": "UNDER",
+      "headline": "Robert Gasser Walks \u2014 UNDER",
+      "signal": 5.1,
+      "tier": "APPEALING",
+      "raw_scores": {
+        "bb_pct": "10.0%",
+        "zone_pct": null,
+        "f_strike_pct": null,
+        "opp_lineup_bb_pct": null,
+        "command_component": 0.46,
+        "lineup_patience": 0.5,
+        "umpire": "Tripp Gibson"
+      },
+      "outcome": "PENDING",
+      "actual_value": null,
+      "has_line": false,
+      "line_at_pick": null,
+      "edge_pct_at_pick": null
     }
   ],
   "summary": {
-    "total": 88,
-    "wins": 0,
-    "losses": 0,
-    "pending": 88,
-    "win_rate": null,
-    "by_type": {},
+    "total": 89,
+    "wins": 14,
+    "losses": 6,
+    "pending": 69,
+    "win_rate": 0.7,
+    "by_type": {
+      "WALK_PROP": {
+        "total": 8,
+        "wins": 5,
+        "losses": 3,
+        "win_rate": 0.625
+      },
+      "TEAM_TOTAL": {
+        "total": 8,
+        "wins": 5,
+        "losses": 3,
+        "win_rate": 0.625
+      },
+      "TOTAL": {
+        "total": 4,
+        "wins": 4,
+        "losses": 0,
+        "win_rate": 1.0
+      }
+    },
     "by_signal_band": {
       "5.0-5.9": {
-        "total": 0,
-        "wins": 0,
-        "losses": 0,
-        "win_rate": null
+        "total": 19,
+        "wins": 13,
+        "losses": 6,
+        "win_rate": 0.684
       },
       "6.0-6.9": {
-        "total": 0,
-        "wins": 0,
+        "total": 1,
+        "wins": 1,
         "losses": 0,
-        "win_rate": null
+        "win_rate": 1.0
       },
       "7.0-7.9": {
         "total": 0,
@@ -2188,10 +2233,10 @@
         "win_rate": null
       },
       "APPEALING": {
-        "total": 0,
-        "wins": 0,
-        "losses": 0,
-        "win_rate": null
+        "total": 20,
+        "wins": 14,
+        "losses": 6,
+        "win_rate": 0.7
       }
     }
   }
