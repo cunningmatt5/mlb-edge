@@ -1,0 +1,76 @@
+{
+  "generated_at": "2026-05-23T15:43:42.646019+00:00",
+  "seasons_used": [
+    2023,
+    2024
+  ],
+  "total_graded": 122671,
+  "logistic_params": {
+    "midpoint": 11.0,
+    "slope": 0.0778
+  },
+  "win_rates": {
+    "by_signal_band": {
+      "5.0-5.9": {
+        "n": 110024,
+        "win_rate": 0.3947
+      },
+      "6.0-6.9": {
+        "n": 10815,
+        "win_rate": 0.4071
+      },
+      "7.0-7.9": {
+        "n": 1604,
+        "win_rate": 0.4345
+      },
+      "8.0-8.9": {
+        "n": 228,
+        "win_rate": 0.3377
+      },
+      "9.0+": {
+        "n": 0,
+        "win_rate": null
+      }
+    },
+    "by_bet_type": {
+      "HIT_PROP": {
+        "n": 51720,
+        "win_rate": 0.5269
+      },
+      "HR_PROP": {
+        "n": 29465,
+        "win_rate": 0.1389
+      },
+      "TB_PROP": {
+        "n": 26006,
+        "win_rate": 0.368
+      },
+      "TEAM_TOTAL": {
+        "n": 10293,
+        "win_rate": 0.4799
+      },
+      "TOTAL": {
+        "n": 5187,
+        "win_rate": 0.5315
+      }
+    },
+    "by_tier": {
+      "APPEALING": {
+        "n": 117845,
+        "win_rate": 0.3955
+      },
+      "ELITE": {
+        "n": 228,
+        "win_rate": 0.3377
+      },
+      "GREAT": {
+        "n": 4598,
+        "win_rate": 0.4187
+      }
+    }
+  },
+  "tier_recommendations": {
+    "elite_cutoff": 8.0,
+    "great_cutoff": 6.5
+  }
+}
