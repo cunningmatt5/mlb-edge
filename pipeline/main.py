@@ -21,29 +21,34 @@ from pipeline.analytics.strikeout_props import score_strikeout_props
 from pipeline.analytics.team_totals import score_team_totals
 from pipeline.analytics.total_bases import score_total_bases_props
 from pipeline.analytics.walk_props import score_walk_props
+from pipeline.comps import build_game_profile, compute_insights, find_similar_games, load_comps_db
 from pipeline.formatter import build_game_block, build_output, write_picks_json
-from pipeline.resolver import archive_picks, load_history, resolve_pending, save_history
-from pipeline.schedule import fetch_schedule
-from pipeline.statcast import build_player_cache
 from pipeline.odds import (
+    _norm_team,
     compute_ev,
     fetch_mlb_game_lines,
     fetch_mlb_props,
     get_event_id,
+    get_game_event,
     match_game_line,
     match_prop_line,
 )
+from pipeline.park_factors import get_run_factor
+from pipeline.resolver import archive_picks, load_history, resolve_pending, save_history
+from pipeline.schedule import fetch_schedule
+from pipeline.scorer import lineup_weighted_mean
+from pipeline.statcast import build_player_cache
 from pipeline.weather import fetch_game_weather
 
-SIGNAL_THRESHOLD = 5.0   # Appealing floor — anything below is not surfaced
+SIGNAL_THRESHOLD = 5.0
 
 TIER_ELITE     = 8.0
 TIER_GREAT     = 6.5
 TIER_APPEALING = 5.0
 
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY", "")
-MIN_EDGE     = 0.03   # minimum edge vs Pinnacle no-vig to surface a pick
-FETCH_PROPS  = os.environ.get("ODDS_FETCH_PROPS", "").lower() == "true"  # paid tier only
+MIN_EDGE     = 0.03
+FETCH_PROPS  = os.environ.get("ODDS_FETCH_PROPS", "").lower() == "true"
 
 
 def _assign_tier(signal: float) -> str:
@@ -52,6 +57,11 @@ def _assign_tier(signal: float) -> str:
     if signal >= TIER_GREAT:
         return "GREAT"
     return "APPEALING"
+
+
+def _sp_stats(sp: dict) -> dict:
+    return {k: sp.get(k) for k in ("xfip", "siera", "k_pct", "stuff_plus", "bb_pct", "hr_per_9")}
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,7 +75,6 @@ def main(dry_run: bool = False) -> None:
     today = date.today()
     log.info("=== MLB Edge pipeline starting for %s ===", today)
 
-    # --- Grade any pending picks from previous days ---
     history = load_history()
     resolve_pending(history)
 
@@ -77,34 +86,79 @@ def main(dry_run: bool = False) -> None:
             save_history(history)
         return
 
-    # --- Enrich each game with weather data ---
     log.info("Fetching weather for %d games...", len(games))
     for game in games:
         game["weather"] = fetch_game_weather(game.get("venue", ""), game.get("gameTime", ""))
-        if game["weather"] and not game["weather"].get("dome"):
-            wmod = game["weather"].get("wind_speed_mph")
-            log.debug("  %s: wind=%s mph, temp=%s°F, blowing_out=%s",
-                      game.get("venue"), wmod,
-                      game["weather"].get("temp_f"),
-                      game["weather"].get("blowing_out"))
 
     log.info("Building player cache for %d games...", len(games))
     cache = build_player_cache(games)
 
-    # --- Fetch today's game-level odds (free tier: h2h, totals, team_totals) ---
     game_lines = fetch_mlb_game_lines(ODDS_API_KEY, today.isoformat())
     if game_lines:
         log.info("Odds: matched %d games from Pinnacle", len(game_lines))
+
+    comps_db = load_comps_db()
+    if comps_db:
+        log.info("Comps database: %d historical games loaded", len(comps_db))
 
     game_blocks = []
     total_candidates = 0
 
     for game in games:
-        home = game.get("homeTeam", "")
-        away = game.get("awayTeam", "")
+        home   = game.get("homeTeam", "")
+        away   = game.get("awayTeam", "")
         umpire = game.get("umpire", "")
         log.info("Analyzing: %s @ %s (umpire: %s)", away, home, umpire or "TBD")
 
+        # --- Comps insights ---
+        profile = build_game_profile(game, cache) if comps_db else None
+        insights   = None
+        comps_count = 0
+        if profile and comps_db:
+            event = get_game_event(game, game_lines)
+            if event:
+                markets = event.get("markets", {})
+                totals  = markets.get("totals", [])
+                h2h     = markets.get("h2h", [])
+
+                over_out  = next((o for o in totals if o.get("name") == "Over"),  None)
+                under_out = next((o for o in totals if o.get("name") == "Under"), None)
+                total_line  = over_out.get("point")  if over_out  else None
+                over_price  = over_out["price"]       if over_out  else None
+                under_price = under_out["price"]      if under_out else None
+
+                norm_home = _norm_team(home)
+                norm_away = _norm_team(away)
+                home_out  = next((o for o in h2h if _norm_team(o.get("name", "")) == norm_home), None)
+                away_out  = next((o for o in h2h if _norm_team(o.get("name", "")) == norm_away), None)
+                home_price = home_out["price"] if home_out else None
+                away_price = away_out["price"] if away_out else None
+
+                similar     = find_similar_games(profile, comps_db, n=30)
+                comps_count = len(similar)
+                insights    = compute_insights(
+                    similar, total_line, over_price, under_price, home_price, away_price
+                )
+
+        # --- SP stats ---
+        home_sp_id = game.get("home_sp_id")
+        away_sp_id = game.get("away_sp_id")
+        home_sp_stats = _sp_stats(cache.get(home_sp_id, {}) if home_sp_id else {})
+        away_sp_stats = _sp_stats(cache.get(away_sp_id, {}) if away_sp_id else {})
+
+        # --- Lineup xwoba ---
+        home_players = [cache[b] for b in game.get("home_lineup", []) if b in cache]
+        away_players = [cache[b] for b in game.get("away_lineup", []) if b in cache]
+        home_lineup_xwoba = lineup_weighted_mean(home_players, "xwoba")
+        away_lineup_xwoba = lineup_weighted_mean(away_players, "xwoba")
+
+        # --- Park factor ---
+        try:
+            park_run_factor = float(get_run_factor(game.get("venue", "")))
+        except Exception:
+            park_run_factor = None
+
+        # --- Props scoring (secondary section) ---
         candidates: list[dict] = []
         candidates += score_strikeout_props(game, cache)
         candidates += score_hr_props(game, cache)
@@ -120,7 +174,6 @@ def main(dry_run: bool = False) -> None:
         for pick in qualifying:
             pick["tier"] = _assign_tier(pick["signal"])
 
-        # --- Match odds lines and compute edge ---
         _PROP_TYPES = {"K_PROP", "HR_PROP", "HIT_PROP", "TB_PROP", "WALK_PROP"}
         prop_lines: dict = {}
         if FETCH_PROPS and game_lines:
@@ -140,43 +193,49 @@ def main(dry_run: bool = False) -> None:
                 pick["odds"] = None
                 pick["has_line"] = False
 
-        # Keep picks with sufficient edge OR no line matched (never suppress blind)
         qualifying = [
             p for p in qualifying
             if not p["has_line"] or p["odds"]["edge_pct"] >= MIN_EDGE
         ]
 
-        # Sort: lined picks first (edge desc), then unpriced picks (signal desc)
         qualifying.sort(key=lambda p: (
             0 if p["has_line"] else 1,
             -p["odds"]["edge_pct"] if p["has_line"] else 0.0,
             -p["signal"],
         ))
 
-        tier_counts = {t: sum(1 for p in qualifying if p.get("tier") == t)
-                       for t in ("ELITE", "GREAT", "APPEALING")}
-        lined = sum(1 for p in qualifying if p.get("has_line"))
+        has_insights = insights and (insights.get("total") or insights.get("moneyline"))
         log.info(
-            "  %s @ %s: %d candidates → Elite %d / Great %d / Appealing %d (%d lined)",
-            away, home, len(candidates),
-            tier_counts["ELITE"], tier_counts["GREAT"], tier_counts["APPEALING"], lined,
+            "  %s @ %s: insights=%s comps=%d picks=%d",
+            away, home,
+            "yes" if has_insights else "no",
+            comps_count,
+            len(qualifying),
         )
 
-        if qualifying:
-            game_blocks.append(build_game_block(game, qualifying))
+        game_blocks.append(build_game_block(
+            game,
+            qualifying,
+            insights=insights,
+            comps_count=comps_count,
+            home_sp_stats=home_sp_stats,
+            away_sp_stats=away_sp_stats,
+            home_lineup_xwoba=home_lineup_xwoba,
+            away_lineup_xwoba=away_lineup_xwoba,
+            park_run_factor=park_run_factor,
+        ))
 
     output = build_output(game_blocks, today)
     write_picks_json(output, dry_run=dry_run)
 
-    # --- Archive today's picks and save history ---
     if not dry_run:
         archive_picks(history, game_blocks, today.isoformat())
         save_history(history)
 
     log.info(
-        "=== Done: %d picks across %d games (from %d candidates) ===",
-        output["pick_count"],
+        "=== Done: %d games (%d picks from %d candidates) ===",
         len(game_blocks),
+        output["pick_count"],
         total_candidates,
     )
 

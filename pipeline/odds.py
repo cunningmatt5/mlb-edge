@@ -295,6 +295,13 @@ def get_event_id(game: dict, game_lines: dict) -> Optional[str]:
     return event.get("event_id") if event else None
 
 
+def get_game_event(game: dict, game_lines: dict) -> Optional[dict]:
+    """Return the full Odds API event dict (with markets) for a game, or None."""
+    away = game.get("awayTeam", "")
+    home = game.get("homeTeam", "")
+    return game_lines.get(f"{_norm_team(away)}@{_norm_team(home)}")
+
+
 def compute_ev(pick: dict, matched_line: dict) -> dict:
     """Compute expected value of a pick vs. Pinnacle no-vig probability."""
     model_prob  = signal_to_model_prob(pick["signal"])

@@ -9,6 +9,6 @@ dist/
 build/
 .pytest_cache/
 
-# Historical data — large Parquet files; only calibration.json is committed
+# Historical data — large Parquet files; calibration.json and game_comps.json are committed
 data/seasons/
 data/backtest_results.parquet

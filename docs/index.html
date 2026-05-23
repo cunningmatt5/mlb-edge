@@ -29,16 +29,11 @@
       </div>
       <span id="last-updated" class="last-updated"></span>
     </div>
-    <div class="filter-bar" id="filter-bar" role="tablist" aria-label="Filter by bet type">
+    <div class="filter-bar" id="filter-bar" role="tablist" aria-label="Filter by category">
       <button class="filter-btn active" data-filter="ALL" role="tab" aria-selected="true">All</button>
-      <button class="filter-btn" data-filter="K_PROP" role="tab" aria-selected="false">Strikeouts</button>
-      <button class="filter-btn" data-filter="HR_PROP" role="tab" aria-selected="false">HRs</button>
-      <button class="filter-btn" data-filter="HIT_PROP" role="tab" aria-selected="false">Hits</button>
-      <button class="filter-btn" data-filter="TB_PROP" role="tab" aria-selected="false">Tot. Bases</button>
-      <button class="filter-btn" data-filter="WALK_PROP" role="tab" aria-selected="false">Walks</button>
-      <button class="filter-btn" data-filter="TOTAL" role="tab" aria-selected="false">Game Total</button>
-      <button class="filter-btn" data-filter="TEAM_TOTAL" role="tab" aria-selected="false">Team Total</button>
-      <button class="filter-btn" data-filter="ML_F5" role="tab" aria-selected="false">ML/F5</button>
+      <button class="filter-btn" data-filter="TOTAL" role="tab" aria-selected="false">Total</button>
+      <button class="filter-btn" data-filter="MONEYLINE" role="tab" aria-selected="false">Moneyline</button>
+      <button class="filter-btn" data-filter="PROPS" role="tab" aria-selected="false">Props</button>
       <button class="filter-btn filter-btn-record" data-filter="RECORD" role="tab" aria-selected="false">📊 Record</button>
     </div>
   </header>
@@ -55,8 +50,8 @@
     </div>
     <div id="no-picks-state" class="state-view hidden">
       <p class="state-icon">🧐</p>
-      <p>No high-confidence picks for today.</p>
-      <p class="state-sub">The model only surfaces plays above the signal threshold.</p>
+      <p>No games match the current filter.</p>
+      <p class="state-sub">Try switching to All, or check back once Pinnacle lines are posted.</p>
     </div>
     <div id="games-container"></div>
   </main>
