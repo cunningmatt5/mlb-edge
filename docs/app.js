@@ -49,10 +49,21 @@ const BET_LABELS = {
   ML_F5:      'ML / F5',
 };
 
+const BET_COLORS = {
+  K_PROP:     '#7c3aed',
+  HR_PROP:    '#e11d48',
+  HIT_PROP:   '#0284c7',
+  TB_PROP:    '#0891b2',
+  WALK_PROP:  '#b45309',
+  TOTAL:      '#059669',
+  TEAM_TOTAL: '#047857',
+  ML_F5:      '#d97706',
+};
+
 function signalColor(signal) {
-  if (signal >= 9)  return '#22c55e';
-  if (signal >= 8)  return '#f59e0b';
-  return '#60a5fa';
+  if (signal >= 9)  return '#00e676';
+  if (signal >= 8)  return '#ffab00';
+  return '#00d4ff';
 }
 
 function renderSignalBar(signal) {
@@ -60,7 +71,7 @@ function renderSignalBar(signal) {
   const color = signalColor(signal);
   return `<div class="signal-row">
     <div class="signal-track">
-      <div class="signal-fill" style="width:${pct}%;background:${color}"></div>
+      <div class="signal-fill" style="width:${pct}%;background:${color};box-shadow:0 0 8px ${color}80"></div>
     </div>
     <span class="signal-label" style="color:${color}">${signal.toFixed(1)}</span>
   </div>`;
@@ -77,8 +88,9 @@ function renderDirectionPill(direction) {
 }
 
 function renderPick(pick) {
+  const color   = BET_COLORS[pick.bet_type] || '#00d4ff';
   const reasons = pick.reasons.map(r => `<li>${r}</li>`).join('');
-  return `<div class="pick-card" data-bet-type="${pick.bet_type}">
+  return `<div class="pick-card" data-bet-type="${pick.bet_type}" style="--bet-color:${color}">
     <div class="pick-header">
       ${renderBadge(pick.bet_type)}
       ${renderDirectionPill(pick.direction)}
@@ -102,7 +114,7 @@ function formatGameTime(isoString) {
   }
 }
 
-function renderGame(game, filter) {
+function renderGame(game, filter, idx = 0) {
   const picks = filter === 'ALL'
     ? game.picks
     : game.picks.filter(p => p.bet_type === filter);
@@ -111,7 +123,7 @@ function renderGame(game, filter) {
 
   const gameTime = formatGameTime(game.game_time);
 
-  return `<section class="game-block">
+  return `<section class="game-block" style="animation-delay:${idx * 55}ms">
     <div class="game-header">
       <div class="matchup">
         <span class="team">${game.away_team}</span>
@@ -234,7 +246,7 @@ function renderAll() {
     return;
   }
 
-  const html = allGames.map(g => renderGame(g, activeFilter)).join('');
+  const html = allGames.map((g, i) => renderGame(g, activeFilter, i)).join('');
   container.innerHTML = html;
 
   const hasContent = html.trim().length > 0;
