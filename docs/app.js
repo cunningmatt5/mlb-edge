@@ -2,9 +2,11 @@
 
 const PICKS_URL   = './picks.json';
 const HISTORY_URL = './picks_history.json';
+const TRENDS_URL  = './trends.json';
 
 let allGames     = [];
 let historyData  = null;
+let trendsData   = null;
 let activeFilter = 'ALL';
 
 // ── Service Worker ─────────────────────────────────────────────────────────────
@@ -30,6 +32,16 @@ async function loadPicks() {
 async function loadHistory() {
   try {
     const res = await fetch(`${HISTORY_URL}?t=${Date.now()}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (_) {
+    return null;
+  }
+}
+
+async function loadTrends() {
+  try {
+    const res = await fetch(`${TRENDS_URL}?t=${Date.now()}`);
     if (!res.ok) return null;
     return await res.json();
   } catch (_) {
@@ -193,6 +205,16 @@ function renderInsightsPanel(game) {
     ? `<div class="comps-footer">Based on ${game.comps_count} similar games (2023–2025)</div>`
     : '';
 
+  // Collect reasons from whichever side has the actionable edge
+  const allReasons = [
+    ...((ins.total    && ins.total.reasons)    || []),
+    ...((ins.moneyline && ins.moneyline.reasons) || []),
+  ];
+  const uniqueReasons = [...new Set(allReasons)];
+  const reasonsHtml = uniqueReasons.length
+    ? `<ul class="insight-reasons">${uniqueReasons.map(r => `<li>${r}</li>`).join('')}</ul>`
+    : '';
+
   return `<div class="insights-panel">
     <div class="insights-grid">
       ${totalCol}
@@ -200,6 +222,7 @@ function renderInsightsPanel(game) {
       ${mlCol}
     </div>
     ${footer}
+    ${reasonsHtml}
   </div>`;
 }
 
@@ -289,6 +312,100 @@ function renderGame(game, idx) {
     ${renderInsightsPanel(game)}
     ${propsSection}
   </section>`;
+}
+
+// ── Trends view ────────────────────────────────────────────────────────────────
+function trendBadge(signal) {
+  const MAP = {
+    HOT_K:          { cls: 'hot',   label: 'K Surge' },
+    COLD_K:         { cls: 'cold',  label: 'K Fade'  },
+    HIGH_WHIFF:     { cls: 'hot',   label: 'High Whiff' },
+    WILD:           { cls: 'wild',  label: 'Wild'    },
+    SHARP:          { cls: 'sharp', label: 'Sharp'   },
+    UNDERPERFORMING:{ cls: 'under', label: 'Rebound Candidate' },
+    OVERPERFORMING: { cls: 'over',  label: 'Fade'    },
+    HIGH_BARREL:    { cls: 'hot',   label: 'Power'   },
+  };
+  const m = MAP[signal] || { cls: '', label: signal };
+  return `<span class="trend-badge trend-badge-${m.cls}">${m.label}</span>`;
+}
+
+function renderPitcherTrend(p) {
+  const stats = [];
+  if (p.k_pct != null)        stats.push(`<div class="trend-stat"><label>K%</label><span>${(p.k_pct * 100).toFixed(1)}%</span></div>`);
+  if (p.recent_k_pct != null) stats.push(`<div class="trend-stat"><label>Recent K%</label><span class="${p.k_pct_delta > 0 ? 'delta-pos' : 'delta-neg'}">${(p.recent_k_pct * 100).toFixed(1)}%</span></div>`);
+  if (p.k_pct_delta != null)  stats.push(`<div class="trend-stat"><label>Δ</label><span class="${p.k_pct_delta > 0 ? 'delta-pos' : 'delta-neg'}">${p.k_pct_delta > 0 ? '+' : ''}${(p.k_pct_delta * 100).toFixed(1)}pp</span></div>`);
+  if (p.whiff_pct != null)    stats.push(`<div class="trend-stat"><label>Whiff%</label><span>${(p.whiff_pct * 100).toFixed(1)}%</span></div>`);
+  if (p.bb_pct != null)       stats.push(`<div class="trend-stat"><label>BB%</label><span>${(p.bb_pct * 100).toFixed(1)}%</span></div>`);
+  if (p.recent_bb_pct != null)stats.push(`<div class="trend-stat"><label>Recent BB%</label><span class="${(p.bb_pct_delta || 0) > 0 ? 'delta-pos' : 'delta-neg'}">${(p.recent_bb_pct * 100).toFixed(1)}%</span></div>`);
+  if (p.xfip != null)         stats.push(`<div class="trend-stat"><label>xFIP</label><span>${p.xfip.toFixed(2)}</span></div>`);
+
+  return `<div class="trend-card">
+    <div class="trend-header">
+      <div class="trend-identity">
+        <span class="trend-name">${p.name}</span>
+        <span class="trend-meta">${p.team} · ${p.game}</span>
+      </div>
+      ${trendBadge(p.signal)}
+    </div>
+    <div class="trend-stats-row">${stats.join('')}</div>
+    <div class="trend-implication">${p.implication}</div>
+  </div>`;
+}
+
+function renderBatterTrend(b) {
+  const stats = [];
+  if (b.xwoba != null)      stats.push(`<div class="trend-stat"><label>xwOBA</label><span>.${Math.round(b.xwoba * 1000)}</span></div>`);
+  if (b.woba != null)       stats.push(`<div class="trend-stat"><label>wOBA</label><span>.${Math.round(b.woba * 1000)}</span></div>`);
+  if (b.xwoba_gap != null)  stats.push(`<div class="trend-stat"><label>Gap</label><span class="${b.xwoba_gap > 0 ? 'delta-pos' : 'delta-neg'}">${b.xwoba_gap > 0 ? '+' : ''}.${Math.abs(Math.round(b.xwoba_gap * 1000))}</span></div>`);
+  if (b.barrel_pct != null) stats.push(`<div class="trend-stat"><label>Barrel%</label><span>${(b.barrel_pct * 100).toFixed(1)}%</span></div>`);
+
+  return `<div class="trend-card">
+    <div class="trend-header">
+      <div class="trend-identity">
+        <span class="trend-name">${b.name}</span>
+        <span class="trend-meta">${b.team} · ${b.game}</span>
+      </div>
+      ${trendBadge(b.signal)}
+    </div>
+    <div class="trend-stats-row">${stats.join('')}</div>
+    <div class="trend-implication">${b.implication}</div>
+  </div>`;
+}
+
+function renderTrends(trends) {
+  if (!trends) {
+    return `<div class="state-view">
+      <p class="state-icon">📡</p>
+      <p>Trends data unavailable.</p>
+      <p class="state-sub">Run the pipeline to generate trends.json.</p>
+    </div>`;
+  }
+
+  const pitchers = trends.pitchers || [];
+  const batters  = trends.batters  || [];
+
+  if (pitchers.length === 0 && batters.length === 0) {
+    return `<div class="state-view">
+      <p class="state-icon">🔍</p>
+      <p>No notable trends today.</p>
+      <p class="state-sub">No SPs or batters met the trend thresholds.</p>
+    </div>`;
+  }
+
+  let html = '';
+
+  if (pitchers.length > 0) {
+    html += '<div class="trend-section-header">Pitchers</div>';
+    html += pitchers.map(renderPitcherTrend).join('');
+  }
+
+  if (batters.length > 0) {
+    html += '<div class="trend-section-header">Batters</div>';
+    html += batters.map(renderBatterTrend).join('');
+  }
+
+  return html;
 }
 
 // ── Record view ────────────────────────────────────────────────────────────────
@@ -396,6 +513,12 @@ function renderAll() {
     return;
   }
 
+  if (activeFilter === 'TRENDS') {
+    container.innerHTML = renderTrends(trendsData);
+    noPicks.classList.add('hidden');
+    return;
+  }
+
   const filtered = allGames.filter(game => {
     if (activeFilter === 'ALL')       return true;
     if (activeFilter === 'TOTAL')     return game.insights && game.insights.total;
@@ -428,8 +551,9 @@ async function init() {
   const errorEl = document.getElementById('error-state');
 
   try {
-    const [data, hist] = await Promise.all([loadPicks(), loadHistory()]);
+    const [data, hist, trends] = await Promise.all([loadPicks(), loadHistory(), loadTrends()]);
     historyData = hist;
+    trendsData  = trends;
     allGames    = data.games || [];
 
     const genAt   = new Date(data.generated_at);

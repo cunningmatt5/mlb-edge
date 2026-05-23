@@ -22,7 +22,8 @@ from pipeline.analytics.team_totals import score_team_totals
 from pipeline.analytics.total_bases import score_total_bases_props
 from pipeline.analytics.walk_props import score_walk_props
 from pipeline.comps import build_game_profile, compute_insights, find_similar_games, load_comps_db
-from pipeline.formatter import build_game_block, build_output, write_picks_json
+from pipeline.formatter import build_game_block, build_output, write_picks_json, write_trends_json
+from pipeline.trends import compute_trends
 from pipeline.odds import (
     _norm_team,
     compute_ev,
@@ -61,6 +62,145 @@ def _assign_tier(signal: float) -> str:
 
 def _sp_stats(sp: dict) -> dict:
     return {k: sp.get(k) for k in ("xfip", "siera", "k_pct", "stuff_plus", "bb_pct", "hr_per_9")}
+
+
+def _insight_reasons(
+    home_sp_stats: dict,
+    away_sp_stats: dict,
+    home_sp: str,
+    away_sp: str,
+    home_lineup_xwoba: float | None,
+    away_lineup_xwoba: float | None,
+    park_run_factor: float | None,
+    comps_count: int,
+    insights: dict,
+) -> None:
+    """Mutate insights in place: append a 'reasons' list to total and moneyline."""
+    home_xfip  = home_sp_stats.get("xfip")
+    away_xfip  = away_sp_stats.get("xfip")
+    home_stuff = home_sp_stats.get("stuff_plus")
+    away_stuff = away_sp_stats.get("stuff_plus")
+
+    # ── Total reasons ──────────────────────────────────────────────────────────
+    if insights.get("total") is not None:
+        reasons: list[str] = []
+        xfips = [x for x in (home_xfip, away_xfip) if x is not None]
+        avg_xfip = sum(xfips) / len(xfips) if xfips else None
+
+        if avg_xfip is not None and avg_xfip > 4.20:
+            reasons.append(
+                f"Both arms are hittable (avg xFIP {avg_xfip:.2f}) — run environment favors the OVER"
+            )
+        elif home_xfip is not None and home_xfip < 3.60:
+            reasons.append(
+                f"{home_sp} (xFIP {home_xfip:.2f}) is elite — historically suppresses run totals"
+            )
+        elif away_xfip is not None and away_xfip < 3.60:
+            reasons.append(
+                f"{away_sp} (xFIP {away_xfip:.2f}) is elite — historically suppresses run totals"
+            )
+
+        if (
+            home_lineup_xwoba is not None
+            and away_lineup_xwoba is not None
+            and home_lineup_xwoba >= 0.325
+            and away_lineup_xwoba >= 0.325
+        ):
+            reasons.append("Two above-average lineups push the run environment higher")
+
+        if park_run_factor is not None:
+            if park_run_factor >= 105:
+                reasons.append(
+                    f"Hitter-friendly park (factor {round(park_run_factor)}) inflates scoring"
+                )
+            elif park_run_factor <= 94:
+                reasons.append(
+                    f"Pitcher-friendly park (factor {round(park_run_factor)}) suppresses run totals"
+                )
+
+        if comps_count < 15:
+            reasons.append(f"Small sample ({comps_count} comps) — treat with reduced confidence")
+
+        insights["total"]["reasons"] = reasons
+
+    # ── Moneyline reasons ──────────────────────────────────────────────────────
+    if insights.get("moneyline") is not None:
+        reasons = []
+
+        if home_xfip is not None and away_xfip is not None:
+            diff = away_xfip - home_xfip
+            if diff >= 0.40:
+                reasons.append(
+                    f"{home_sp} (xFIP {home_xfip:.2f}) has a significant quality edge "
+                    f"over {away_sp} ({away_xfip:.2f}) — favors the home side"
+                )
+            elif diff <= -0.40:
+                reasons.append(
+                    f"{away_sp} (xFIP {away_xfip:.2f}) has a significant quality edge "
+                    f"over {home_sp} ({home_xfip:.2f}) — favors the away side"
+                )
+
+        if (
+            home_stuff is not None
+            and away_stuff is not None
+            and home_stuff > 110
+            and away_stuff < 100
+        ):
+            reasons.append(
+                f"{home_sp}'s elite stuff (Stuff+ {round(home_stuff)}) "
+                f"vs. below-average {away_sp} ({round(away_stuff)}) — pitch-quality edge for home"
+            )
+        elif (
+            home_stuff is not None
+            and away_stuff is not None
+            and away_stuff > 110
+            and home_stuff < 100
+        ):
+            reasons.append(
+                f"{away_sp}'s elite stuff (Stuff+ {round(away_stuff)}) "
+                f"vs. below-average {home_sp} ({round(home_stuff)}) — pitch-quality edge for away"
+            )
+
+        if home_lineup_xwoba is not None and away_lineup_xwoba is not None:
+            lineup_diff = home_lineup_xwoba - away_lineup_xwoba
+            if lineup_diff >= 0.015:
+                reasons.append(
+                    f"Home lineup (.{round(home_lineup_xwoba * 1000)} xwOBA) "
+                    f"significantly outpaces away (.{round(away_lineup_xwoba * 1000)})"
+                )
+            elif lineup_diff <= -0.015:
+                reasons.append(
+                    f"Away lineup (.{round(away_lineup_xwoba * 1000)} xwOBA) "
+                    f"significantly outpaces home (.{round(home_lineup_xwoba * 1000)})"
+                )
+
+        if not reasons:
+            reasons.append("Similar-caliber matchup — comps edge is narrow")
+
+        insights["moneyline"]["reasons"] = reasons
+
+
+def _game_sort_key(block: dict) -> tuple:
+    ins   = block.get("insights") or {}
+    total = ins.get("total") or {}
+    ml    = ins.get("moneyline") or {}
+
+    best_edge = max(
+        abs(total.get("over_edge",  0) or 0),
+        abs(total.get("under_edge", 0) or 0),
+        abs(ml.get("home_edge",    0) or 0),
+        abs(ml.get("away_edge",    0) or 0),
+    )
+    has_strong = best_edge >= 0.05
+    has_edge   = best_edge >= 0.02
+    has_picks  = len(block.get("picks", [])) > 0
+
+    return (
+        0 if has_strong else 1,
+        0 if has_edge   else 1,
+        0 if has_picks  else 1,
+        -best_edge,
+    )
 
 
 logging.basicConfig(
@@ -158,6 +298,16 @@ def main(dry_run: bool = False) -> None:
         except Exception:
             park_run_factor = None
 
+        # --- Insight reasons ---
+        if insights:
+            _insight_reasons(
+                home_sp_stats, away_sp_stats,
+                game.get("home_sp_name", ""),
+                game.get("away_sp_name", ""),
+                home_lineup_xwoba, away_lineup_xwoba,
+                park_run_factor, comps_count, insights,
+            )
+
         # --- Props scoring (secondary section) ---
         candidates: list[dict] = []
         candidates += score_strikeout_props(game, cache)
@@ -225,8 +375,13 @@ def main(dry_run: bool = False) -> None:
             park_run_factor=park_run_factor,
         ))
 
+    game_blocks.sort(key=_game_sort_key)
+
     output = build_output(game_blocks, today)
     write_picks_json(output, dry_run=dry_run)
+
+    trends = compute_trends(cache, games)
+    write_trends_json(trends, dry_run=dry_run)
 
     if not dry_run:
         archive_picks(history, game_blocks, today.isoformat())

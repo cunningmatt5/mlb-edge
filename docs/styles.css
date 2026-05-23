@@ -410,6 +410,16 @@ h1 {
   opacity: 0.5;
 }
 
+/* ── Trends filter button ───────────────────────────────────────────────────── */
+.filter-btn-trends { border-color: rgba(255, 171, 0, 0.28); color: var(--amber); }
+.filter-btn-trends:hover { border-color: rgba(255, 171, 0, 0.5); color: var(--amber); }
+.filter-btn-trends.active {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: #000;
+  box-shadow: 0 0 18px rgba(255, 171, 0, 0.38);
+}
+
 /* ── Record filter button ───────────────────────────────────────────────────── */
 .filter-btn-record { border-color: rgba(167, 139, 250, 0.28); color: var(--purple); }
 .filter-btn-record:hover { border-color: rgba(167, 139, 250, 0.5); color: var(--purple); }
@@ -813,6 +823,37 @@ h1 {
   text-align: center;
 }
 
+/* Insight reasons — bullet list explaining WHY the edge exists */
+.insight-reasons {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  background: rgba(0, 212, 255, 0.04);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 212, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.insight-reasons li {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.45;
+  padding-left: 14px;
+  position: relative;
+}
+
+.insight-reasons li::before {
+  content: '›';
+  position: absolute;
+  left: 2px;
+  color: var(--cyan);
+  opacity: 0.6;
+  font-size: 14px;
+  line-height: 1.1;
+}
+
 /* ── Props section (collapsible) ─────────────────────────────────────────────── */
 .props-section {
   border-top: 1px solid var(--border-light);
@@ -861,6 +902,111 @@ details[open] .props-toggle::after {
   border-radius: 10px;
   border: 1px solid rgba(0, 212, 255, 0.22);
 }
+
+/* ── Trend cards ─────────────────────────────────────────────────────────────── */
+.trend-section-header {
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1.1px;
+  color: var(--text-dim);
+  padding: 16px 0 7px;
+}
+
+.trend-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--amber);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  animation: card-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.trend-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.trend-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.trend-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.1px;
+}
+
+.trend-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* Signal badges */
+.trend-badge {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.trend-badge-hot   { background: rgba(0, 230, 118, 0.14); color: var(--green);  border: 1px solid rgba(0, 230, 118, 0.3); }
+.trend-badge-cold  { background: rgba(0, 212, 255, 0.12); color: var(--cyan);   border: 1px solid rgba(0, 212, 255, 0.28); }
+.trend-badge-wild  { background: rgba(255, 71, 87, 0.12);  color: var(--red);    border: 1px solid rgba(255, 71, 87, 0.28); }
+.trend-badge-sharp { background: rgba(13, 148, 136, 0.14); color: #2dd4bf;       border: 1px solid rgba(13, 148, 136, 0.3); }
+.trend-badge-under { background: rgba(0, 230, 118, 0.10); color: var(--green);  border: 1px solid rgba(0, 230, 118, 0.22); }
+.trend-badge-over  { background: rgba(255, 71, 87, 0.10);  color: var(--red);    border: 1px solid rgba(255, 71, 87, 0.22); }
+
+.trend-stats-row {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 4px 0 6px;
+}
+
+.trend-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.trend-stat label {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.trend-stat span {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-implication {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.45;
+  font-style: italic;
+}
+
+.delta-pos { color: var(--green) !important; }
+.delta-neg { color: var(--red)   !important; }
 
 /* ── Responsive ─────────────────────────────────────────────────────────────── */
 @media (max-width: 399px) {

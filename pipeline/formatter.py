@@ -1,4 +1,4 @@
-"""Build and write the picks.json output file."""
+"""Build and write the picks.json and trends.json output files."""
 
 from __future__ import annotations
 
@@ -11,6 +11,10 @@ log = logging.getLogger(__name__)
 
 OUTPUT_PATH = os.path.join(
     os.path.dirname(os.path.dirname(__file__)), "docs", "picks.json"
+)
+
+TRENDS_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "docs", "trends.json"
 )
 
 
@@ -54,6 +58,21 @@ def build_output(game_blocks: list[dict], today: date) -> dict:
         "pick_count":   pick_count,
         "games":        game_blocks,
     }
+
+
+def write_trends_json(trends: dict, dry_run: bool = False) -> None:
+    payload = json.dumps(trends, indent=2, default=str)
+    if dry_run:
+        return
+    os.makedirs(os.path.dirname(TRENDS_PATH), exist_ok=True)
+    with open(TRENDS_PATH, "w", encoding="utf-8") as f:
+        f.write(payload)
+    log.info(
+        "Wrote trends.json: %d pitcher signals, %d batter signals → %s",
+        len(trends.get("pitchers", [])),
+        len(trends.get("batters", [])),
+        TRENDS_PATH,
+    )
 
 
 def write_picks_json(output: dict, dry_run: bool = False) -> None:

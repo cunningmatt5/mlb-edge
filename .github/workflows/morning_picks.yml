@@ -72,6 +72,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/picks.json docs/picks_history.json
+          git add docs/picks.json docs/picks_history.json docs/trends.json
           git diff --staged --quiet || git commit -m "chore: update picks [skip ci]"
           git push
