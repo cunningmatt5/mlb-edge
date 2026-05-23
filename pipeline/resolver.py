@@ -14,7 +14,7 @@ TIMEOUT = 15
 HISTORY_PATH = os.path.join(
     os.path.dirname(os.path.dirname(__file__)), "docs", "picks_history.json"
 )
-MAX_HISTORY_DAYS = 90
+MAX_HISTORY_DAYS = 365
 
 log = logging.getLogger(__name__)
 
@@ -57,6 +57,8 @@ def archive_picks(history: dict, game_blocks: list[dict], date_str: str) -> None
                 "direction": pick["direction"],
                 "headline": pick["headline"],
                 "signal": pick["signal"],
+                "tier": pick.get("tier"),
+                "raw_scores": pick.get("raw_scores"),
                 "outcome": "PENDING",
                 "actual_value": None,
             })
@@ -230,26 +232,49 @@ def _rebuild_summary(history: dict) -> None:
 
     by_type: dict = {}
     by_band: dict = {
+        "5.0-5.9": {"total": 0, "wins": 0, "losses": 0, "win_rate": None},
+        "6.0-6.9": {"total": 0, "wins": 0, "losses": 0, "win_rate": None},
         "7.0-7.9": {"total": 0, "wins": 0, "losses": 0, "win_rate": None},
         "8.0-8.9": {"total": 0, "wins": 0, "losses": 0, "win_rate": None},
         "9.0+":    {"total": 0, "wins": 0, "losses": 0, "win_rate": None},
+    }
+    by_tier: dict = {
+        "ELITE":     {"total": 0, "wins": 0, "losses": 0, "win_rate": None},
+        "GREAT":     {"total": 0, "wins": 0, "losses": 0, "win_rate": None},
+        "APPEALING": {"total": 0, "wins": 0, "losses": 0, "win_rate": None},
     }
 
     for p in picks:
         if p["outcome"] == "PENDING":
             continue
+        outcome_key = "wins" if p["outcome"] == "WIN" else "losses"
+
         bt = p["bet_type"]
         if bt not in by_type:
             by_type[bt] = {"total": 0, "wins": 0, "losses": 0, "win_rate": None}
         by_type[bt]["total"] += 1
-        by_type[bt]["wins" if p["outcome"] == "WIN" else "losses"] += 1
+        by_type[bt][outcome_key] += 1
 
         sig = p.get("signal", 0)
-        band = "9.0+" if sig >= 9.0 else ("8.0-8.9" if sig >= 8.0 else "7.0-7.9")
+        if sig >= 9.0:
+            band = "9.0+"
+        elif sig >= 8.0:
+            band = "8.0-8.9"
+        elif sig >= 7.0:
+            band = "7.0-7.9"
+        elif sig >= 6.0:
+            band = "6.0-6.9"
+        else:
+            band = "5.0-5.9"
         by_band[band]["total"] += 1
-        by_band[band]["wins" if p["outcome"] == "WIN" else "losses"] += 1
+        by_band[band][outcome_key] += 1
 
-    for d in list(by_type.values()) + list(by_band.values()):
+        tier = p.get("tier")
+        if tier in by_tier:
+            by_tier[tier]["total"] += 1
+            by_tier[tier][outcome_key] += 1
+
+    for d in list(by_type.values()) + list(by_band.values()) + list(by_tier.values()):
         t = d["total"]
         d["win_rate"] = round(d["wins"] / t, 3) if t > 0 else None
 
@@ -261,6 +286,7 @@ def _rebuild_summary(history: dict) -> None:
         "win_rate": round(wins / graded, 3) if graded > 0 else None,
         "by_type": by_type,
         "by_signal_band": by_band,
+        "by_tier": by_tier,
     }
 
 
@@ -278,9 +304,16 @@ def _empty_history() -> dict:
             "total": 0, "wins": 0, "losses": 0, "pending": 0, "win_rate": None,
             "by_type": {},
             "by_signal_band": {
+                "5.0-5.9": {"total": 0, "wins": 0, "losses": 0, "win_rate": None},
+                "6.0-6.9": {"total": 0, "wins": 0, "losses": 0, "win_rate": None},
                 "7.0-7.9": {"total": 0, "wins": 0, "losses": 0, "win_rate": None},
                 "8.0-8.9": {"total": 0, "wins": 0, "losses": 0, "win_rate": None},
                 "9.0+":    {"total": 0, "wins": 0, "losses": 0, "win_rate": None},
+            },
+            "by_tier": {
+                "ELITE":     {"total": 0, "wins": 0, "losses": 0, "win_rate": None},
+                "GREAT":     {"total": 0, "wins": 0, "losses": 0, "win_rate": None},
+                "APPEALING": {"total": 0, "wins": 0, "losses": 0, "win_rate": None},
             },
         },
     }

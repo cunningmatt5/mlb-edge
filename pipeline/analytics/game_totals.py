@@ -10,7 +10,8 @@ Enhancement: wind and temperature apply a weather modifier.
 from __future__ import annotations
 
 from pipeline.park_factors import get_run_factor
-from pipeline.scorer import normalize, weighted_avg, safe_mean
+from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean
+from pipeline.umpire import compute_umpire_modifier
 from pipeline.weather import compute_weather_modifier
 
 
@@ -18,6 +19,7 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
     picks = []
     venue   = game.get("venue", "")
     weather = game.get("weather")
+    umpire  = game.get("umpire", "")
     park_run = get_run_factor(venue)
     park_s   = normalize(park_run, lo=88, hi=118)
 
@@ -38,8 +40,8 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
     home_lineup = [cache[b] for b in game.get("home_lineup", []) if b in cache]
     away_lineup = [cache[b] for b in game.get("away_lineup", []) if b in cache]
 
-    home_xwoba = safe_mean([b.get("xwoba") for b in home_lineup]) or 0.310
-    away_xwoba = safe_mean([b.get("xwoba") for b in away_lineup]) or 0.310
+    home_xwoba = lineup_weighted_mean(home_lineup, "xwoba") or 0.310
+    away_xwoba = lineup_weighted_mean(away_lineup, "xwoba") or 0.310
     avg_xwoba  = (home_xwoba + away_xwoba) / 2.0
     offense_s  = normalize(avg_xwoba, lo=0.270, hi=0.370)
 
@@ -53,11 +55,15 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
     away_name = game.get("awayTeam", "Away")
     matchup   = f"{away_name} @ {home_name}"
 
-    for direction, signal, raw in [("OVER", over_signal, over_raw), ("UNDER", under_signal, under_raw)]:
+    for direction, base_signal in [("OVER", over_signal), ("UNDER", under_signal)]:
+        ump_mod, ump_reason = compute_umpire_modifier(umpire, "TOTAL", direction)
+        signal = max(0.0, min(10.0, round(base_signal + ump_mod, 1)))
         if signal >= 5.0:
             reasons = _build_reasons(direction, home_sp, away_sp, avg_xwoba, park_run, venue)
             if weather_reason:
                 reasons = (reasons + [weather_reason])[:4]
+            if ump_reason:
+                reasons = (reasons + [ump_reason])[:4]
 
             picks.append({
                 "bet_type":  "TOTAL",
@@ -76,6 +82,8 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
                     "avg_suppression":    round(avg_suppression, 3),
                     "offense_score":      round(offense_s, 3),
                     "weather_modifier":   round(weather_mod, 2) if weather_mod else None,
+                    "umpire_modifier":    round(ump_mod, 2) if ump_mod else None,
+                    "umpire":             umpire or None,
                 },
             })
 

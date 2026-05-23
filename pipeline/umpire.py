@@ -112,4 +112,16 @@ def compute_umpire_modifier(umpire_name: str, bet_type: str, direction: str) -> 
         if abs(zone_score) >= 0.8:
             reason = f"HP umpire {umpire_name} {tendency} zone — {'fewer' if zone_score > 0 else 'more'} walks expected"
 
+    elif bet_type in ("TOTAL", "TEAM_TOTAL"):
+        # Bigger zone → more called strikes → fewer baserunners → suppresses run scoring
+        if direction == "UNDER":
+            modifier = zone_score * 0.18
+        else:
+            modifier = -zone_score * 0.18
+        if abs(zone_score) >= 0.8:
+            reason = (
+                f"HP umpire {umpire_name} {tendency} zone — "
+                f"{'suppresses' if zone_score > 0 else 'inflates'} run environment"
+            )
+
     return max(-1.0, min(1.0, modifier)), reason

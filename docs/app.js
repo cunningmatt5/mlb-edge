@@ -209,6 +209,30 @@ function renderRecord(history) {
     html += '</div>';
   }
 
+  // By tier
+  const TIER_META = {
+    ELITE:     { label: 'Elite',     color: '#ffab00' },
+    GREAT:     { label: 'Great',     color: '#00d4ff' },
+    APPEALING: { label: 'Appealing', color: '#7a88a0' },
+  };
+  const byTier = s.by_tier || {};
+  const hasTierData = Object.values(byTier).some(t => t.total > 0);
+  if (hasTierData) {
+    html += '<div class="record-section-title">By Tier</div><div class="record-table">';
+    for (const [tier, data] of Object.entries(byTier)) {
+      if (data.total === 0) continue;
+      const meta  = TIER_META[tier] || { label: tier, color: 'var(--text-muted)' };
+      const tierWR = data.win_rate !== null ? (data.win_rate * 100).toFixed(0) + '%' : '—';
+      const cls    = data.win_rate !== null ? (data.win_rate >= 0.55 ? 'good' : data.win_rate < 0.45 ? 'bad' : '') : '';
+      html += `<div class="record-row">
+        <span class="record-type" style="color:${meta.color};font-weight:700">${meta.label}</span>
+        <span class="record-wl">${data.wins}–${data.losses}</span>
+        <span class="record-wr ${cls}">${tierWR}</span>
+      </div>`;
+    }
+    html += '</div>';
+  }
+
   // By signal band
   const byBand = s.by_signal_band || {};
   const hasBandData = Object.values(byBand).some(b => b.total > 0);

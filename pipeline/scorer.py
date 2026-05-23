@@ -28,3 +28,20 @@ def safe_mean(values: list[float | None]) -> float | None:
     """Mean of a list, ignoring None values. Returns None if list is empty."""
     clean = [v for v in values if v is not None]
     return sum(clean) / len(clean) if clean else None
+
+
+# Batting-order position weights: slots 1-4 weighted 1.3x, 5-7 at 1.0x, 8-9 at 0.75x
+_SLOT_WEIGHTS = [1.3, 1.3, 1.3, 1.3, 1.0, 1.0, 1.0, 0.75, 0.75]
+
+
+def lineup_weighted_mean(players: list[dict], stat: str) -> float | None:
+    """Batting-order-weighted mean of `stat` across lineup, skipping missing values."""
+    pairs = [
+        (players[i].get(stat), _SLOT_WEIGHTS[i] if i < len(_SLOT_WEIGHTS) else 1.0)
+        for i in range(len(players))
+        if players[i].get(stat) is not None
+    ]
+    if not pairs:
+        return None
+    total_w = sum(w for _, w in pairs)
+    return sum(v * w for v, w in pairs) / total_w if total_w else None

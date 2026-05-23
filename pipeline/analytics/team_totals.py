@@ -11,7 +11,8 @@ Enhancement: weather modifier and subject_side for track record grading.
 from __future__ import annotations
 
 from pipeline.park_factors import get_run_factor
-from pipeline.scorer import normalize, weighted_avg, safe_mean
+from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean
+from pipeline.umpire import compute_umpire_modifier
 from pipeline.weather import compute_weather_modifier
 
 
@@ -19,6 +20,7 @@ def score_team_totals(game: dict, cache: dict) -> list[dict]:
     picks = []
     venue   = game.get("venue", "")
     weather = game.get("weather")
+    umpire  = game.get("umpire", "")
     park_s  = normalize(get_run_factor(venue), lo=88, hi=118)
 
     weather_mod, weather_reason = compute_weather_modifier(weather, "TEAM_TOTAL")
@@ -32,7 +34,7 @@ def score_team_totals(game: dict, cache: dict) -> list[dict]:
         sp_suppress = weighted_avg([(xfip_s, 0.50), (siera_s, 0.50)])
 
         lineup = [cache[b] for b in game.get(f"{offense_side}_lineup", []) if b in cache]
-        lineup_xwoba = safe_mean([b.get("xwoba") for b in lineup]) or 0.310
+        lineup_xwoba = lineup_weighted_mean(lineup, "xwoba") or 0.310
         offense_s    = normalize(lineup_xwoba, lo=0.270, hi=0.370)
 
         over_raw  = weighted_avg([(offense_s, 0.45), (1.0 - sp_suppress, 0.35), (park_s, 0.20)])
@@ -44,7 +46,9 @@ def score_team_totals(game: dict, cache: dict) -> list[dict]:
         offense_team = game.get(f"{offense_side}Team", offense_side.title())
         sp_name      = opp_sp.get("name", "Opposing SP")
 
-        for direction, signal in [("OVER", over_signal), ("UNDER", under_signal)]:
+        for direction, base_signal in [("OVER", over_signal), ("UNDER", under_signal)]:
+            ump_mod, ump_reason = compute_umpire_modifier(umpire, "TEAM_TOTAL", direction)
+            signal = max(0.0, min(10.0, round(base_signal + ump_mod, 1)))
             if signal >= 5.0:
                 reasons = _build_reasons(
                     direction, offense_team, sp_name, opp_sp,
@@ -52,6 +56,8 @@ def score_team_totals(game: dict, cache: dict) -> list[dict]:
                 )
                 if weather_reason:
                     reasons = (reasons + [weather_reason])[:4]
+                if ump_reason:
+                    reasons = (reasons + [ump_reason])[:4]
 
                 picks.append({
                     "bet_type":      "TEAM_TOTAL",
@@ -62,12 +68,14 @@ def score_team_totals(game: dict, cache: dict) -> list[dict]:
                     "signal":        signal,
                     "reasons":       reasons,
                     "raw_scores": {
-                        "lineup_xwoba":   round(lineup_xwoba, 3),
-                        "sp_xfip":        opp_sp.get("xfip"),
-                        "sp_siera":       opp_sp.get("siera"),
-                        "park_run_factor": get_run_factor(venue),
-                        "sp_suppress":    round(sp_suppress, 3),
-                        "offense_score":  round(offense_s, 3),
+                        "lineup_xwoba":    round(lineup_xwoba, 3),
+                        "sp_xfip":         opp_sp.get("xfip"),
+                        "sp_siera":        opp_sp.get("siera"),
+                        "park_run_factor":  get_run_factor(venue),
+                        "sp_suppress":     round(sp_suppress, 3),
+                        "offense_score":   round(offense_s, 3),
+                        "umpire_modifier": round(ump_mod, 2) if ump_mod else None,
+                        "umpire":          umpire or None,
                     },
                 })
 
