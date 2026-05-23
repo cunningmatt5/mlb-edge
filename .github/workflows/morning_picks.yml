@@ -17,10 +17,12 @@ jobs:
   generate-picks:
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -50,7 +52,7 @@ jobs:
 
       - name: Set up Python
         if: steps.check.outputs.stale == 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.6.0
         with:
           python-version: '3.11'
           cache: 'pip'
