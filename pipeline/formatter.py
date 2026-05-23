@@ -23,7 +23,7 @@ def build_game_block(game: dict, picks: list[dict]) -> dict:
         "venue": game.get("venue", ""),
         "home_sp": game.get("home_sp_name", "TBD"),
         "away_sp": game.get("away_sp_name", "TBD"),
-        "picks": sorted(picks, key=lambda p: p["signal"], reverse=True),
+        "picks": picks,  # order set by main.py (edge desc, then signal desc)
     }
 
 

@@ -571,6 +571,59 @@ h1 {
   font-weight: 500;
 }
 
+/* ── Odds display ───────────────────────────────────────────────────────────── */
+.pick-odds {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.odds-line {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.odds-price {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.edge-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.edge-high {
+  background: rgba(0, 230, 118, 0.12);
+  color: var(--green);
+  border: 1px solid rgba(0, 230, 118, 0.28);
+}
+
+.edge-mid {
+  background: rgba(0, 212, 255, 0.10);
+  color: var(--cyan);
+  border: 1px solid rgba(0, 212, 255, 0.25);
+}
+
+.edge-low {
+  background: rgba(122, 136, 160, 0.10);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.pick-odds-none {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+
 /* ── Responsive ─────────────────────────────────────────────────────────────── */
 @media (min-width: 640px) {
   #main-content {

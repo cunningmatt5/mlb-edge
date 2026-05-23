@@ -94,6 +94,22 @@ function renderDirectionPill(direction) {
   return `<span class="direction-pill ${cls}">${direction}</span>`;
 }
 
+function renderOdds(pick) {
+  if (!pick.odds || !pick.has_line) {
+    return '<div class="pick-odds-none">No line available</div>';
+  }
+  const { line, over_price, under_price, edge_pct } = pick.odds;
+  const edgePct = (edge_pct * 100).toFixed(1);
+  const edgeCls = edge_pct >= 0.08 ? 'edge-high' : edge_pct >= 0.03 ? 'edge-mid' : 'edge-low';
+  const price = (pick.direction === 'OVER' || pick.direction === 'HOME') ? over_price : under_price;
+  const priceStr = price > 0 ? `+${price}` : `${price}`;
+  const lineStr = (line !== null && line !== undefined) ? `Line ${line} · ` : '';
+  return `<div class="pick-odds">
+    <span class="odds-line">${lineStr}<span class="odds-price">${priceStr}</span></span>
+    <span class="edge-badge ${edgeCls}">+${edgePct}% edge</span>
+  </div>`;
+}
+
 function renderPick(pick) {
   const color   = BET_COLORS[pick.bet_type] || '#00d4ff';
   const reasons = pick.reasons.map(r => `<li>${r}</li>`).join('');
@@ -104,6 +120,7 @@ function renderPick(pick) {
     </div>
     <div class="pick-headline">${pick.headline}</div>
     ${renderSignalBar(pick.signal)}
+    ${renderOdds(pick)}
     <ul class="pick-reasons">${reasons}</ul>
   </div>`;
 }

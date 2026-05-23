@@ -61,6 +61,9 @@ def archive_picks(history: dict, game_blocks: list[dict], date_str: str) -> None
                 "raw_scores": pick.get("raw_scores"),
                 "outcome": "PENDING",
                 "actual_value": None,
+                "has_line": pick.get("has_line", False),
+                "line_at_pick": (pick.get("odds") or {}).get("line") if pick.get("has_line") else None,
+                "edge_pct_at_pick": (pick.get("odds") or {}).get("edge_pct") if pick.get("has_line") else None,
             })
             existing.add(key)
             added += 1
@@ -100,6 +103,8 @@ def _grade_pick(pick: dict) -> bool:
     subject_id = pick.get("subject_id")
     subject_side = pick.get("subject_side")
 
+    line = pick.get("line_at_pick")  # actual book line saved at pick time, if available
+
     if bet_type in ("K_PROP", "HR_PROP", "HIT_PROP", "TB_PROP", "WALK_PROP"):
         if not subject_id:
             return False
@@ -107,7 +112,10 @@ def _grade_pick(pick: dict) -> bool:
         if actual is None:
             return False
         pick["actual_value"] = actual
-        pick["outcome"] = _grade_player(bet_type, direction, actual)
+        if line is not None:
+            pick["outcome"] = "WIN" if (direction == "OVER" and actual > line) or (direction == "UNDER" and actual < line) else "LOSS"
+        else:
+            pick["outcome"] = _grade_player(bet_type, direction, actual)
 
     elif bet_type == "TOTAL":
         ls = _linescore(game_pk)
@@ -115,7 +123,10 @@ def _grade_pick(pick: dict) -> bool:
             return False
         total = ls["home_runs"] + ls["away_runs"]
         pick["actual_value"] = total
-        pick["outcome"] = "WIN" if (direction == "OVER" and total > 8) or (direction == "UNDER" and total < 9) else "LOSS"
+        if line is not None:
+            pick["outcome"] = "WIN" if (direction == "OVER" and total > line) or (direction == "UNDER" and total < line) else "LOSS"
+        else:
+            pick["outcome"] = "WIN" if (direction == "OVER" and total > 8) or (direction == "UNDER" and total < 9) else "LOSS"
 
     elif bet_type == "TEAM_TOTAL":
         ls = _linescore(game_pk)
@@ -124,10 +135,13 @@ def _grade_pick(pick: dict) -> bool:
         side = subject_side or "home"
         runs = ls.get(f"{side}_runs", 0)
         pick["actual_value"] = runs
-        if direction == "OVER":
-            pick["outcome"] = "WIN" if runs >= 5 else "LOSS"
+        if line is not None:
+            pick["outcome"] = "WIN" if (direction == "OVER" and runs > line) or (direction == "UNDER" and runs < line) else "LOSS"
         else:
-            pick["outcome"] = "WIN" if runs <= 3 else "LOSS"
+            if direction == "OVER":
+                pick["outcome"] = "WIN" if runs >= 5 else "LOSS"
+            else:
+                pick["outcome"] = "WIN" if runs <= 3 else "LOSS"
 
     elif bet_type == "ML_F5":
         ls = _linescore(game_pk)

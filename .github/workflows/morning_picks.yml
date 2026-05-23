@@ -63,6 +63,8 @@ jobs:
 
       - name: Run analytics pipeline
         if: steps.check.outputs.stale == 'true'
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: python -m pipeline.main
 
       - name: Commit picks.json
