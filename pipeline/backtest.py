@@ -177,7 +177,8 @@ def _grade_pick(
     if bet_type in ("K_PROP", "WALK_PROP"):
         if not subject_id:
             return None
-        rows = game_log[(game_log["player_id"] == subject_id) & game_log["is_pitcher"]]
+        # Cast to float to handle int vs float64 pandas column type mismatch
+        rows = game_log[(game_log["player_id"].astype(float) == float(subject_id)) & game_log["is_pitcher"]]
         if rows.empty:
             return None
         actual = float(rows.iloc[0]["K"] if bet_type == "K_PROP" else rows.iloc[0]["P_BB"])
@@ -186,7 +187,8 @@ def _grade_pick(
     if bet_type in ("HR_PROP", "HIT_PROP", "TB_PROP"):
         if not subject_id:
             return None
-        rows = game_log[(game_log["player_id"] == subject_id) & ~game_log["is_pitcher"]]
+        # Cast to float to handle int vs float64 pandas column type mismatch
+        rows = game_log[(game_log["player_id"].astype(float) == float(subject_id)) & ~game_log["is_pitcher"]]
         if rows.empty:
             return None
         col = {"HR_PROP": "HR", "HIT_PROP": "H", "TB_PROP": "TB"}[bet_type]

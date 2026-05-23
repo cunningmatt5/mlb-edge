@@ -159,12 +159,25 @@ def no_vig_prob(over_odds: int, under_odds: int) -> tuple[float, float]:
 
 @lru_cache(maxsize=1)
 def _load_calibration_params() -> tuple[float, float]:
-    """Return (midpoint, slope) from data/calibration.json, or defaults (7.5, 0.45)."""
+    """Return (midpoint, slope) from data/calibration.json, or defaults (7.5, 0.45).
+
+    Validates the fit before using it: if the midpoint hit the curve_fit boundary
+    (≥10.5) or the slope is too flat (< 0.15), the calibration is degenerate
+    (win rates never reached 50% in the backtest) and we fall back to defaults.
+    """
     cal_path = Path(__file__).parent.parent / "data" / "calibration.json"
     try:
         d = json.loads(cal_path.read_text())
         p = d["logistic_params"]
-        return float(p["midpoint"]), float(p["slope"])
+        midpoint = float(p["midpoint"])
+        slope    = float(p["slope"])
+        if midpoint >= 10.5 or slope < 0.15:
+            log.debug(
+                "Calibration params degenerate (midpoint=%.2f slope=%.4f) — using defaults",
+                midpoint, slope,
+            )
+            return 7.5, 0.45
+        return midpoint, slope
     except Exception:
         return 7.5, 0.45
 
