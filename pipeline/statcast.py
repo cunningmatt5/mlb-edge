@@ -57,6 +57,13 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
     sav_bat_expected  = _fetch_savant_batter_expected_stats(season)
     sav_bat_batted    = _fetch_savant_batter_batted_ball_stats(season)
 
+    # Debug: log column names to diagnose mapping issues
+    if not sav_pitch_lead.empty:
+        log.info("Pitcher-leaderboard columns: %s", list(sav_pitch_lead.columns))
+        log.info("Pitcher-leaderboard sample row: %s", sav_pitch_lead.iloc[0].to_dict())
+    if not sav_pitch.empty:
+        log.info("Pitcher-expected columns: %s", list(sav_pitch.columns))
+
     # --- ID crosswalk: MLBAM → FanGraphs (only needed when FG data is available) ---
     crosswalk = _build_crosswalk(all_ids)
 
@@ -70,6 +77,8 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
         _merge_savant_pitcher(entry, sav_pitch, mlbam_id)        # xwOBA against
         _merge_savant_pitcher_leaderboard(entry, sav_pitch_lead, mlbam_id)  # ERA, xERA→xfip, K%, BB%
         cache[mlbam_id] = entry
+        log.info("Cache SP %d %s: era=%s xfip=%s k_pct=%s",
+                 mlbam_id, entry.get("name", "?"), entry.get("era"), entry.get("xfip"), entry.get("k_pct"))
 
     for mlbam_id in batter_ids:
         fg_id = crosswalk.get(mlbam_id)
