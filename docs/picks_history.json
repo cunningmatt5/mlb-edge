@@ -3005,13 +3005,67 @@
       "has_line": false,
       "line_at_pick": null,
       "edge_pct_at_pick": null
+    },
+    {
+      "date": "2026-05-24",
+      "game_pk": 824514,
+      "bet_type": "TEAM_TOTAL",
+      "subject": "Cincinnati Reds",
+      "subject_id": null,
+      "subject_side": "home",
+      "direction": "OVER",
+      "headline": "Cincinnati Reds Team Total \u2014 OVER",
+      "signal": 5.8,
+      "tier": "APPEALING",
+      "raw_scores": {
+        "lineup_xwoba": 0.31,
+        "sp_xfip": 5.66,
+        "sp_siera": null,
+        "park_run_factor": 108,
+        "sp_suppress": 0.25,
+        "offense_score": 0.4,
+        "umpire_modifier": null,
+        "umpire": null
+      },
+      "outcome": "PENDING",
+      "actual_value": null,
+      "has_line": false,
+      "line_at_pick": null,
+      "edge_pct_at_pick": null
+    },
+    {
+      "date": "2026-05-24",
+      "game_pk": 824514,
+      "bet_type": "TEAM_TOTAL",
+      "subject": "St. Louis Cardinals",
+      "subject_id": null,
+      "subject_side": "away",
+      "direction": "OVER",
+      "headline": "St. Louis Cardinals Team Total \u2014 OVER",
+      "signal": 5.8,
+      "tier": "APPEALING",
+      "raw_scores": {
+        "lineup_xwoba": 0.31,
+        "sp_xfip": 6.07,
+        "sp_siera": null,
+        "park_run_factor": 108,
+        "sp_suppress": 0.25,
+        "offense_score": 0.4,
+        "umpire_modifier": null,
+        "umpire": null
+      },
+      "outcome": "PENDING",
+      "actual_value": null,
+      "has_line": false,
+      "line_at_pick": null,
+      "edge_pct_at_pick": null
     }
   ],
   "summary": {
-    "total": 120,
+    "total": 122,
     "wins": 27,
     "losses": 15,
-    "pending": 78,
+    "pending": 80,
     "win_rate": 0.643,
     "by_type": {
       "WALK_PROP": {

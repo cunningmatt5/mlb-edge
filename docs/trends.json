@@ -1,10 +1,85 @@
 {
-  "generated_at": "2026-05-24T01:49:16.549404+00:00",
+  "generated_at": "2026-05-24T01:57:41.277264+00:00",
   "date": "2026-05-24",
-  "pitcher_lucky": [],
-  "pitcher_unlucky": [],
+  "pitcher_lucky": [
+    {
+      "name": "Tyler Phillips",
+      "team": "Marlins",
+      "game": "Mets @ Marlins",
+      "signal": "ERA_LUCK",
+      "stat_a_label": "ERA",
+      "stat_a": 1.2,
+      "stat_b_label": "xFIP",
+      "stat_b": 3.45,
+      "delta": 2.25,
+      "implication": "ERA (1.20) is 2.25 runs below xFIP (3.45) \u2014 results outpacing process. Lean OVER against Tyler Phillips."
+    },
+    {
+      "name": "Sonny Gray",
+      "team": "Sox",
+      "game": "Twins @ Sox",
+      "signal": "ERA_LUCK",
+      "stat_a_label": "ERA",
+      "stat_a": 2.92,
+      "stat_b_label": "xFIP",
+      "stat_b": 4.44,
+      "delta": 1.52,
+      "implication": "ERA (2.92) is 1.52 runs below xFIP (4.44) \u2014 results outpacing process. Lean OVER against Sonny Gray."
+    },
+    {
+      "name": "Seth Lugo",
+      "team": "Royals",
+      "game": "Mariners @ Royals",
+      "signal": "ERA_LUCK",
+      "stat_a_label": "ERA",
+      "stat_a": 3.68,
+      "stat_b_label": "xFIP",
+      "stat_b": 4.94,
+      "delta": 1.26,
+      "implication": "ERA (3.68) is 1.26 runs below xFIP (4.94) \u2014 results outpacing process. Lean OVER against Seth Lugo."
+    }
+  ],
+  "pitcher_unlucky": [
+    {
+      "name": "Andrew Painter",
+      "team": "Phillies",
+      "game": "Guardians @ Phillies",
+      "signal": "ERA_STRUGGLE",
+      "stat_a_label": "ERA",
+      "stat_a": 5.77,
+      "stat_b_label": "xFIP",
+      "stat_b": 4.62,
+      "delta": 1.15,
+      "implication": "ERA (5.77) is 1.15 runs above xFIP (4.62) \u2014 pitching better than results. Back Andrew Painter or lean UNDER."
+    }
+  ],
   "pitcher_hot_k": [],
-  "pitcher_cold_k": [],
+  "pitcher_cold_k": [
+    {
+      "name": "Mart\u00edn P\u00e9rez",
+      "team": "Braves",
+      "game": "Nationals @ Braves",
+      "signal": "COLD_K",
+      "stat_a_label": "Season K%",
+      "stat_a": 0.372,
+      "stat_b_label": "Recent K%",
+      "stat_b": 0.333,
+      "delta": 0.039,
+      "implication": "K rate down 3.9pp in last 3 starts (season 37.2% \u2192 recent 33.3%) \u2014 fade strikeout overs."
+    },
+    {
+      "name": "Tyler Phillips",
+      "team": "Marlins",
+      "game": "Mets @ Marlins",
+      "signal": "COLD_K",
+      "stat_a_label": "Season K%",
+      "stat_a": 0.163,
+      "stat_b_label": "Recent K%",
+      "stat_b": 0.125,
+      "delta": 0.038,
+      "implication": "K rate down 3.8pp in last 3 starts (season 16.3% \u2192 recent 12.5%) \u2014 fade strikeout overs."
+    }
+  ],
   "batter_cold": [],
   "batter_hot": []
 }
