@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-05-24T09:30:31.811805+00:00",
+  "generated_at": "2026-05-24T14:51:30.338139+00:00",
   "date": "2026-05-24",
   "game_count": 15,
-  "pick_count": 28,
+  "pick_count": 27,
   "games": [
     {
       "gamePk": 824676,
@@ -13,7 +13,7 @@
       "home_sp": "Shota Imanaga",
       "away_sp": "Peter Lambert",
       "home_sp_stats": {
-        "xfip": 3.35,
+        "xfip": 3.34,
         "siera": null,
         "k_pct": 0.2368,
         "stuff_plus": null,
@@ -21,7 +21,7 @@
         "hr_per_9": null
       },
       "away_sp_stats": {
-        "xfip": 3.43,
+        "xfip": 3.42,
         "siera": null,
         "k_pct": 0.2051,
         "stuff_plus": null,
@@ -33,16 +33,29 @@
       "park_run_factor": 100.0,
       "comps_count": 30,
       "insights": {
-        "total": null,
+        "total": {
+          "line": 7.0,
+          "over_price": -106,
+          "under_price": -106,
+          "pinnacle_over_prob": 0.5,
+          "pinnacle_under_prob": 0.5,
+          "historical_over_rate": 0.6333,
+          "historical_under_rate": 0.3667,
+          "over_edge": 0.1333,
+          "under_edge": -0.1333,
+          "reasons": [
+            "Shota Imanaga (xFIP 3.34) is elite \u2014 historically suppresses run totals"
+          ]
+        },
         "moneyline": {
-          "home_price": -160,
-          "away_price": 144,
-          "pinnacle_home_prob": 0.6002,
-          "pinnacle_away_prob": 0.3998,
+          "home_price": -166,
+          "away_price": 152,
+          "pinnacle_home_prob": 0.6113,
+          "pinnacle_away_prob": 0.3887,
           "historical_home_rate": 0.3,
           "historical_away_rate": 0.7,
-          "home_edge": -0.3002,
-          "away_edge": 0.3002,
+          "home_edge": -0.3113,
+          "away_edge": 0.3113,
           "reasons": [
             "Similar-caliber matchup \u2014 comps edge is narrow"
           ]
@@ -55,43 +68,17 @@
           "subject_side": "away",
           "direction": "UNDER",
           "headline": "Houston Astros Team Total \u2014 UNDER",
-          "signal": 6.2,
+          "signal": 5.5,
           "reasons": [
-            "Imanaga, Shota xFIP of 3.35 \u2014 elite run suppression"
+            "Imanaga, Shota xFIP of 3.34 \u2014 elite run suppression"
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 3.35,
+            "sp_xfip": 3.34,
             "sp_siera": null,
             "park_run_factor": 100,
-            "sp_suppress": 0.648,
+            "sp_suppress": 0.65,
             "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": null
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TOTAL",
-          "subject": "Houston Astros @ Chicago Cubs",
-          "direction": "UNDER",
-          "headline": "Houston Astros @ Chicago Cubs Total Runs \u2014 UNDER",
-          "signal": 6.1,
-          "reasons": [
-            "Elite pitching matchup: combined xFIP avg of 3.39"
-          ],
-          "raw_scores": {
-            "home_sp_xfip": 3.35,
-            "away_sp_xfip": 3.43,
-            "home_sp_siera": null,
-            "away_sp_siera": null,
-            "avg_lineup_xwoba": 0.31,
-            "park_run_factor": 100,
-            "avg_suppression": 0.641,
-            "offense_score": 0.4,
-            "weather_modifier": null,
             "umpire_modifier": null,
             "umpire": null
           },
@@ -105,16 +92,16 @@
           "subject_side": "home",
           "direction": "UNDER",
           "headline": "Chicago Cubs Team Total \u2014 UNDER",
-          "signal": 6.1,
+          "signal": 5.4,
           "reasons": [
-            "Lambert, Peter xFIP of 3.43 \u2014 elite run suppression"
+            "Lambert, Peter xFIP of 3.42 \u2014 elite run suppression"
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 3.43,
+            "sp_xfip": 3.42,
             "sp_siera": null,
             "park_run_factor": 100,
-            "sp_suppress": 0.633,
+            "sp_suppress": 0.635,
             "offense_score": 0.4,
             "umpire_modifier": null,
             "umpire": null
@@ -126,79 +113,79 @@
       ]
     },
     {
-      "gamePk": 823786,
-      "game_time": "2026-05-24T18:10:00Z",
-      "home_team": "Milwaukee Brewers",
-      "away_team": "Los Angeles Dodgers",
-      "venue": "American Family Field",
-      "home_sp": "Brandon Sproat",
-      "away_sp": "Yoshinobu Yamamoto",
+      "gamePk": 824028,
+      "game_time": "2026-05-24T23:20:00Z",
+      "home_team": "Los Angeles Angels",
+      "away_team": "Texas Rangers",
+      "venue": "Angel Stadium",
+      "home_sp": "Reid Detmers",
+      "away_sp": "MacKenzie Gore",
       "home_sp_stats": {
-        "xfip": 4.81,
+        "xfip": 3.22,
         "siera": null,
-        "k_pct": 0.2667,
+        "k_pct": 0.2361,
         "stuff_plus": null,
         "bb_pct": null,
         "hr_per_9": null
       },
       "away_sp_stats": {
-        "xfip": 3.79,
+        "xfip": 3.96,
         "siera": null,
-        "k_pct": 0.3243,
+        "k_pct": 0.1639,
         "stuff_plus": null,
         "bb_pct": null,
         "hr_per_9": null
       },
       "home_lineup_xwoba": null,
       "away_lineup_xwoba": null,
-      "park_run_factor": 101.0,
+      "park_run_factor": 99.0,
       "comps_count": 30,
       "insights": {
         "total": {
           "line": 8.0,
-          "over_price": -109,
+          "over_price": -107,
           "under_price": -105,
-          "pinnacle_over_prob": 0.5045,
-          "pinnacle_under_prob": 0.4955,
-          "historical_over_rate": 0.5667,
-          "historical_under_rate": 0.4333,
-          "over_edge": 0.0622,
-          "under_edge": -0.0622,
+          "pinnacle_over_prob": 0.5023,
+          "pinnacle_under_prob": 0.4977,
+          "historical_over_rate": 0.4667,
+          "historical_under_rate": 0.5333,
+          "over_edge": -0.0356,
+          "under_edge": 0.0356,
           "reasons": [
-            "Both arms are hittable (avg xFIP 4.30) \u2014 run environment favors the OVER"
+            "Reid Detmers (xFIP 3.22) is elite \u2014 historically suppresses run totals"
           ]
         },
         "moneyline": {
-          "home_price": 155,
-          "away_price": -173,
-          "pinnacle_home_prob": 0.3823,
-          "pinnacle_away_prob": 0.6177,
-          "historical_home_rate": 0.6,
-          "historical_away_rate": 0.4,
-          "home_edge": 0.2177,
-          "away_edge": -0.2177,
+          "home_price": -118,
+          "away_price": 109,
+          "pinnacle_home_prob": 0.5308,
+          "pinnacle_away_prob": 0.4692,
+          "historical_home_rate": 0.2667,
+          "historical_away_rate": 0.7333,
+          "home_edge": -0.2641,
+          "away_edge": 0.2641,
           "reasons": [
-            "Yoshinobu Yamamoto (xFIP 3.79) has a significant quality edge over Brandon Sproat (4.81) \u2014 favors the away side"
+            "Reid Detmers (xFIP 3.22) has a significant quality edge over MacKenzie Gore (3.96) \u2014 favors the home side"
           ]
         }
       },
       "picks": [
         {
           "bet_type": "TEAM_TOTAL",
-          "subject": "Milwaukee Brewers",
-          "subject_side": "home",
+          "subject": "Texas Rangers",
+          "subject_side": "away",
           "direction": "UNDER",
-          "headline": "Milwaukee Brewers Team Total \u2014 UNDER",
-          "signal": 6.1,
+          "headline": "Texas Rangers Team Total \u2014 UNDER",
+          "signal": 6.3,
           "reasons": [
-            "Wind 10 mph blowing in"
+            "Detmers, Reid xFIP of 3.22 \u2014 elite run suppression"
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 3.79,
+            "sp_xfip": 3.22,
             "sp_siera": null,
-            "park_run_factor": 101,
-            "sp_suppress": 0.567,
+            "park_run_factor": 99,
+            "sp_suppress": 0.672,
             "offense_score": 0.4,
             "umpire_modifier": null,
             "umpire": null
@@ -209,20 +196,18 @@
         },
         {
           "bet_type": "TEAM_TOTAL",
-          "subject": "Los Angeles Dodgers",
-          "subject_side": "away",
+          "subject": "Los Angeles Angels",
+          "subject_side": "home",
           "direction": "UNDER",
-          "headline": "Los Angeles Dodgers Team Total \u2014 UNDER",
-          "signal": 5.5,
-          "reasons": [
-            "Wind 10 mph blowing in"
-          ],
+          "headline": "Los Angeles Angels Team Total \u2014 UNDER",
+          "signal": 5.8,
+          "reasons": [],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 4.81,
+            "sp_xfip": 3.96,
             "sp_siera": null,
-            "park_run_factor": 101,
-            "sp_suppress": 0.378,
+            "park_run_factor": 99,
+            "sp_suppress": 0.535,
             "offense_score": 0.4,
             "umpire_modifier": null,
             "umpire": null
@@ -242,7 +227,7 @@
       "home_sp": "Brandon Young",
       "away_sp": "Framber Valdez",
       "home_sp_stats": {
-        "xfip": 4.53,
+        "xfip": 4.51,
         "siera": null,
         "k_pct": 0.197,
         "stuff_plus": null,
@@ -250,7 +235,7 @@
         "hr_per_9": null
       },
       "away_sp_stats": {
-        "xfip": 4.38,
+        "xfip": 4.36,
         "siera": null,
         "k_pct": 0.1781,
         "stuff_plus": null,
@@ -264,27 +249,27 @@
       "insights": {
         "total": {
           "line": 8.0,
-          "over_price": -113,
-          "under_price": -102,
-          "pinnacle_over_prob": 0.5123,
-          "pinnacle_under_prob": 0.4877,
+          "over_price": -107,
+          "under_price": -107,
+          "pinnacle_over_prob": 0.5,
+          "pinnacle_under_prob": 0.5,
           "historical_over_rate": 0.3333,
           "historical_under_rate": 0.6667,
-          "over_edge": -0.179,
-          "under_edge": 0.179,
+          "over_edge": -0.1667,
+          "under_edge": 0.1667,
           "reasons": [
-            "Both arms are hittable (avg xFIP 4.46), but historical comps lean UNDER \u2014 regression in run-scoring likely"
+            "Both arms are hittable (avg xFIP 4.44), but historical comps lean UNDER \u2014 regression in run-scoring likely"
           ]
         },
         "moneyline": {
-          "home_price": -118,
-          "away_price": 107,
-          "pinnacle_home_prob": 0.5284,
-          "pinnacle_away_prob": 0.4716,
+          "home_price": -123,
+          "away_price": 111,
+          "pinnacle_home_prob": 0.5379,
+          "pinnacle_away_prob": 0.4621,
           "historical_home_rate": 0.3333,
           "historical_away_rate": 0.6667,
-          "home_edge": -0.1951,
-          "away_edge": 0.1951,
+          "home_edge": -0.2046,
+          "away_edge": 0.2046,
           "reasons": [
             "Similar-caliber matchup \u2014 comps edge is narrow"
           ]
@@ -301,13 +286,13 @@
           "reasons": [],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 4.38,
+            "sp_xfip": 4.36,
             "sp_siera": null,
             "park_run_factor": 97,
-            "sp_suppress": 0.457,
+            "sp_suppress": 0.461,
             "offense_score": 0.4,
             "umpire_modifier": null,
-            "umpire": null
+            "umpire": "Jonathan Parra"
           },
           "tier": "APPEALING",
           "odds": null,
@@ -323,10 +308,114 @@
           "reasons": [],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 4.53,
+            "sp_xfip": 4.51,
             "sp_siera": null,
             "park_run_factor": 97,
-            "sp_suppress": 0.43,
+            "sp_suppress": 0.433,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": "Jonathan Parra"
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        }
+      ]
+    },
+    {
+      "gamePk": 823786,
+      "game_time": "2026-05-24T18:10:00Z",
+      "home_team": "Milwaukee Brewers",
+      "away_team": "Los Angeles Dodgers",
+      "venue": "American Family Field",
+      "home_sp": "Brandon Sproat",
+      "away_sp": "Yoshinobu Yamamoto",
+      "home_sp_stats": {
+        "xfip": 4.79,
+        "siera": null,
+        "k_pct": 0.2667,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "away_sp_stats": {
+        "xfip": 3.77,
+        "siera": null,
+        "k_pct": 0.3243,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "home_lineup_xwoba": null,
+      "away_lineup_xwoba": null,
+      "park_run_factor": 101.0,
+      "comps_count": 30,
+      "insights": {
+        "total": {
+          "line": 8.0,
+          "over_price": -106,
+          "under_price": -106,
+          "pinnacle_over_prob": 0.5,
+          "pinnacle_under_prob": 0.5,
+          "historical_over_rate": 0.5667,
+          "historical_under_rate": 0.4333,
+          "over_edge": 0.0667,
+          "under_edge": -0.0667,
+          "reasons": [
+            "Both arms are hittable (avg xFIP 4.28) \u2014 run environment favors the OVER"
+          ]
+        },
+        "moneyline": {
+          "home_price": 146,
+          "away_price": -159,
+          "pinnacle_home_prob": 0.3984,
+          "pinnacle_away_prob": 0.6016,
+          "historical_home_rate": 0.6,
+          "historical_away_rate": 0.4,
+          "home_edge": 0.2016,
+          "away_edge": -0.2016,
+          "reasons": [
+            "Yoshinobu Yamamoto (xFIP 3.77) has a significant quality edge over Brandon Sproat (4.79) \u2014 favors the away side"
+          ]
+        }
+      },
+      "picks": [
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Milwaukee Brewers",
+          "subject_side": "home",
+          "direction": "UNDER",
+          "headline": "Milwaukee Brewers Team Total \u2014 UNDER",
+          "signal": 5.8,
+          "reasons": [],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": 3.77,
+            "sp_siera": null,
+            "park_run_factor": 101,
+            "sp_suppress": 0.57,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Los Angeles Dodgers",
+          "subject_side": "away",
+          "direction": "UNDER",
+          "headline": "Los Angeles Dodgers Team Total \u2014 UNDER",
+          "signal": 5.2,
+          "reasons": [],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": 4.79,
+            "sp_siera": null,
+            "park_run_factor": 101,
+            "sp_suppress": 0.381,
             "offense_score": 0.4,
             "umpire_modifier": null,
             "umpire": null
@@ -346,7 +435,7 @@
       "home_sp": "Michael King",
       "away_sp": "Luis Medina",
       "home_sp_stats": {
-        "xfip": 3.6,
+        "xfip": 3.59,
         "siera": null,
         "k_pct": 0.2857,
         "stuff_plus": null,
@@ -354,7 +443,7 @@
         "hr_per_9": null
       },
       "away_sp_stats": {
-        "xfip": 4.62,
+        "xfip": 4.6,
         "siera": null,
         "k_pct": 0.28,
         "stuff_plus": null,
@@ -367,30 +456,31 @@
       "comps_count": 30,
       "insights": {
         "total": {
-          "line": 8.0,
-          "over_price": -111,
-          "under_price": -103,
-          "pinnacle_over_prob": 0.509,
-          "pinnacle_under_prob": 0.491,
-          "historical_over_rate": 0.4333,
-          "historical_under_rate": 0.5667,
-          "over_edge": -0.0757,
-          "under_edge": 0.0757,
+          "line": 7.5,
+          "over_price": -114,
+          "under_price": 101,
+          "pinnacle_over_prob": 0.5171,
+          "pinnacle_under_prob": 0.4829,
+          "historical_over_rate": 0.5,
+          "historical_under_rate": 0.5,
+          "over_edge": -0.0171,
+          "under_edge": 0.0171,
           "reasons": [
+            "Michael King (xFIP 3.59) is elite \u2014 historically suppresses run totals",
             "Pitcher-friendly park (factor 92) suppresses run totals"
           ]
         },
         "moneyline": {
-          "home_price": -164,
-          "away_price": 147,
-          "pinnacle_home_prob": 0.6054,
-          "pinnacle_away_prob": 0.3946,
+          "home_price": -168,
+          "away_price": 154,
+          "pinnacle_home_prob": 0.6142,
+          "pinnacle_away_prob": 0.3858,
           "historical_home_rate": 0.4333,
           "historical_away_rate": 0.5667,
-          "home_edge": -0.1721,
-          "away_edge": 0.1721,
+          "home_edge": -0.1809,
+          "away_edge": 0.1809,
           "reasons": [
-            "Michael King (xFIP 3.60) has a significant quality edge over Luis Medina (4.62) \u2014 favors the home side"
+            "Michael King (xFIP 3.59) has a significant quality edge over Luis Medina (4.60) \u2014 favors the home side"
           ]
         }
       },
@@ -407,10 +497,10 @@
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 3.6,
+            "sp_xfip": 3.59,
             "sp_siera": null,
             "park_run_factor": 92,
-            "sp_suppress": 0.602,
+            "sp_suppress": 0.604,
             "offense_score": 0.4,
             "umpire_modifier": null,
             "umpire": null
@@ -431,116 +521,10 @@
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 4.62,
+            "sp_xfip": 4.6,
             "sp_siera": null,
             "park_run_factor": 92,
-            "sp_suppress": 0.413,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": null
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        }
-      ]
-    },
-    {
-      "gamePk": 823459,
-      "game_time": "2026-05-24T17:35:00Z",
-      "home_team": "Philadelphia Phillies",
-      "away_team": "Cleveland Guardians",
-      "venue": "Citizens Bank Park",
-      "home_sp": "Andrew Painter",
-      "away_sp": "Parker Messick",
-      "home_sp_stats": {
-        "xfip": 4.62,
-        "siera": null,
-        "k_pct": 0.1475,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "away_sp_stats": {
-        "xfip": 3.19,
-        "siera": null,
-        "k_pct": 0.2857,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "home_lineup_xwoba": null,
-      "away_lineup_xwoba": null,
-      "park_run_factor": 102.0,
-      "comps_count": 30,
-      "insights": {
-        "total": {
-          "line": 7.5,
-          "over_price": -101,
-          "under_price": -114,
-          "pinnacle_over_prob": 0.4854,
-          "pinnacle_under_prob": 0.5146,
-          "historical_over_rate": 0.5667,
-          "historical_under_rate": 0.4333,
-          "over_edge": 0.0813,
-          "under_edge": -0.0813,
-          "reasons": [
-            "Parker Messick (xFIP 3.19) is elite \u2014 historically suppresses run totals"
-          ]
-        },
-        "moneyline": {
-          "home_price": 116,
-          "away_price": -128,
-          "pinnacle_home_prob": 0.452,
-          "pinnacle_away_prob": 0.548,
-          "historical_home_rate": 0.6,
-          "historical_away_rate": 0.4,
-          "home_edge": 0.148,
-          "away_edge": -0.148,
-          "reasons": [
-            "Parker Messick (xFIP 3.19) has a significant quality edge over Andrew Painter (4.62) \u2014 favors the away side"
-          ]
-        }
-      },
-      "picks": [
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Philadelphia Phillies",
-          "subject_side": "home",
-          "direction": "UNDER",
-          "headline": "Philadelphia Phillies Team Total \u2014 UNDER",
-          "signal": 6.1,
-          "reasons": [
-            "Messick, Parker xFIP of 3.19 \u2014 elite run suppression"
-          ],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": 3.19,
-            "sp_siera": null,
-            "park_run_factor": 102,
-            "sp_suppress": 0.678,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": null
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Cleveland Guardians",
-          "subject_side": "away",
-          "direction": "UNDER",
-          "headline": "Cleveland Guardians Team Total \u2014 UNDER",
-          "signal": 5.2,
-          "reasons": [],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": 4.62,
-            "sp_siera": null,
-            "park_run_factor": 102,
-            "sp_suppress": 0.413,
+            "sp_suppress": 0.417,
             "offense_score": 0.4,
             "umpire_modifier": null,
             "umpire": null
@@ -560,7 +544,7 @@
       "home_sp": "Seth Lugo",
       "away_sp": "Bryan Woo",
       "home_sp_stats": {
-        "xfip": 4.94,
+        "xfip": 4.92,
         "siera": null,
         "k_pct": 0.1944,
         "stuff_plus": null,
@@ -568,7 +552,7 @@
         "hr_per_9": null
       },
       "away_sp_stats": {
-        "xfip": 3.16,
+        "xfip": 3.15,
         "siera": null,
         "k_pct": 0.3881,
         "stuff_plus": null,
@@ -582,29 +566,29 @@
       "insights": {
         "total": {
           "line": 8.5,
-          "over_price": -106,
-          "under_price": -108,
-          "pinnacle_over_prob": 0.4977,
-          "pinnacle_under_prob": 0.5023,
+          "over_price": -103,
+          "under_price": -110,
+          "pinnacle_over_prob": 0.492,
+          "pinnacle_under_prob": 0.508,
           "historical_over_rate": 0.3667,
           "historical_under_rate": 0.6333,
-          "over_edge": -0.131,
-          "under_edge": 0.131,
+          "over_edge": -0.1253,
+          "under_edge": 0.1253,
           "reasons": [
-            "Bryan Woo (xFIP 3.16) is elite \u2014 historically suppresses run totals"
+            "Bryan Woo (xFIP 3.15) is elite \u2014 historically suppresses run totals"
           ]
         },
         "moneyline": {
-          "home_price": 121,
-          "away_price": -134,
-          "pinnacle_home_prob": 0.4414,
-          "pinnacle_away_prob": 0.5586,
+          "home_price": 108,
+          "away_price": -116,
+          "pinnacle_home_prob": 0.4724,
+          "pinnacle_away_prob": 0.5276,
           "historical_home_rate": 0.5,
           "historical_away_rate": 0.5,
-          "home_edge": 0.0586,
-          "away_edge": -0.0586,
+          "home_edge": 0.0276,
+          "away_edge": -0.0276,
           "reasons": [
-            "Bryan Woo (xFIP 3.16) has a significant quality edge over Seth Lugo (4.94) \u2014 favors the away side"
+            "Bryan Woo (xFIP 3.15) has a significant quality edge over Seth Lugo (4.92) \u2014 favors the away side"
           ]
         }
       },
@@ -617,17 +601,17 @@
           "headline": "Kansas City Royals Team Total \u2014 UNDER",
           "signal": 6.4,
           "reasons": [
-            "Woo, Bryan xFIP of 3.16 \u2014 elite run suppression"
+            "Woo, Bryan xFIP of 3.15 \u2014 elite run suppression"
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 3.16,
+            "sp_xfip": 3.15,
             "sp_siera": null,
             "park_run_factor": 98,
-            "sp_suppress": 0.683,
+            "sp_suppress": 0.685,
             "offense_score": 0.4,
             "umpire_modifier": null,
-            "umpire": null
+            "umpire": "John Bacon"
           },
           "tier": "APPEALING",
           "odds": null,
@@ -643,13 +627,13 @@
           "reasons": [],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 4.94,
+            "sp_xfip": 4.92,
             "sp_siera": null,
             "park_run_factor": 98,
-            "sp_suppress": 0.354,
+            "sp_suppress": 0.357,
             "offense_score": 0.4,
             "umpire_modifier": null,
-            "umpire": null
+            "umpire": "John Bacon"
           },
           "tier": "APPEALING",
           "odds": null,
@@ -666,7 +650,7 @@
       "home_sp": "Tyler Phillips",
       "away_sp": "Christian Scott",
       "home_sp_stats": {
-        "xfip": 3.45,
+        "xfip": 3.44,
         "siera": null,
         "k_pct": 0.1633,
         "stuff_plus": null,
@@ -674,7 +658,7 @@
         "hr_per_9": null
       },
       "away_sp_stats": {
-        "xfip": 4.2,
+        "xfip": 4.19,
         "siera": null,
         "k_pct": 0.2623,
         "stuff_plus": null,
@@ -688,29 +672,29 @@
       "insights": {
         "total": {
           "line": 8.5,
-          "over_price": 100,
-          "under_price": -114,
-          "pinnacle_over_prob": 0.4842,
-          "pinnacle_under_prob": 0.5158,
+          "over_price": 101,
+          "under_price": -113,
+          "pinnacle_over_prob": 0.4839,
+          "pinnacle_under_prob": 0.5161,
           "historical_over_rate": 0.3667,
           "historical_under_rate": 0.6333,
-          "over_edge": -0.1175,
-          "under_edge": 0.1175,
+          "over_edge": -0.1172,
+          "under_edge": 0.1172,
           "reasons": [
-            "Tyler Phillips (xFIP 3.45) is elite \u2014 historically suppresses run totals"
+            "Tyler Phillips (xFIP 3.44) is elite \u2014 historically suppresses run totals"
           ]
         },
         "moneyline": {
-          "home_price": 103,
-          "away_price": -114,
-          "pinnacle_home_prob": 0.4804,
-          "pinnacle_away_prob": 0.5196,
+          "home_price": 102,
+          "away_price": -110,
+          "pinnacle_home_prob": 0.4859,
+          "pinnacle_away_prob": 0.5141,
           "historical_home_rate": 0.5,
           "historical_away_rate": 0.5,
-          "home_edge": 0.0196,
-          "away_edge": -0.0196,
+          "home_edge": 0.0141,
+          "away_edge": -0.0141,
           "reasons": [
-            "Tyler Phillips (xFIP 3.45) has a significant quality edge over Christian Scott (4.20) \u2014 favors the home side"
+            "Tyler Phillips (xFIP 3.44) has a significant quality edge over Christian Scott (4.19) \u2014 favors the home side"
           ]
         }
       },
@@ -721,20 +705,20 @@
           "subject_side": "away",
           "direction": "UNDER",
           "headline": "New York Mets Team Total \u2014 UNDER",
-          "signal": 5.7,
+          "signal": 5.6,
           "reasons": [
-            "Phillips, Tyler xFIP of 3.45 \u2014 elite run suppression",
-            "Wind 13 mph blowing out"
+            "Phillips, Tyler xFIP of 3.44 \u2014 elite run suppression",
+            "Wind 11 mph blowing out"
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 3.45,
+            "sp_xfip": 3.44,
             "sp_siera": null,
             "park_run_factor": 98,
-            "sp_suppress": 0.63,
+            "sp_suppress": 0.631,
             "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": null
+            "umpire_modifier": -0.05,
+            "umpire": "Jansen Visconti"
           },
           "tier": "APPEALING",
           "odds": null,
@@ -746,19 +730,125 @@
           "subject_side": "home",
           "direction": "UNDER",
           "headline": "Miami Marlins Team Total \u2014 UNDER",
-          "signal": 5.3,
+          "signal": 5.2,
           "reasons": [
-            "Wind 13 mph blowing out"
+            "Wind 11 mph blowing out"
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 4.2,
+            "sp_xfip": 4.19,
             "sp_siera": null,
             "park_run_factor": 98,
-            "sp_suppress": 0.491,
+            "sp_suppress": 0.493,
+            "offense_score": 0.4,
+            "umpire_modifier": -0.05,
+            "umpire": "Jansen Visconti"
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        }
+      ]
+    },
+    {
+      "gamePk": 823459,
+      "game_time": "2026-05-24T17:35:00Z",
+      "home_team": "Philadelphia Phillies",
+      "away_team": "Cleveland Guardians",
+      "venue": "Citizens Bank Park",
+      "home_sp": "Andrew Painter",
+      "away_sp": "Parker Messick",
+      "home_sp_stats": {
+        "xfip": 4.6,
+        "siera": null,
+        "k_pct": 0.1475,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "away_sp_stats": {
+        "xfip": 3.18,
+        "siera": null,
+        "k_pct": 0.2857,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "home_lineup_xwoba": null,
+      "away_lineup_xwoba": null,
+      "park_run_factor": 102.0,
+      "comps_count": 30,
+      "insights": {
+        "total": {
+          "line": 7.5,
+          "over_price": 101,
+          "under_price": -113,
+          "pinnacle_over_prob": 0.4839,
+          "pinnacle_under_prob": 0.5161,
+          "historical_over_rate": 0.5667,
+          "historical_under_rate": 0.4333,
+          "over_edge": 0.0828,
+          "under_edge": -0.0828,
+          "reasons": [
+            "Parker Messick (xFIP 3.18) is elite \u2014 historically suppresses run totals"
+          ]
+        },
+        "moneyline": {
+          "home_price": 102,
+          "away_price": -110,
+          "pinnacle_home_prob": 0.4859,
+          "pinnacle_away_prob": 0.5141,
+          "historical_home_rate": 0.6,
+          "historical_away_rate": 0.4,
+          "home_edge": 0.1141,
+          "away_edge": -0.1141,
+          "reasons": [
+            "Parker Messick (xFIP 3.18) has a significant quality edge over Andrew Painter (4.60) \u2014 favors the away side"
+          ]
+        }
+      },
+      "picks": [
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Philadelphia Phillies",
+          "subject_side": "home",
+          "direction": "UNDER",
+          "headline": "Philadelphia Phillies Team Total \u2014 UNDER",
+          "signal": 6.1,
+          "reasons": [
+            "Messick, Parker xFIP of 3.18 \u2014 elite run suppression"
+          ],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": 3.18,
+            "sp_siera": null,
+            "park_run_factor": 102,
+            "sp_suppress": 0.68,
             "offense_score": 0.4,
             "umpire_modifier": null,
-            "umpire": null
+            "umpire": "Mark Wegner"
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Cleveland Guardians",
+          "subject_side": "away",
+          "direction": "UNDER",
+          "headline": "Cleveland Guardians Team Total \u2014 UNDER",
+          "signal": 5.2,
+          "reasons": [],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": 4.6,
+            "sp_siera": null,
+            "park_run_factor": 102,
+            "sp_suppress": 0.417,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": "Mark Wegner"
           },
           "tier": "APPEALING",
           "odds": null,
@@ -775,7 +865,7 @@
       "home_sp": "Dylan Cease",
       "away_sp": "Mitch Keller",
       "home_sp_stats": {
-        "xfip": 2.98,
+        "xfip": 2.97,
         "siera": null,
         "k_pct": 0.3784,
         "stuff_plus": null,
@@ -783,7 +873,7 @@
         "hr_per_9": null
       },
       "away_sp_stats": {
-        "xfip": 4.26,
+        "xfip": 4.25,
         "siera": null,
         "k_pct": 0.1449,
         "stuff_plus": null,
@@ -797,29 +887,29 @@
       "insights": {
         "total": {
           "line": 7.5,
-          "over_price": -115,
-          "under_price": 100,
-          "pinnacle_over_prob": 0.5169,
-          "pinnacle_under_prob": 0.4831,
+          "over_price": -111,
+          "under_price": -101,
+          "pinnacle_over_prob": 0.5115,
+          "pinnacle_under_prob": 0.4885,
           "historical_over_rate": 0.4,
           "historical_under_rate": 0.6,
-          "over_edge": -0.1169,
-          "under_edge": 0.1169,
+          "over_edge": -0.1115,
+          "under_edge": 0.1115,
           "reasons": [
-            "Dylan Cease (xFIP 2.98) is elite \u2014 historically suppresses run totals"
+            "Dylan Cease (xFIP 2.97) is elite \u2014 historically suppresses run totals"
           ]
         },
         "moneyline": {
-          "home_price": -164,
+          "home_price": -160,
           "away_price": 147,
-          "pinnacle_home_prob": 0.6054,
-          "pinnacle_away_prob": 0.3946,
+          "pinnacle_home_prob": 0.6032,
+          "pinnacle_away_prob": 0.3968,
           "historical_home_rate": 0.5,
           "historical_away_rate": 0.5,
-          "home_edge": -0.1054,
-          "away_edge": 0.1054,
+          "home_edge": -0.1032,
+          "away_edge": 0.1032,
           "reasons": [
-            "Dylan Cease (xFIP 2.98) has a significant quality edge over Mitch Keller (4.26) \u2014 favors the home side"
+            "Dylan Cease (xFIP 2.97) has a significant quality edge over Mitch Keller (4.25) \u2014 favors the home side"
           ]
         }
       },
@@ -832,17 +922,17 @@
           "headline": "Pittsburgh Pirates Team Total \u2014 UNDER",
           "signal": 6.5,
           "reasons": [
-            "Cease, Dylan xFIP of 2.98 \u2014 elite run suppression"
+            "Cease, Dylan xFIP of 2.97 \u2014 elite run suppression"
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 2.98,
+            "sp_xfip": 2.97,
             "sp_siera": null,
             "park_run_factor": 98,
-            "sp_suppress": 0.717,
+            "sp_suppress": 0.719,
             "offense_score": 0.4,
             "umpire_modifier": null,
-            "umpire": null
+            "umpire": "Willie Traynor"
           },
           "tier": "GREAT",
           "odds": null,
@@ -858,119 +948,13 @@
           "reasons": [],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 4.26,
+            "sp_xfip": 4.25,
             "sp_siera": null,
             "park_run_factor": 98,
-            "sp_suppress": 0.48,
+            "sp_suppress": 0.481,
             "offense_score": 0.4,
             "umpire_modifier": null,
-            "umpire": null
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        }
-      ]
-    },
-    {
-      "gamePk": 823544,
-      "game_time": "2026-05-24T17:35:00Z",
-      "home_team": "New York Yankees",
-      "away_team": "Tampa Bay Rays",
-      "venue": "Yankee Stadium",
-      "home_sp": "Ryan Weathers",
-      "away_sp": "Drew Rasmussen",
-      "home_sp_stats": {
-        "xfip": 4.12,
-        "siera": null,
-        "k_pct": 0.3478,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "away_sp_stats": {
-        "xfip": 3.4,
-        "siera": null,
-        "k_pct": 0.1806,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "home_lineup_xwoba": null,
-      "away_lineup_xwoba": null,
-      "park_run_factor": 104.0,
-      "comps_count": 30,
-      "insights": {
-        "total": {
-          "line": 7.0,
-          "over_price": -114,
-          "under_price": 100,
-          "pinnacle_over_prob": 0.5158,
-          "pinnacle_under_prob": 0.4842,
-          "historical_over_rate": 0.5333,
-          "historical_under_rate": 0.4667,
-          "over_edge": 0.0175,
-          "under_edge": -0.0175,
-          "reasons": [
-            "Drew Rasmussen (xFIP 3.40) is elite \u2014 historically suppresses run totals"
-          ]
-        },
-        "moneyline": {
-          "home_price": -124,
-          "away_price": 112,
-          "pinnacle_home_prob": 0.5399,
-          "pinnacle_away_prob": 0.4601,
-          "historical_home_rate": 0.6333,
-          "historical_away_rate": 0.3667,
-          "home_edge": 0.0934,
-          "away_edge": -0.0934,
-          "reasons": [
-            "Drew Rasmussen (xFIP 3.40) has a significant quality edge over Ryan Weathers (4.12) \u2014 favors the away side"
-          ]
-        }
-      },
-      "picks": [
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "New York Yankees",
-          "subject_side": "home",
-          "direction": "UNDER",
-          "headline": "New York Yankees Team Total \u2014 UNDER",
-          "signal": 5.9,
-          "reasons": [
-            "Rasmussen, Drew xFIP of 3.40 \u2014 elite run suppression"
-          ],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": 3.4,
-            "sp_siera": null,
-            "park_run_factor": 104,
-            "sp_suppress": 0.639,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": null
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Tampa Bay Rays",
-          "subject_side": "away",
-          "direction": "UNDER",
-          "headline": "Tampa Bay Rays Team Total \u2014 UNDER",
-          "signal": 5.4,
-          "reasons": [],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": 4.12,
-            "sp_siera": null,
-            "park_run_factor": 104,
-            "sp_suppress": 0.506,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": null
+            "umpire": "Willie Traynor"
           },
           "tier": "APPEALING",
           "odds": null,
@@ -987,7 +971,7 @@
       "home_sp": "Robbie Ray",
       "away_sp": "Noah Schultz",
       "home_sp_stats": {
-        "xfip": 5.2,
+        "xfip": 5.19,
         "siera": null,
         "k_pct": 0.1389,
         "stuff_plus": null,
@@ -995,7 +979,7 @@
         "hr_per_9": null
       },
       "away_sp_stats": {
-        "xfip": 5.04,
+        "xfip": 5.02,
         "siera": null,
         "k_pct": 0.1905,
         "stuff_plus": null,
@@ -1009,8 +993,8 @@
       "insights": {
         "total": {
           "line": 8.0,
-          "over_price": -106,
-          "under_price": -108,
+          "over_price": -105,
+          "under_price": -107,
           "pinnacle_over_prob": 0.4977,
           "pinnacle_under_prob": 0.5023,
           "historical_over_rate": 0.4667,
@@ -1018,19 +1002,19 @@
           "over_edge": -0.031,
           "under_edge": 0.031,
           "reasons": [
-            "Both arms are hittable (avg xFIP 5.12) \u2014 run environment favors the OVER",
+            "Both arms are hittable (avg xFIP 5.11) \u2014 run environment favors the OVER",
             "Pitcher-friendly park (factor 93) suppresses run totals"
           ]
         },
         "moneyline": {
-          "home_price": -106,
-          "away_price": -104,
-          "pinnacle_home_prob": 0.5023,
-          "pinnacle_away_prob": 0.4977,
+          "home_price": -114,
+          "away_price": 105,
+          "pinnacle_home_prob": 0.522,
+          "pinnacle_away_prob": 0.478,
           "historical_home_rate": 0.4333,
           "historical_away_rate": 0.5667,
-          "home_edge": -0.069,
-          "away_edge": 0.069,
+          "home_edge": -0.0887,
+          "away_edge": 0.0887,
           "reasons": [
             "Similar-caliber matchup \u2014 comps edge is narrow"
           ]
@@ -1043,17 +1027,17 @@
           "subject_side": "home",
           "direction": "UNDER",
           "headline": "San Francisco Giants Team Total \u2014 UNDER",
-          "signal": 5.8,
+          "signal": 5.9,
           "reasons": [
             "Oracle Park run factor of 93 \u2014 suppresses scoring",
             "Wind 13 mph blowing in"
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 5.04,
+            "sp_xfip": 5.02,
             "sp_siera": null,
             "park_run_factor": 93,
-            "sp_suppress": 0.335,
+            "sp_suppress": 0.339,
             "offense_score": 0.4,
             "umpire_modifier": null,
             "umpire": null
@@ -1075,10 +1059,10 @@
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 5.2,
+            "sp_xfip": 5.19,
             "sp_siera": null,
             "park_run_factor": 93,
-            "sp_suppress": 0.306,
+            "sp_suppress": 0.307,
             "offense_score": 0.4,
             "umpire_modifier": null,
             "umpire": null
@@ -1090,123 +1074,113 @@
       ]
     },
     {
-      "gamePk": 824514,
-      "game_time": "2026-05-24T17:40:00Z",
-      "home_team": "Cincinnati Reds",
-      "away_team": "St. Louis Cardinals",
-      "venue": "Great American Ball Park",
-      "home_sp": "Brady Singer",
-      "away_sp": "Matthew Liberatore",
+      "gamePk": 823544,
+      "game_time": "2026-05-24T17:35:00Z",
+      "home_team": "New York Yankees",
+      "away_team": "Tampa Bay Rays",
+      "venue": "Yankee Stadium",
+      "home_sp": "Ryan Weathers",
+      "away_sp": "Drew Rasmussen",
       "home_sp_stats": {
-        "xfip": 6.07,
+        "xfip": 4.1,
         "siera": null,
-        "k_pct": 0.2222,
+        "k_pct": 0.3478,
         "stuff_plus": null,
         "bb_pct": null,
         "hr_per_9": null
       },
       "away_sp_stats": {
-        "xfip": 5.66,
+        "xfip": 3.37,
         "siera": null,
-        "k_pct": 0.2941,
+        "k_pct": 0.1806,
         "stuff_plus": null,
         "bb_pct": null,
         "hr_per_9": null
       },
       "home_lineup_xwoba": null,
       "away_lineup_xwoba": null,
-      "park_run_factor": 108.0,
+      "park_run_factor": 104.0,
       "comps_count": 30,
       "insights": {
         "total": {
-          "line": 10.0,
-          "over_price": 100,
-          "under_price": -114,
-          "pinnacle_over_prob": 0.4842,
-          "pinnacle_under_prob": 0.5158,
-          "historical_over_rate": 0.3,
-          "historical_under_rate": 0.7,
-          "over_edge": -0.1842,
-          "under_edge": 0.1842,
+          "line": 7.0,
+          "over_price": -113,
+          "under_price": 100,
+          "pinnacle_over_prob": 0.5148,
+          "pinnacle_under_prob": 0.4852,
+          "historical_over_rate": 0.5333,
+          "historical_under_rate": 0.4667,
+          "over_edge": 0.0185,
+          "under_edge": -0.0185,
           "reasons": [
-            "Both arms are hittable (avg xFIP 5.87), but historical comps lean UNDER \u2014 regression in run-scoring likely",
-            "Hitter-friendly park (factor 108) inflates scoring"
+            "Drew Rasmussen (xFIP 3.37) is elite \u2014 historically suppresses run totals"
           ]
         },
         "moneyline": {
-          "home_price": -114,
-          "away_price": 103,
-          "pinnacle_home_prob": 0.5196,
-          "pinnacle_away_prob": 0.4804,
-          "historical_home_rate": 0.5667,
-          "historical_away_rate": 0.4333,
-          "home_edge": 0.0471,
-          "away_edge": -0.0471,
-          "reasons": [
-            "Matthew Liberatore (xFIP 5.66) has a significant quality edge over Brady Singer (6.07) \u2014 favors the away side"
-          ]
-        }
-      },
-      "picks": []
-    },
-    {
-      "gamePk": 825081,
-      "game_time": "2026-05-24T20:10:00Z",
-      "home_team": "Arizona Diamondbacks",
-      "away_team": "Colorado Rockies",
-      "venue": "Chase Field",
-      "home_sp": "Ryne Nelson",
-      "away_sp": "Jose Quintana",
-      "home_sp_stats": {
-        "xfip": 4.78,
-        "siera": null,
-        "k_pct": 0.225,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "away_sp_stats": {
-        "xfip": 4.5,
-        "siera": null,
-        "k_pct": 0.1212,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "home_lineup_xwoba": null,
-      "away_lineup_xwoba": null,
-      "park_run_factor": 103.0,
-      "comps_count": 30,
-      "insights": {
-        "total": {
-          "line": 9.5,
-          "over_price": 104,
-          "under_price": -119,
-          "pinnacle_over_prob": 0.4743,
-          "pinnacle_under_prob": 0.5257,
-          "historical_over_rate": 0.3,
-          "historical_under_rate": 0.7,
-          "over_edge": -0.1743,
-          "under_edge": 0.1743,
-          "reasons": [
-            "Both arms are hittable (avg xFIP 4.64), but historical comps lean UNDER \u2014 regression in run-scoring likely"
-          ]
-        },
-        "moneyline": {
-          "home_price": -185,
-          "away_price": 165,
-          "pinnacle_home_prob": 0.6324,
-          "pinnacle_away_prob": 0.3676,
+          "home_price": -129,
+          "away_price": 119,
+          "pinnacle_home_prob": 0.5523,
+          "pinnacle_away_prob": 0.4477,
           "historical_home_rate": 0.6333,
           "historical_away_rate": 0.3667,
-          "home_edge": 0.0009,
-          "away_edge": -0.0009,
+          "home_edge": 0.081,
+          "away_edge": -0.081,
           "reasons": [
-            "Similar-caliber matchup \u2014 comps edge is narrow"
+            "Drew Rasmussen (xFIP 3.37) has a significant quality edge over Ryan Weathers (4.10) \u2014 favors the away side"
           ]
         }
       },
-      "picks": []
+      "picks": [
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "New York Yankees",
+          "subject_side": "home",
+          "direction": "UNDER",
+          "headline": "New York Yankees Team Total \u2014 UNDER",
+          "signal": 6.2,
+          "reasons": [
+            "Rasmussen, Drew xFIP of 3.37 \u2014 elite run suppression",
+            "Cool (55\u00b0F) \u2014 slight suppression on scoring"
+          ],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": 3.37,
+            "sp_siera": null,
+            "park_run_factor": 104,
+            "sp_suppress": 0.644,
+            "offense_score": 0.4,
+            "umpire_modifier": 0.09,
+            "umpire": "Doug Eddings"
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Tampa Bay Rays",
+          "subject_side": "away",
+          "direction": "UNDER",
+          "headline": "Tampa Bay Rays Team Total \u2014 UNDER",
+          "signal": 5.8,
+          "reasons": [
+            "Cool (55\u00b0F) \u2014 slight suppression on scoring"
+          ],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": 4.1,
+            "sp_siera": null,
+            "park_run_factor": 104,
+            "sp_suppress": 0.509,
+            "offense_score": 0.4,
+            "umpire_modifier": 0.09,
+            "umpire": "Doug Eddings"
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        }
+      ]
     },
     {
       "gamePk": 824759,
@@ -1217,7 +1191,7 @@
       "home_sp": "Sonny Gray",
       "away_sp": "Bailey Ober",
       "home_sp_stats": {
-        "xfip": 4.44,
+        "xfip": 4.42,
         "siera": null,
         "k_pct": 0.2656,
         "stuff_plus": null,
@@ -1225,7 +1199,7 @@
         "hr_per_9": null
       },
       "away_sp_stats": {
-        "xfip": 3.79,
+        "xfip": 3.77,
         "siera": null,
         "k_pct": 0.1467,
         "stuff_plus": null,
@@ -1239,27 +1213,27 @@
       "insights": {
         "total": {
           "line": 7.5,
-          "over_price": -103,
-          "under_price": -111,
-          "pinnacle_over_prob": 0.491,
-          "pinnacle_under_prob": 0.509,
+          "over_price": 102,
+          "under_price": -115,
+          "pinnacle_over_prob": 0.4807,
+          "pinnacle_under_prob": 0.5193,
           "historical_over_rate": 0.5,
           "historical_under_rate": 0.5,
-          "over_edge": 0.009,
-          "under_edge": -0.009,
+          "over_edge": 0.0193,
+          "under_edge": -0.0193,
           "reasons": []
         },
         "moneyline": {
-          "home_price": -154,
-          "away_price": 139,
-          "pinnacle_home_prob": 0.5917,
-          "pinnacle_away_prob": 0.4083,
+          "home_price": -146,
+          "away_price": 134,
+          "pinnacle_home_prob": 0.5814,
+          "pinnacle_away_prob": 0.4186,
           "historical_home_rate": 0.6333,
           "historical_away_rate": 0.3667,
-          "home_edge": 0.0416,
-          "away_edge": -0.0416,
+          "home_edge": 0.0519,
+          "away_edge": -0.0519,
           "reasons": [
-            "Bailey Ober (xFIP 3.79) has a significant quality edge over Sonny Gray (4.44) \u2014 favors the away side"
+            "Bailey Ober (xFIP 3.77) has a significant quality edge over Sonny Gray (4.42) \u2014 favors the away side"
           ]
         }
       },
@@ -1276,13 +1250,13 @@
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 3.79,
+            "sp_xfip": 3.77,
             "sp_siera": null,
             "park_run_factor": 103,
-            "sp_suppress": 0.567,
+            "sp_suppress": 0.57,
             "offense_score": 0.4,
             "umpire_modifier": null,
-            "umpire": null
+            "umpire": "Will Little"
           },
           "tier": "APPEALING",
           "odds": null,
@@ -1300,19 +1274,138 @@
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 4.44,
+            "sp_xfip": 4.42,
             "sp_siera": null,
             "park_run_factor": 103,
-            "sp_suppress": 0.446,
+            "sp_suppress": 0.45,
             "offense_score": 0.4,
             "umpire_modifier": null,
-            "umpire": null
+            "umpire": "Will Little"
           },
           "tier": "APPEALING",
           "odds": null,
           "has_line": false
         }
       ]
+    },
+    {
+      "gamePk": 825081,
+      "game_time": "2026-05-24T20:10:00Z",
+      "home_team": "Arizona Diamondbacks",
+      "away_team": "Colorado Rockies",
+      "venue": "Chase Field",
+      "home_sp": "Ryne Nelson",
+      "away_sp": "Jose Quintana",
+      "home_sp_stats": {
+        "xfip": 4.76,
+        "siera": null,
+        "k_pct": 0.225,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "away_sp_stats": {
+        "xfip": 4.48,
+        "siera": null,
+        "k_pct": 0.1212,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "home_lineup_xwoba": null,
+      "away_lineup_xwoba": null,
+      "park_run_factor": 103.0,
+      "comps_count": 30,
+      "insights": {
+        "total": {
+          "line": 9.0,
+          "over_price": -101,
+          "under_price": -112,
+          "pinnacle_over_prob": 0.4875,
+          "pinnacle_under_prob": 0.5125,
+          "historical_over_rate": 0.3,
+          "historical_under_rate": 0.7,
+          "over_edge": -0.1875,
+          "under_edge": 0.1875,
+          "reasons": [
+            "Both arms are hittable (avg xFIP 4.62), but historical comps lean UNDER \u2014 regression in run-scoring likely"
+          ]
+        },
+        "moneyline": {
+          "home_price": -190,
+          "away_price": 174,
+          "pinnacle_home_prob": 0.6422,
+          "pinnacle_away_prob": 0.3578,
+          "historical_home_rate": 0.6333,
+          "historical_away_rate": 0.3667,
+          "home_edge": -0.0089,
+          "away_edge": 0.0089,
+          "reasons": [
+            "Similar-caliber matchup \u2014 comps edge is narrow"
+          ]
+        }
+      },
+      "picks": []
+    },
+    {
+      "gamePk": 824514,
+      "game_time": "2026-05-24T17:40:00Z",
+      "home_team": "Cincinnati Reds",
+      "away_team": "St. Louis Cardinals",
+      "venue": "Great American Ball Park",
+      "home_sp": "Brady Singer",
+      "away_sp": "Matthew Liberatore",
+      "home_sp_stats": {
+        "xfip": 6.06,
+        "siera": null,
+        "k_pct": 0.2222,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "away_sp_stats": {
+        "xfip": 5.64,
+        "siera": null,
+        "k_pct": 0.2941,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "home_lineup_xwoba": null,
+      "away_lineup_xwoba": null,
+      "park_run_factor": 108.0,
+      "comps_count": 30,
+      "insights": {
+        "total": {
+          "line": 10.0,
+          "over_price": 100,
+          "under_price": -113,
+          "pinnacle_over_prob": 0.4852,
+          "pinnacle_under_prob": 0.5148,
+          "historical_over_rate": 0.3,
+          "historical_under_rate": 0.7,
+          "over_edge": -0.1852,
+          "under_edge": 0.1852,
+          "reasons": [
+            "Both arms are hittable (avg xFIP 5.85), but historical comps lean UNDER \u2014 regression in run-scoring likely",
+            "Hitter-friendly park (factor 108) inflates scoring"
+          ]
+        },
+        "moneyline": {
+          "home_price": -112,
+          "away_price": 103,
+          "pinnacle_home_prob": 0.5175,
+          "pinnacle_away_prob": 0.4825,
+          "historical_home_rate": 0.5667,
+          "historical_away_rate": 0.4333,
+          "home_edge": 0.0492,
+          "away_edge": -0.0492,
+          "reasons": [
+            "Matthew Liberatore (xFIP 5.64) has a significant quality edge over Brady Singer (6.06) \u2014 favors the away side"
+          ]
+        }
+      },
+      "picks": []
     },
     {
       "gamePk": 824921,
@@ -1323,7 +1416,7 @@
       "home_sp": "Mart\u00edn P\u00e9rez",
       "away_sp": "Foster Griffin",
       "home_sp_stats": {
-        "xfip": 3.81,
+        "xfip": 3.77,
         "siera": null,
         "k_pct": 0.3725,
         "stuff_plus": null,
@@ -1331,7 +1424,7 @@
         "hr_per_9": null
       },
       "away_sp_stats": {
-        "xfip": 4.35,
+        "xfip": 4.33,
         "siera": null,
         "k_pct": 0.2838,
         "stuff_plus": null,
@@ -1345,74 +1438,47 @@
       "insights": {
         "total": {
           "line": 8.5,
-          "over_price": 100,
-          "under_price": -114,
-          "pinnacle_over_prob": 0.4842,
-          "pinnacle_under_prob": 0.5158,
+          "over_price": -103,
+          "under_price": -109,
+          "pinnacle_over_prob": 0.4931,
+          "pinnacle_under_prob": 0.5069,
           "historical_over_rate": 0.4667,
           "historical_under_rate": 0.5333,
-          "over_edge": -0.0175,
-          "under_edge": 0.0175,
+          "over_edge": -0.0264,
+          "under_edge": 0.0264,
           "reasons": []
         },
         "moneyline": {
-          "home_price": -159,
-          "away_price": 143,
-          "pinnacle_home_prob": 0.5987,
-          "pinnacle_away_prob": 0.4013,
+          "home_price": -154,
+          "away_price": 142,
+          "pinnacle_home_prob": 0.5947,
+          "pinnacle_away_prob": 0.4053,
           "historical_home_rate": 0.6333,
           "historical_away_rate": 0.3667,
-          "home_edge": 0.0346,
-          "away_edge": -0.0346,
+          "home_edge": 0.0386,
+          "away_edge": -0.0386,
           "reasons": [
-            "Mart\u00edn P\u00e9rez (xFIP 3.81) has a significant quality edge over Foster Griffin (4.35) \u2014 favors the home side"
+            "Mart\u00edn P\u00e9rez (xFIP 3.77) has a significant quality edge over Foster Griffin (4.33) \u2014 favors the home side"
           ]
         }
       },
       "picks": [
         {
           "bet_type": "TEAM_TOTAL",
-          "subject": "Atlanta Braves",
-          "subject_side": "home",
-          "direction": "OVER",
-          "headline": "Atlanta Braves Team Total \u2014 OVER",
-          "signal": 5.2,
-          "reasons": [
-            "Atlanta Braves lineup xwOBA of 0.310 \u2014 above-average offensive unit",
-            "Griffin, Foster xFIP of 4.35 \u2014 run-suppression below average",
-            "Truist Park run factor of 103 \u2014 boosts run scoring environment",
-            "Wind 10 mph blowing out"
-          ],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": 4.35,
-            "sp_siera": null,
-            "park_run_factor": 103,
-            "sp_suppress": 0.463,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": null
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
           "subject": "Washington Nationals",
           "subject_side": "away",
           "direction": "UNDER",
           "headline": "Washington Nationals Team Total \u2014 UNDER",
-          "signal": 5.2,
+          "signal": 5.4,
           "reasons": [
-            "Wind 10 mph blowing out"
+            "Wind 13 mph blowing out"
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 3.81,
+            "sp_xfip": 3.77,
             "sp_siera": null,
             "park_run_factor": 103,
-            "sp_suppress": 0.563,
+            "sp_suppress": 0.57,
             "offense_score": 0.4,
             "umpire_modifier": null,
             "umpire": null
@@ -1420,83 +1486,27 @@
           "tier": "APPEALING",
           "odds": null,
           "has_line": false
-        }
-      ]
-    },
-    {
-      "gamePk": 824028,
-      "game_time": "2026-05-24T23:20:00Z",
-      "home_team": "Los Angeles Angels",
-      "away_team": "Texas Rangers",
-      "venue": "Angel Stadium",
-      "home_sp": "Reid Detmers",
-      "away_sp": "MacKenzie Gore",
-      "home_sp_stats": {
-        "xfip": 3.23,
-        "siera": null,
-        "k_pct": 0.2361,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "away_sp_stats": {
-        "xfip": 3.98,
-        "siera": null,
-        "k_pct": 0.1639,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "home_lineup_xwoba": null,
-      "away_lineup_xwoba": null,
-      "park_run_factor": 99.0,
-      "comps_count": 0,
-      "insights": null,
-      "picks": [
+        },
         {
           "bet_type": "TEAM_TOTAL",
-          "subject": "Texas Rangers",
-          "subject_side": "away",
-          "direction": "UNDER",
-          "headline": "Texas Rangers Team Total \u2014 UNDER",
-          "signal": 6.6,
+          "subject": "Atlanta Braves",
+          "subject_side": "home",
+          "direction": "OVER",
+          "headline": "Atlanta Braves Team Total \u2014 OVER",
+          "signal": 5.0,
           "reasons": [
-            "Detmers, Reid xFIP of 3.23 \u2014 elite run suppression",
-            "Wind 10 mph blowing in"
+            "Atlanta Braves lineup xwOBA of 0.310 \u2014 above-average offensive unit",
+            "Griffin, Foster xFIP of 4.33 \u2014 run-suppression below average",
+            "Truist Park run factor of 103 \u2014 boosts run scoring environment",
+            "Wind 13 mph blowing out"
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 3.23,
+            "sp_xfip": 4.33,
             "sp_siera": null,
-            "park_run_factor": 99,
-            "sp_suppress": 0.67,
+            "park_run_factor": 103,
+            "sp_suppress": 0.467,
             "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": null
-          },
-          "tier": "GREAT",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TOTAL",
-          "subject": "Texas Rangers @ Los Angeles Angels",
-          "direction": "UNDER",
-          "headline": "Texas Rangers @ Los Angeles Angels Total Runs \u2014 UNDER",
-          "signal": 6.4,
-          "reasons": [
-            "Wind 10 mph blowing in"
-          ],
-          "raw_scores": {
-            "home_sp_xfip": 3.23,
-            "away_sp_xfip": 3.98,
-            "home_sp_siera": null,
-            "away_sp_siera": null,
-            "avg_lineup_xwoba": 0.31,
-            "park_run_factor": 99,
-            "avg_suppression": 0.601,
-            "offense_score": 0.4,
-            "weather_modifier": -0.3,
             "umpire_modifier": null,
             "umpire": null
           },
@@ -1506,20 +1516,20 @@
         },
         {
           "bet_type": "TEAM_TOTAL",
-          "subject": "Los Angeles Angels",
+          "subject": "Atlanta Braves",
           "subject_side": "home",
           "direction": "UNDER",
-          "headline": "Los Angeles Angels Team Total \u2014 UNDER",
-          "signal": 6.1,
+          "headline": "Atlanta Braves Team Total \u2014 UNDER",
+          "signal": 5.0,
           "reasons": [
-            "Wind 10 mph blowing in"
+            "Wind 13 mph blowing out"
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
-            "sp_xfip": 3.98,
+            "sp_xfip": 4.33,
             "sp_siera": null,
-            "park_run_factor": 99,
-            "sp_suppress": 0.531,
+            "park_run_factor": 103,
+            "sp_suppress": 0.467,
             "offense_score": 0.4,
             "umpire_modifier": null,
             "umpire": null
