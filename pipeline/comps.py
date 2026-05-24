@@ -271,6 +271,11 @@ def _lineup_avg_xwoba(lineup_group: pd.DataFrame, side: str, cache: dict) -> Opt
     return lineup_weighted_mean(players, "xwoba")
 
 
+def _sp_quality(sp: dict) -> Optional[float]:
+    """Return best available pitcher quality stat: xfip > era > None."""
+    return sp.get("xfip") or sp.get("era")
+
+
 def _build_features(
     home_sp: dict,
     away_sp: dict,
@@ -279,16 +284,20 @@ def _build_features(
     park: float,
     normalize_fn,
 ) -> list[float]:
-    """Normalized 7-dim vector: [home_xfip, home_siera, away_xfip, away_siera,
-    home_xwoba, away_xwoba, park_factor]."""
+    """Normalized 7-dim vector: [home_sp_quality, home_siera, away_sp_quality, away_siera,
+    home_xwoba, away_xwoba, park_factor].
+
+    SP quality uses xFIP when available, falls back to ERA so pitcher dimensions
+    are never blank in the comps feature vector.
+    """
     lo_p, hi_p = _BOUNDS["xfip"]
     lo_s, hi_s = _BOUNDS["siera"]
     lo_w, hi_w = _BOUNDS["xwoba"]
     lo_k, hi_k = _BOUNDS["park"]
     return [
-        normalize_fn(home_sp.get("xfip"),  lo=lo_p, hi=hi_p),
+        normalize_fn(_sp_quality(home_sp), lo=lo_p, hi=hi_p),
         normalize_fn(home_sp.get("siera"), lo=lo_s, hi=hi_s),
-        normalize_fn(away_sp.get("xfip"),  lo=lo_p, hi=hi_p),
+        normalize_fn(_sp_quality(away_sp), lo=lo_p, hi=hi_p),
         normalize_fn(away_sp.get("siera"), lo=lo_s, hi=hi_s),
         normalize_fn(home_xwoba,           lo=lo_w, hi=hi_w),
         normalize_fn(away_xwoba,           lo=lo_w, hi=hi_w),
