@@ -51,12 +51,13 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
 
     # --- Season-level data (single bulk calls) ---
     fg_pitch = _fetch_fg_pitching(season)
-    fg_bat = _fetch_fg_batting(season)
-    sav_pitch = _fetch_savant_pitcher_stats(season)
-    sav_bat_expected = _fetch_savant_batter_expected_stats(season)
-    sav_bat_batted = _fetch_savant_batter_batted_ball_stats(season)
+    fg_bat   = _fetch_fg_batting(season)
+    sav_pitch         = _fetch_savant_pitcher_stats(season)          # expected stats (xwOBA etc.)
+    sav_pitch_lead    = _fetch_savant_pitcher_leaderboard(season)    # leaderboard (ERA, xERA, K%)
+    sav_bat_expected  = _fetch_savant_batter_expected_stats(season)
+    sav_bat_batted    = _fetch_savant_batter_batted_ball_stats(season)
 
-    # --- ID crosswalk: MLBAM → FanGraphs ---
+    # --- ID crosswalk: MLBAM → FanGraphs (only needed when FG data is available) ---
     crosswalk = _build_crosswalk(all_ids)
 
     # --- Build per-player cache ---
@@ -65,15 +66,16 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
     for mlbam_id in sp_ids:
         fg_id = crosswalk.get(mlbam_id)
         entry: dict = {"mlbam_id": mlbam_id, "role": "pitcher"}
-        _merge_fg_pitching(entry, fg_pitch, fg_id)
-        _merge_savant_pitcher(entry, sav_pitch, mlbam_id)
+        _merge_fg_pitching(entry, fg_pitch, fg_id)               # FG (may be empty due to 403)
+        _merge_savant_pitcher(entry, sav_pitch, mlbam_id)        # xwOBA against
+        _merge_savant_pitcher_leaderboard(entry, sav_pitch_lead, mlbam_id)  # ERA, xERA→xfip, K%, BB%
         cache[mlbam_id] = entry
 
     for mlbam_id in batter_ids:
         fg_id = crosswalk.get(mlbam_id)
         entry = cache.get(mlbam_id, {"mlbam_id": mlbam_id, "role": "batter"})
-        _merge_fg_batting(entry, fg_bat, fg_id)
-        _merge_savant_batter_expected(entry, sav_bat_expected, mlbam_id)
+        _merge_fg_batting(entry, fg_bat, fg_id)                  # FG (may be empty due to 403)
+        _merge_savant_batter_expected(entry, sav_bat_expected, mlbam_id)  # xwOBA, wOBA, K%
         _merge_savant_batter_batted_ball(entry, sav_bat_batted, mlbam_id)
         cache[mlbam_id] = entry
 
@@ -211,12 +213,27 @@ def _fetch_savant_batter_batted_ball_stats(season: int) -> pd.DataFrame:
     Columns confirmed from live endpoint:
       player_id, brl_percent (whole %, e.g. 8.5), ev95percent (whole %, e.g. 42.1),
       avg_hit_speed (mph), avg_hit_angle (degrees)
+    Also contains woba, k_percent, bb_percent used as FanGraphs fallback.
     """
     url = (
         f"{SAVANT_BASE}/leaderboard/statcast"
         f"?type=batter&year={season}&position=&team=&min=q&csv=true"
     )
     return _fetch_savant_csv(url, "batter-batted-ball")
+
+
+def _fetch_savant_pitcher_leaderboard(season: int) -> pd.DataFrame:
+    """Savant statcast pitcher leaderboard: ERA, xERA, K%, BB%, whiff%, stuff_plus.
+
+    Used as a FanGraphs fallback when FG returns 403. Key columns:
+      player_id, p_era, xera, k_percent, bb_percent, whiff_percent, stuff_plus
+    All percentage columns are whole numbers (25.0 = 25%) — divide by 100 on merge.
+    """
+    url = (
+        f"{SAVANT_BASE}/leaderboard/statcast"
+        f"?type=pitcher&year={season}&position=&team=&min=q&csv=true"
+    )
+    return _fetch_savant_csv(url, "pitcher-leaderboard")
 
 
 def _merge_savant_pitcher(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
@@ -242,9 +259,60 @@ def _merge_savant_pitcher(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
 
     entry.update({
         "xwoba_against": g("est_woba"),
-        "xba_against": g("est_ba"),
-        "xslg_against": g("est_slg"),
+        "xba_against":   g("est_ba"),
+        "xslg_against":  g("est_slg"),
     })
+
+    # FanGraphs fallback: pull ERA, K%, BB% from Savant expected stats CSV
+    # (only set if not already populated by FanGraphs)
+    for savant_col, entry_key, divisor in [
+        ("era",        "era",    1.0),
+        ("est_era",    "xfip",   1.0),   # xERA ≈ xFIP (contact-quality adjusted ERA)
+        ("k_percent",  "k_pct",  100.0),
+        ("bb_percent", "bb_pct", 100.0),
+    ]:
+        val = g(savant_col)
+        if val is not None and not entry.get(entry_key):
+            entry[entry_key] = round(val / divisor, 4)
+
+
+def _merge_savant_pitcher_leaderboard(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
+    """Merge ERA, xERA, K%, BB%, whiff%, stuff_plus from Savant pitcher leaderboard.
+
+    Acts as a FanGraphs fallback — only populates fields not already set.
+    """
+    if df.empty:
+        return
+    id_col = _find_id_col(df)
+    if not id_col:
+        return
+    row = df[df[id_col] == mlbam_id]
+    if row.empty:
+        return
+    r = row.iloc[0]
+
+    def g(col, default=None):
+        try:
+            v = r.get(col)
+            return float(v) if v is not None and str(v) not in ("", "nan") else default
+        except Exception:
+            return default
+
+    if not entry.get("name") and r.get("last_name, first_name"):
+        entry["name"] = str(r["last_name, first_name"])
+
+    for savant_col, entry_key, divisor in [
+        ("p_era",          "era",       1.0),
+        ("era",            "era",       1.0),   # alternate column name
+        ("xera",           "xfip",      1.0),   # xERA used as xFIP proxy
+        ("k_percent",      "k_pct",     100.0),
+        ("bb_percent",     "bb_pct",    100.0),
+        ("whiff_percent",  "whiff_pct", 100.0),
+        ("stuff_plus",     "stuff_plus", 1.0),
+    ]:
+        val = g(savant_col)
+        if val is not None and not entry.get(entry_key):
+            entry[entry_key] = round(val / divisor, 4)
 
 
 def _merge_savant_batter_expected(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
@@ -270,10 +338,20 @@ def _merge_savant_batter_expected(entry: dict, df: pd.DataFrame, mlbam_id: int) 
         entry["name"] = str(r["last_name, first_name"])
 
     entry.update({
-        "xba": g("est_ba"),
+        "xba":   g("est_ba"),
         "xwoba": g("est_woba"),
-        "xslg": g("est_slg"),
+        "xslg":  g("est_slg"),
     })
+
+    # FanGraphs fallback: wOBA, K%, BB% are also in the Savant expected-stats CSV
+    for savant_col, entry_key, divisor in [
+        ("woba",       "woba",   1.0),
+        ("k_percent",  "k_pct",  100.0),
+        ("bb_percent", "bb_pct", 100.0),
+    ]:
+        val = g(savant_col)
+        if val is not None and not entry.get(entry_key):
+            entry[entry_key] = round(val / divisor, 4)
 
 
 def _merge_savant_batter_batted_ball(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
@@ -303,9 +381,9 @@ def _merge_savant_batter_batted_ball(entry: dict, df: pd.DataFrame, mlbam_id: in
         entry["name"] = str(r["last_name, first_name"])
 
     brl = g("brl_percent")
-    hh = g("ev95percent")
-    ev = g("avg_hit_speed")
-    la = g("avg_hit_angle")
+    hh  = g("ev95percent")
+    ev  = g("avg_hit_speed")
+    la  = g("avg_hit_angle")
 
     if brl is not None:
         entry["barrel_pct"] = brl / 100.0
@@ -315,6 +393,16 @@ def _merge_savant_batter_batted_ball(entry: dict, df: pd.DataFrame, mlbam_id: in
         entry["avg_ev"] = ev
     if la is not None:
         entry["avg_launch_angle"] = la
+
+    # The batter statcast leaderboard also has wOBA, K%, BB% — use as FG fallback
+    for savant_col, entry_key, divisor in [
+        ("woba",       "woba",   1.0),
+        ("k_percent",  "k_pct",  100.0),
+        ("bb_percent", "bb_pct", 100.0),
+    ]:
+        val = g(savant_col)
+        if val is not None and not entry.get(entry_key):
+            entry[entry_key] = round(val / divisor, 4)
 
 
 # ---------------------------------------------------------------------------
