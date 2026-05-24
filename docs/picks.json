@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-05-24T01:35:17.298038+00:00",
+  "generated_at": "2026-05-24T01:49:16.548286+00:00",
   "date": "2026-05-24",
   "game_count": 13,
-  "pick_count": 31,
+  "pick_count": 30,
   "games": [
     {
       "gamePk": 824676,
@@ -110,6 +110,108 @@
             "avg_suppression": 0.5,
             "offense_score": 0.4,
             "weather_modifier": null,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        }
+      ]
+    },
+    {
+      "gamePk": 824839,
+      "game_time": "2026-05-24T16:35:00Z",
+      "home_team": "Baltimore Orioles",
+      "away_team": "Detroit Tigers",
+      "venue": "Oriole Park at Camden Yards",
+      "home_sp": "Brandon Young",
+      "away_sp": "Framber Valdez",
+      "home_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "away_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "home_lineup_xwoba": null,
+      "away_lineup_xwoba": null,
+      "park_run_factor": 97.0,
+      "comps_count": 30,
+      "insights": {
+        "total": {
+          "line": 8.5,
+          "over_price": -102,
+          "under_price": -112,
+          "pinnacle_over_prob": 0.4887,
+          "pinnacle_under_prob": 0.5113,
+          "historical_over_rate": 0.3333,
+          "historical_under_rate": 0.6667,
+          "over_edge": -0.1554,
+          "under_edge": 0.1554,
+          "reasons": []
+        },
+        "moneyline": {
+          "home_price": -132,
+          "away_price": 119,
+          "pinnacle_home_prob": 0.5548,
+          "pinnacle_away_prob": 0.4452,
+          "historical_home_rate": 0.3333,
+          "historical_away_rate": 0.6667,
+          "home_edge": -0.2215,
+          "away_edge": 0.2215,
+          "reasons": [
+            "Similar-caliber matchup \u2014 comps edge is narrow"
+          ]
+        }
+      },
+      "picks": [
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Baltimore Orioles",
+          "subject_side": "home",
+          "direction": "UNDER",
+          "headline": "Baltimore Orioles Team Total \u2014 UNDER",
+          "signal": 5.9,
+          "reasons": [],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 97,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Detroit Tigers",
+          "subject_side": "away",
+          "direction": "UNDER",
+          "headline": "Detroit Tigers Team Total \u2014 UNDER",
+          "signal": 5.9,
+          "reasons": [],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 97,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
             "umpire_modifier": null,
             "umpire": null
           },
@@ -1202,106 +1304,6 @@
             "sp_xfip": null,
             "sp_siera": null,
             "park_run_factor": 103,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": null
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        }
-      ]
-    },
-    {
-      "gamePk": 824839,
-      "game_time": "2026-05-24T16:35:00Z",
-      "home_team": "Baltimore Orioles",
-      "away_team": "Detroit Tigers",
-      "venue": "Oriole Park at Camden Yards",
-      "home_sp": "Brandon Young",
-      "away_sp": "Framber Valdez",
-      "home_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "away_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "home_lineup_xwoba": null,
-      "away_lineup_xwoba": null,
-      "park_run_factor": 97.0,
-      "comps_count": 0,
-      "insights": null,
-      "picks": [
-        {
-          "bet_type": "TOTAL",
-          "subject": "Detroit Tigers @ Baltimore Orioles",
-          "direction": "UNDER",
-          "headline": "Detroit Tigers @ Baltimore Orioles Total Runs \u2014 UNDER",
-          "signal": 5.9,
-          "reasons": [],
-          "raw_scores": {
-            "home_sp_xfip": null,
-            "away_sp_xfip": null,
-            "home_sp_siera": null,
-            "away_sp_siera": null,
-            "avg_lineup_xwoba": 0.31,
-            "park_run_factor": 97,
-            "avg_suppression": 0.5,
-            "offense_score": 0.4,
-            "weather_modifier": null,
-            "umpire_modifier": null,
-            "umpire": null
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Baltimore Orioles",
-          "subject_side": "home",
-          "direction": "UNDER",
-          "headline": "Baltimore Orioles Team Total \u2014 UNDER",
-          "signal": 5.9,
-          "reasons": [],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 97,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": null
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Detroit Tigers",
-          "subject_side": "away",
-          "direction": "UNDER",
-          "headline": "Detroit Tigers Team Total \u2014 UNDER",
-          "signal": 5.9,
-          "reasons": [],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 97,
             "sp_suppress": 0.5,
             "offense_score": 0.4,
             "umpire_modifier": null,
