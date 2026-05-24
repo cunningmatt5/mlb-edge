@@ -21,6 +21,7 @@
   --badge-hrprop:    #e11d48;
   --badge-hitprop:   #0284c7;
   --badge-tbprop:    #0891b2;
+  --badge-walkprop:  #6b7280;
   --badge-total:     #059669;
   --badge-teamtotal: #047857;
   --badge-mlf5:      #d97706;
@@ -324,6 +325,7 @@ h1 {
 .badge-hrprop     { background: var(--badge-hrprop); }
 .badge-hitprop    { background: var(--badge-hitprop); }
 .badge-tbprop     { background: var(--badge-tbprop); }
+.badge-walkprop   { background: var(--badge-walkprop); }
 .badge-total      { background: var(--badge-total); }
 .badge-teamtotal  { background: var(--badge-teamtotal); }
 .badge-mlf5       { background: var(--badge-mlf5); }
@@ -426,6 +428,41 @@ h1 {
   border-color: var(--purple);
   color: #fff;
   box-shadow: 0 0 18px rgba(167, 139, 250, 0.38);
+}
+
+/* ── Sub-filter bar (Props categories) ──────────────────────────────────────── */
+.sub-filter-bar {
+  display: flex;
+  gap: 6px;
+  padding: 0 18px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--border);
+}
+.sub-filter-bar::-webkit-scrollbar { display: none; }
+.sub-filter-bar.hidden { display: none; }
+
+.sub-filter-btn {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.sub-filter-btn:hover {
+  color: var(--text);
+  border-color: var(--cyan);
+}
+.sub-filter-btn.active {
+  background: var(--cyan);
+  border-color: var(--cyan);
+  color: #000;
+  font-weight: 700;
 }
 
 /* ── Record view ─────────────────────────────────────────────────────────────── */

@@ -7,7 +7,8 @@ const TRENDS_URL  = './trends.json';
 let allGames     = [];
 let historyData  = null;
 let trendsData   = null;
-let activeFilter = 'ALL';
+let activeFilter    = 'ALL';
+let activeSubFilter = 'ALL';
 
 // ── Service Worker ─────────────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
@@ -55,6 +56,7 @@ const BET_LABELS = {
   HR_PROP:    'Home Run',
   HIT_PROP:   'Hit Prop',
   TB_PROP:    'Total Bases',
+  WALK_PROP:  'Walks',        // legacy — removed from pipeline but may exist in cached picks
   TOTAL:      'Game Total',
   TEAM_TOTAL: 'Team Total',
   ML_F5:      'ML / F5',
@@ -65,10 +67,21 @@ const BET_COLORS = {
   HR_PROP:    '#e11d48',
   HIT_PROP:   '#0284c7',
   TB_PROP:    '#0891b2',
+  WALK_PROP:  '#6b7280',
   TOTAL:      '#059669',
   TEAM_TOTAL: '#047857',
   ML_F5:      '#d97706',
 };
+
+// Sub-filter options for Props view
+const PROP_SUB = [
+  { type: 'ALL',      label: 'All Props'   },
+  { type: 'K_PROP',   label: 'Strikeouts'  },
+  { type: 'HR_PROP',  label: 'Home Runs'   },
+  { type: 'HIT_PROP', label: 'Hits'        },
+  { type: 'TB_PROP',  label: 'Total Bases' },
+];
+const PROP_BET_TYPES = new Set(['K_PROP', 'HR_PROP', 'HIT_PROP', 'TB_PROP', 'WALK_PROP']);
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function formatGameTime(isoString) {
@@ -280,9 +293,10 @@ function renderPick(pick) {
 }
 
 // ── Game card ──────────────────────────────────────────────────────────────────
-function renderGame(game, idx) {
-  const gameTime = formatGameTime(game.game_time);
-  const picks    = game.picks || [];
+function renderGame(game, idx, subFilter = null) {
+  const gameTime  = formatGameTime(game.game_time);
+  const allPicks  = game.picks || [];
+  const picks     = subFilter ? allPicks.filter(p => p.bet_type === subFilter) : allPicks;
   const isPropsFilter = activeFilter === 'PROPS';
 
   const propsSection = picks.length > 0
@@ -534,6 +548,24 @@ function renderRecord(history) {
   return html;
 }
 
+// ── Props sub-filter ───────────────────────────────────────────────────────────
+function buildSubFilterBar() {
+  const subBar = document.getElementById('sub-filter-bar');
+  if (!subBar) return;
+
+  const available = new Set(['ALL']);
+  for (const g of allGames) {
+    for (const p of (g.picks || [])) {
+      if (PROP_BET_TYPES.has(p.bet_type)) available.add(p.bet_type);
+    }
+  }
+
+  subBar.innerHTML = PROP_SUB
+    .filter(s => available.has(s.type))
+    .map(s => `<button class="sub-filter-btn${activeSubFilter === s.type ? ' active' : ''}" data-sub="${s.type}">${s.label}</button>`)
+    .join('');
+}
+
 // ── Render all ─────────────────────────────────────────────────────────────────
 function renderAll() {
   const container = document.getElementById('games-container');
@@ -551,15 +583,21 @@ function renderAll() {
     return;
   }
 
+  const subFilter = (activeFilter === 'PROPS' && activeSubFilter !== 'ALL') ? activeSubFilter : null;
+
   const filtered = allGames.filter(game => {
     if (activeFilter === 'ALL')       return true;
     if (activeFilter === 'TOTAL')     return game.insights && game.insights.total;
     if (activeFilter === 'MONEYLINE') return game.insights && game.insights.moneyline;
-    if (activeFilter === 'PROPS')     return (game.picks || []).length > 0;
+    if (activeFilter === 'PROPS') {
+      const picks = game.picks || [];
+      if (subFilter) return picks.some(p => p.bet_type === subFilter);
+      return picks.some(p => PROP_BET_TYPES.has(p.bet_type));
+    }
     return true;
   });
 
-  container.innerHTML = filtered.map((game, i) => renderGame(game, i)).join('');
+  container.innerHTML = filtered.map((game, i) => renderGame(game, i, subFilter)).join('');
   noPicks.classList.toggle('hidden', filtered.length > 0);
 }
 
@@ -573,7 +611,24 @@ document.getElementById('filter-bar').addEventListener('click', e => {
   });
   btn.classList.add('active');
   btn.setAttribute('aria-selected', 'true');
-  activeFilter = btn.dataset.filter;
+  activeFilter    = btn.dataset.filter;
+  activeSubFilter = 'ALL';
+  const subBar = document.getElementById('sub-filter-bar');
+  if (activeFilter === 'PROPS') {
+    buildSubFilterBar();
+    subBar.classList.remove('hidden');
+  } else {
+    subBar.classList.add('hidden');
+  }
+  renderAll();
+});
+
+document.getElementById('sub-filter-bar').addEventListener('click', e => {
+  const btn = e.target.closest('.sub-filter-btn');
+  if (!btn) return;
+  document.querySelectorAll('.sub-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  activeSubFilter = btn.dataset.sub;
   renderAll();
 });
 
