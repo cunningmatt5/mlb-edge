@@ -277,6 +277,65 @@ function renderPickOdds(pick) {
   </div>`;
 }
 
+function renderPickStatsRow(pick) {
+  const rs = pick.raw_scores || {};
+  const bt = pick.bet_type;
+  if (bt === 'HR_PROP' || bt === 'HIT_PROP') {
+    const stats = [];
+    if (rs.xwoba   != null) stats.push(`<span class="stat-pill"><span class="sp-label">xwOBA</span> <span class="sp-val">${rs.xwoba.toFixed(3)}</span></span>`);
+    if (rs.bb_pct  != null) stats.push(`<span class="stat-pill"><span class="sp-label">BB%</span> <span class="sp-val">${rs.bb_pct}</span></span>`);
+    if (rs.k_pct   != null) stats.push(`<span class="stat-pill"><span class="sp-label">K%</span> <span class="sp-val">${rs.k_pct}</span></span>`);
+    if (rs.hard_hit_pct != null) stats.push(`<span class="stat-pill"><span class="sp-label">HH%</span> <span class="sp-val">${rs.hard_hit_pct}</span></span>`);
+    if (rs.barrel_pct  != null && bt === 'HR_PROP') stats.push(`<span class="stat-pill"><span class="sp-label">Barrel%</span> <span class="sp-val">${rs.barrel_pct}</span></span>`);
+    if (rs.edge_score  != null) {
+      const ecls = rs.edge_score >= 70 ? 'edge-hi' : rs.edge_score >= 50 ? 'edge-mid' : 'edge-lo';
+      stats.push(`<span class="edge-score-badge ${ecls}">Edge ${rs.edge_score}</span>`);
+    }
+    return stats.length ? `<div class="pick-stats-row">${stats.join('')}</div>` : '';
+  }
+  if (bt === 'K_PROP') {
+    const stats = [];
+    if (rs.k_pct_season != null) stats.push(`<span class="stat-pill"><span class="sp-label">K% (season)</span> <span class="sp-val">${rs.k_pct_season}</span></span>`);
+    if (rs.k_pct_recent != null) stats.push(`<span class="stat-pill"><span class="sp-label">K% (recent)</span> <span class="sp-val">${rs.k_pct_recent}</span></span>`);
+    if (rs.whiff_pct    != null) stats.push(`<span class="stat-pill"><span class="sp-label">Whiff%</span> <span class="sp-val">${rs.whiff_pct}</span></span>`);
+    if (rs.stuff_plus   != null) stats.push(`<span class="stat-pill"><span class="sp-label">Stuff+</span> <span class="sp-val">${rs.stuff_plus}</span></span>`);
+    if (rs.o_swing_pct  != null) stats.push(`<span class="stat-pill"><span class="sp-label">Chase%</span> <span class="sp-val">${rs.o_swing_pct}</span></span>`);
+    return stats.length ? `<div class="pick-stats-row">${stats.join('')}</div>` : '';
+  }
+  return '';
+}
+
+function renderLast5Row(pick) {
+  const rs  = pick.raw_scores || {};
+  const bt  = pick.bet_type;
+  let games = null;
+  let label = '';
+  let mode  = 'binary'; // binary = hit/no-hit circles; count = numeric
+  if (bt === 'HR_PROP' && rs.recent_hr_games) {
+    games = rs.recent_hr_games; label = 'Last 5 HR'; mode = 'binary';
+  } else if (bt === 'HIT_PROP' && rs.recent_h_games) {
+    games = rs.recent_h_games;  label = 'Last 5 H';  mode = 'count';
+  } else if (bt === 'K_PROP' && rs.recent_k_games) {
+    games = rs.recent_k_games;  label = 'Last starts'; mode = 'kcount';
+  }
+  if (!games || !games.length) return '';
+
+  const cells = games.map(v => {
+    if (mode === 'binary') {
+      const cls = v > 0 ? 'hit' : 'miss';
+      return `<span class="last5-cell ${cls}" title="${v}">${v > 0 ? v : ''}</span>`;
+    } else if (mode === 'count') {
+      const cls = v >= 2 ? 'multi' : v === 1 ? 'hit' : 'miss';
+      return `<span class="last5-cell ${cls}">${v}</span>`;
+    } else { // kcount
+      const cls = v >= 7 ? 'k-hot' : v >= 4 ? 'k-mid' : 'k-cold';
+      return `<span class="last5-cell kcount ${cls}">${v}K</span>`;
+    }
+  }).join('');
+
+  return `<div class="last5-row"><span class="last5-label">${label}:</span>${cells}</div>`;
+}
+
 function renderPick(pick) {
   const color   = BET_COLORS[pick.bet_type] || '#00d4ff';
   const reasons = pick.reasons.map(r => `<li>${r}</li>`).join('');
@@ -289,7 +348,36 @@ function renderPick(pick) {
     ${renderSignalBar(pick.signal)}
     ${renderPickOdds(pick)}
     <ul class="pick-reasons">${reasons}</ul>
+    ${renderPickStatsRow(pick)}
+    ${renderLast5Row(pick)}
   </div>`;
+}
+
+const PROP_GROUPS = [
+  { key: 'K_PROP',       label: 'Strikeouts'    },
+  { key: 'HR_PROP',      label: 'Home Runs'     },
+  { key: 'HIT_PROP',     label: 'Hits'          },
+  { key: 'TB_PROP',      label: 'Total Bases'   },
+  { key: 'GAME_TOTAL',   label: 'Game Total'    },
+  { key: 'TEAM_TOTAL',   label: 'Team Totals'   },
+  { key: 'MONEYLINE_F5', label: 'Moneyline F5'  },
+];
+
+function renderPicksGrouped(picks) {
+  let html = '';
+  for (const { key, label } of PROP_GROUPS) {
+    const group = picks.filter(p => p.bet_type === key);
+    if (!group.length) continue;
+    html += `<div class="prop-type-group">
+      <div class="prop-type-header">${label} <span class="prop-group-count">${group.length}</span></div>
+      ${group.map(renderPick).join('')}
+    </div>`;
+  }
+  // Catch any unrecognized bet types
+  const known = new Set(PROP_GROUPS.map(g => g.key));
+  const rest = picks.filter(p => !known.has(p.bet_type));
+  if (rest.length) html += rest.map(renderPick).join('');
+  return html;
 }
 
 // ── Game card ──────────────────────────────────────────────────────────────────
@@ -304,7 +392,7 @@ function renderGame(game, idx, subFilter = null) {
         <summary class="props-toggle">
           Player Props <span class="props-count">${picks.length}</span>
         </summary>
-        <div class="picks-list">${picks.map(renderPick).join('')}</div>
+        <div class="picks-list">${renderPicksGrouped(picks)}</div>
       </details>`
     : '';
 

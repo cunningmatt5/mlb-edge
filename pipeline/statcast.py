@@ -87,6 +87,10 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
     for mlbam_id in sp_ids:
         _merge_rolling_pitcher(cache[mlbam_id], mlbam_id, start, end)
 
+    # --- Batter recent game logs (last 5 games: H, HR, K per game) ---
+    for mlbam_id in batter_ids:
+        _merge_batter_game_log(cache[mlbam_id], mlbam_id, season)
+
     log.info("Player cache built: %d entries", len(cache))
     return cache
 
@@ -394,6 +398,39 @@ def _merge_savant_batter_batted_ball(entry: dict, df: pd.DataFrame, mlbam_id: in
 
 
 # ---------------------------------------------------------------------------
+# Batter recent game log (MLB Stats API — last N games H/HR/K)
+# ---------------------------------------------------------------------------
+
+MLB_STATS_BASE = "https://statsapi.mlb.com/api/v1"
+
+
+def _merge_batter_game_log(entry: dict, mlbam_id: int, season: int, n: int = 5) -> None:
+    """Fetch last n game log entries for a batter and store per-game H/HR/K arrays."""
+    try:
+        url = (
+            f"{MLB_STATS_BASE}/people/{mlbam_id}/stats"
+            f"?stats=gameLog&group=hitting&season={season}&limit=20"
+        )
+        resp = requests.get(url, headers=_HEADERS, timeout=TIMEOUT)
+        resp.raise_for_status()
+        data = resp.json()
+        splits = []
+        for stats_block in data.get("stats", []):
+            splits = stats_block.get("splits", [])
+            if splits:
+                break
+        if not splits:
+            return
+        # API returns most-recent first; take the last n and reverse to oldest-first
+        recent = splits[:n][::-1]
+        entry["recent_h_games"]  = [int(s["stat"].get("hits", 0))      for s in recent]
+        entry["recent_hr_games"] = [int(s["stat"].get("homeRuns", 0))   for s in recent]
+        entry["recent_k_games"]  = [int(s["stat"].get("strikeOuts", 0)) for s in recent]
+    except Exception as exc:
+        log.debug("Batter game log fetch failed for %d: %s", mlbam_id, exc)
+
+
+# ---------------------------------------------------------------------------
 # 21-day rolling Statcast (pitcher whiff% and chase rate)
 # ---------------------------------------------------------------------------
 
@@ -444,6 +481,7 @@ def _aggregate_pitcher_recent_starts(df: pd.DataFrame, n: int = 3) -> dict:
         "recent_k_pct":    sum(s["k"]  for s in recent) / total_pa,
         "recent_bb_pct":   sum(s["bb"] for s in recent) / total_pa,
         "recent_starts_n": len(recent),
+        "recent_k_games":  [s["k"] for s in recent],
     }
 
 

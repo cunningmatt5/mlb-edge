@@ -34,6 +34,25 @@ def safe_mean(values: list[float | None]) -> float | None:
 _SLOT_WEIGHTS = [1.3, 1.3, 1.3, 1.3, 1.0, 1.0, 1.0, 0.75, 0.75]
 
 
+def batter_edge_score(b: dict) -> float | None:
+    """Composite 0–100 batter quality index: xwOBA 35% + Hard Hit% 30% + BB% 20% + (1-K%) 15%.
+
+    Inverted K% bounds (lo=0.30, hi=0.12) so lower K% scores higher.
+    Returns None if no qualifying stats are present.
+    """
+    candidates = [
+        ("xwoba",        normalize(b.get("xwoba"),        lo=0.250, hi=0.400), 0.35),
+        ("hard_hit_pct", normalize(b.get("hard_hit_pct"), lo=0.25,  hi=0.55),  0.30),
+        ("bb_pct",       normalize(b.get("bb_pct"),       lo=0.04,  hi=0.18),  0.20),
+        ("k_pct",        normalize(b.get("k_pct"),        lo=0.30,  hi=0.12),  0.15),
+    ]
+    valid = [(v, w) for key, v, w in candidates if b.get(key) is not None]
+    if not valid:
+        return None
+    total_w = sum(w for _, w in valid)
+    return round(sum(v * w for v, w in valid) / total_w * 100, 1)
+
+
 def lineup_weighted_mean(players: list[dict], stat: str) -> float | None:
     """Batting-order-weighted mean of `stat` across lineup, skipping missing values."""
     pairs = [

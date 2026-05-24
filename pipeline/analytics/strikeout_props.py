@@ -88,11 +88,15 @@ def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
                     "whiff_pct":         _pct(sp.get("whiff_pct")),
                     "o_swing_pct":       _pct(sp.get("o_swing_pct") or sp.get("o_swing_pct_fg")),
                     "sp_k_pct":          _pct(blended_k),
+                    "k_pct_season":      _pct(sp.get("k_pct")),
+                    "k_pct_recent":      _pct(sp.get("recent_k_pct")),
                     "opp_k_pct":         _pct(opp_k_mean),
                     "opp_contact_pct":   _pct(opp_contact_mean),
                     "pitcher_component": round(pitcher_comp, 3),
                     "lineup_component":  round(lineup_comp, 3),
                     "umpire":            umpire or None,
+                    "recent_k_games":    sp.get("recent_k_games"),
+                    "recent_starts_n":   sp.get("recent_starts_n"),
                 },
             })
 
@@ -101,19 +105,56 @@ def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
 
 def _build_reasons(sp, opp_k_mean, opp_contact_mean, opp_team, blended_k, recent_k) -> list[str]:
     reasons = []
-    if sp.get("stuff_plus"):
-        reasons.append(f"Stuff+ of {int(sp['stuff_plus'])} (100 = avg; higher is better pitch quality)")
-    if sp.get("whiff_pct"):
-        reasons.append(f"Whiff rate of {sp['whiff_pct']:.1%} on swings this season")
-    if blended_k and recent_k:
+
+    stuff = sp.get("stuff_plus")
+    if stuff is not None:
+        if stuff >= 115:
+            tier = "elite pitch quality"
+        elif stuff >= 105:
+            tier = "above-average pitch quality"
+        else:
+            tier = "average pitch quality"
+        reasons.append(f"Stuff+ of {int(stuff)} — {tier} (100 = MLB average)")
+
+    whiff = sp.get("whiff_pct")
+    if whiff is not None:
+        if whiff >= 0.28:
+            tier = "elite swing-and-miss rate"
+        elif whiff >= 0.22:
+            tier = "above-average whiff rate"
+        else:
+            tier = "average whiff rate"
+        reasons.append(f"Whiff rate {whiff:.1%} on swings — {tier}")
+
+    season_k = sp.get("k_pct")
+    if blended_k is not None and recent_k is not None:
         reasons.append(
-            f"K% {blended_k:.1%} (blended: season + last {sp.get('recent_starts_n', 3)} starts)"
+            f"K% {blended_k:.1%} blended (season {season_k:.1%} / "
+            f"last {sp.get('recent_starts_n', 3)} starts {recent_k:.1%})"
         )
-    elif blended_k:
+    elif blended_k is not None:
         reasons.append(f"K% of {blended_k:.1%} — strikeout rate vs. MLB avg ~22%")
-    if opp_k_mean:
-        reasons.append(f"{opp_team} lineup averages {opp_k_mean:.1%} K rate — favorable matchup")
-    return reasons[:4]
+
+    recent_games = sp.get("recent_k_games")
+    if recent_games:
+        k_str = " · ".join(f"{k}K" for k in recent_games)
+        reasons.append(f"Last {len(recent_games)} starts: {k_str}")
+
+    if opp_k_mean is not None:
+        if opp_k_mean >= 0.26:
+            label = "high-strikeout lineup — prime matchup"
+        elif opp_k_mean >= 0.22:
+            label = "above-average K rate — favorable matchup"
+        else:
+            label = "average strikeout rate"
+        reasons.append(f"{opp_team} averages {opp_k_mean:.1%} K rate — {label}")
+
+    if opp_contact_mean is not None and opp_contact_mean <= 0.74:
+        reasons.append(
+            f"{opp_team} contact rate {opp_contact_mean:.1%} — struggles to put bat on ball"
+        )
+
+    return reasons[:6]
 
 
 def _pct(v) -> str | None:
