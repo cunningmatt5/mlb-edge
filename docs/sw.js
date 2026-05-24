@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'mlb-edge-v13';
+const CACHE_NAME = 'mlb-edge-v14';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -37,21 +37,20 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
-  const isNetworkFirst = url.pathname.endsWith('picks.json') || url.pathname.endsWith('trends.json');
-  const cacheKey = url.pathname.endsWith('trends.json') ? './trends.json' : './picks.json';
+  const isJson = url.pathname.endsWith('.json');
 
-  if (isNetworkFirst) {
-    // Network-first: always try fresh data, fall back to cache
+  if (isJson) {
+    // Network-first for all JSON data files — always fetch fresh, cache as fallback
     event.respondWith(
       fetch(event.request)
         .then(res => {
           if (res.ok) {
             const clone = res.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(cacheKey, clone));
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
           }
           return res;
         })
-        .catch(() => caches.match(cacheKey))
+        .catch(() => caches.match(event.request))
     );
   } else {
     // Cache-first for static assets
