@@ -57,13 +57,6 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
     sav_bat_expected  = _fetch_savant_batter_expected_stats(season)
     sav_bat_batted    = _fetch_savant_batter_batted_ball_stats(season)
 
-    # Debug: log column names to diagnose mapping issues
-    if not sav_pitch_lead.empty:
-        log.info("Pitcher-leaderboard columns: %s", list(sav_pitch_lead.columns))
-        log.info("Pitcher-leaderboard sample row: %s", sav_pitch_lead.iloc[0].to_dict())
-    if not sav_pitch.empty:
-        log.info("Pitcher-expected columns: %s", list(sav_pitch.columns))
-
     # --- ID crosswalk: MLBAM → FanGraphs (only needed when FG data is available) ---
     crosswalk = _build_crosswalk(all_ids)
 
@@ -272,13 +265,11 @@ def _merge_savant_pitcher(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
         "xslg_against":  g("est_slg"),
     })
 
-    # FanGraphs fallback: pull ERA, K%, BB% from Savant expected stats CSV
+    # FanGraphs fallback: pull ERA and xERA from Savant expected stats CSV
     # (only set if not already populated by FanGraphs)
     for savant_col, entry_key, divisor in [
-        ("era",        "era",    1.0),
-        ("est_era",    "xfip",   1.0),   # xERA ≈ xFIP (contact-quality adjusted ERA)
-        ("k_percent",  "k_pct",  100.0),
-        ("bb_percent", "bb_pct", 100.0),
+        ("era",   "era",  1.0),
+        ("xera",  "xfip", 1.0),   # xERA ≈ xFIP (contact-quality adjusted ERA)
     ]:
         val = g(savant_col)
         if val is not None and not entry.get(entry_key):
@@ -286,9 +277,10 @@ def _merge_savant_pitcher(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
 
 
 def _merge_savant_pitcher_leaderboard(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
-    """Merge ERA, xERA, K%, BB%, whiff%, stuff_plus from Savant pitcher leaderboard.
+    """Merge exit-velocity contact-quality stats from Savant statcast pitcher leaderboard.
 
-    Acts as a FanGraphs fallback — only populates fields not already set.
+    The /leaderboard/statcast?type=pitcher endpoint has barrel%, hard-hit%, avg EV, avg LA.
+    It does NOT have ERA/K%/BB% — those come from the expected_statistics endpoint.
     """
     if df.empty:
         return
@@ -310,18 +302,18 @@ def _merge_savant_pitcher_leaderboard(entry: dict, df: pd.DataFrame, mlbam_id: i
     if not entry.get("name") and r.get("last_name, first_name"):
         entry["name"] = str(r["last_name, first_name"])
 
-    for savant_col, entry_key, divisor in [
-        ("p_era",          "era",       1.0),
-        ("era",            "era",       1.0),   # alternate column name
-        ("xera",           "xfip",      1.0),   # xERA used as xFIP proxy
-        ("k_percent",      "k_pct",     100.0),
-        ("bb_percent",     "bb_pct",    100.0),
-        ("whiff_percent",  "whiff_pct", 100.0),
-        ("stuff_plus",     "stuff_plus", 1.0),
-    ]:
-        val = g(savant_col)
-        if val is not None and not entry.get(entry_key):
-            entry[entry_key] = round(val / divisor, 4)
+    brl = g("brl_percent")
+    hh  = g("ev95percent")
+    ev  = g("avg_hit_speed")
+    la  = g("avg_hit_angle")
+    if brl is not None and not entry.get("barrel_pct_against"):
+        entry["barrel_pct_against"] = brl / 100.0
+    if hh is not None and not entry.get("hard_hit_pct_against"):
+        entry["hard_hit_pct_against"] = hh / 100.0
+    if ev is not None and not entry.get("avg_ev_against"):
+        entry["avg_ev_against"] = ev
+    if la is not None and not entry.get("avg_la_against"):
+        entry["avg_la_against"] = la
 
 
 def _merge_savant_batter_expected(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
@@ -352,15 +344,10 @@ def _merge_savant_batter_expected(entry: dict, df: pd.DataFrame, mlbam_id: int) 
         "xslg":  g("est_slg"),
     })
 
-    # FanGraphs fallback: wOBA, K%, BB% are also in the Savant expected-stats CSV
-    for savant_col, entry_key, divisor in [
-        ("woba",       "woba",   1.0),
-        ("k_percent",  "k_pct",  100.0),
-        ("bb_percent", "bb_pct", 100.0),
-    ]:
-        val = g(savant_col)
-        if val is not None and not entry.get(entry_key):
-            entry[entry_key] = round(val / divisor, 4)
+    # FanGraphs fallback: wOBA is also in the Savant expected-stats CSV
+    woba = g("woba")
+    if woba is not None and not entry.get("woba"):
+        entry["woba"] = round(woba, 4)
 
 
 def _merge_savant_batter_batted_ball(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
@@ -403,15 +390,7 @@ def _merge_savant_batter_batted_ball(entry: dict, df: pd.DataFrame, mlbam_id: in
     if la is not None:
         entry["avg_launch_angle"] = la
 
-    # The batter statcast leaderboard also has wOBA, K%, BB% — use as FG fallback
-    for savant_col, entry_key, divisor in [
-        ("woba",       "woba",   1.0),
-        ("k_percent",  "k_pct",  100.0),
-        ("bb_percent", "bb_pct", 100.0),
-    ]:
-        val = g(savant_col)
-        if val is not None and not entry.get(entry_key):
-            entry[entry_key] = round(val / divisor, 4)
+    # The batter statcast leaderboard has exit-velocity stats only (no wOBA/K%).
 
 
 # ---------------------------------------------------------------------------
@@ -469,7 +448,7 @@ def _aggregate_pitcher_recent_starts(df: pd.DataFrame, n: int = 3) -> dict:
 
 
 def _aggregate_pitcher_pitch_data(df: pd.DataFrame) -> dict:
-    """Aggregate per-pitch Statcast rows to whiff% and chase rate."""
+    """Aggregate per-pitch Statcast rows to whiff%, chase rate, and window K%."""
     swings = df["description"].isin([
         "swinging_strike", "swinging_strike_blocked",
         "foul", "foul_tip",
@@ -481,10 +460,19 @@ def _aggregate_pitcher_pitch_data(df: pd.DataFrame) -> dict:
     total_swings = swings.sum()
     total_out_zone = out_zone.sum()
 
-    return {
+    result = {
         "whiff_pct": float(whiffs.sum() / total_swings) if total_swings > 0 else None,
         "o_swing_pct": float((swings & out_zone).sum() / total_out_zone) if total_out_zone > 0 else None,
     }
+
+    # Compute window K% from terminal PA events (21-day season proxy for FanGraphs fallback)
+    if "events" in df.columns:
+        terminal = df[df["events"].notna() & (df["events"] != "")]
+        if len(terminal) >= 20:
+            ks = int(terminal["events"].isin(["strikeout", "strikeout_double_play"]).sum())
+            result["k_pct"] = round(ks / len(terminal), 4)
+
+    return result
 
 
 # ---------------------------------------------------------------------------
