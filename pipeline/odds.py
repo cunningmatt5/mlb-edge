@@ -17,11 +17,10 @@ TIMEOUT = 15
 log = logging.getLogger(__name__)
 
 _PROP_MARKET_MAP = {
-    "K_PROP":    "pitcher_strikeouts",
-    "WALK_PROP": "pitcher_walks_allowed",
-    "HR_PROP":   "batter_home_runs",
-    "HIT_PROP":  "batter_hits",
-    "TB_PROP":   "batter_total_bases",
+    "K_PROP":  "pitcher_strikeouts",
+    "HR_PROP": "batter_home_runs",
+    "HIT_PROP":"batter_hits",
+    "TB_PROP": "batter_total_bases",
 }
 
 

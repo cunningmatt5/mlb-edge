@@ -21,7 +21,6 @@
   --badge-hrprop:    #e11d48;
   --badge-hitprop:   #0284c7;
   --badge-tbprop:    #0891b2;
-  --badge-walkprop:  #b45309;
   --badge-total:     #059669;
   --badge-teamtotal: #047857;
   --badge-mlf5:      #d97706;
@@ -325,7 +324,6 @@ h1 {
 .badge-hrprop     { background: var(--badge-hrprop); }
 .badge-hitprop    { background: var(--badge-hitprop); }
 .badge-tbprop     { background: var(--badge-tbprop); }
-.badge-walkprop   { background: var(--badge-walkprop); }
 .badge-total      { background: var(--badge-total); }
 .badge-teamtotal  { background: var(--badge-teamtotal); }
 .badge-mlf5       { background: var(--badge-mlf5); }
@@ -489,11 +487,29 @@ h1 {
 .record-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 8px;
   padding: 11px 16px;
   border-bottom: 1px solid var(--border-light);
 }
 .record-row:last-child { border-bottom: none; }
+
+.record-row-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.record-cushion {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  min-width: 36px;
+  text-align: right;
+}
+.record-cushion.pos { color: var(--green); }
+.record-cushion.neg { color: var(--red); }
 
 .record-type {
   flex: 1;
@@ -1022,7 +1038,21 @@ details[open] .props-toggle::after {
 
 @media (min-width: 640px) {
   #main-content {
-    max-width: 600px;
+    max-width: 900px;
     margin: 0 auto;
+    padding: 20px 24px;
+  }
+}
+
+@media (min-width: 900px) {
+  #main-content {
+    max-width: 1280px;
+    padding: 20px 32px;
+  }
+  #games-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
   }
 }

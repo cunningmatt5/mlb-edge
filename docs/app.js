@@ -55,7 +55,6 @@ const BET_LABELS = {
   HR_PROP:    'Home Run',
   HIT_PROP:   'Hit Prop',
   TB_PROP:    'Total Bases',
-  WALK_PROP:  'Walks',
   TOTAL:      'Game Total',
   TEAM_TOTAL: 'Team Total',
   ML_F5:      'ML / F5',
@@ -66,7 +65,6 @@ const BET_COLORS = {
   HR_PROP:    '#e11d48',
   HIT_PROP:   '#0284c7',
   TB_PROP:    '#0891b2',
-  WALK_PROP:  '#b45309',
   TOTAL:      '#059669',
   TEAM_TOTAL: '#047857',
   ML_F5:      '#d97706',
@@ -489,11 +487,34 @@ function renderRecord(history) {
   if (recent.length > 0) {
     html += '<div class="record-section-title">Recent Results</div><div class="record-table">';
     for (const p of recent) {
-      const label = BET_LABELS[p.bet_type] || p.bet_type;
+      const label     = BET_LABELS[p.bet_type] || p.bet_type;
+      const outcomeCls = p.outcome === 'WIN' ? 'win' : 'loss';
+      const dir       = (p.direction || '').toLowerCase();
+      const dirPill   = p.direction
+        ? `<span class="direction-pill dir-${dir}">${p.direction}</span>`
+        : '';
+
+      // Cushion: how far the actual result cleared (or missed) the line
+      let cushionHtml = '';
+      const av   = parseFloat(p.actual_value);
+      const line = parseFloat(p.line_at_pick);
+      if (!isNaN(av) && !isNaN(line)) {
+        const raw = (p.direction === 'OVER' || p.direction === 'HOME')
+          ? av - line
+          : line - av;
+        const sign = raw >= 0 ? '+' : '';
+        const cls  = raw >= 0 ? 'pos' : 'neg';
+        cushionHtml = `<span class="record-cushion ${cls}">${sign}${raw.toFixed(1)}</span>`;
+      }
+
       html += `<div class="record-row">
         <span class="record-type">${p.subject}<span class="record-date"> · ${p.date}</span></span>
-        <span class="record-type-badge badge badge-${p.bet_type.toLowerCase().replaceAll('_','')} badge-sm">${label}</span>
-        <span class="record-outcome ${p.outcome === 'WIN' ? 'win' : 'loss'}">${p.outcome}</span>
+        <div class="record-row-right">
+          <span class="badge badge-${p.bet_type.toLowerCase().replaceAll('_','')} badge-sm">${label}</span>
+          ${dirPill}
+          ${cushionHtml}
+          <span class="record-outcome ${outcomeCls}">${p.outcome}</span>
+        </div>
       </div>`;
     }
     html += '</div>';
