@@ -86,10 +86,20 @@ def _insight_reasons(
         xfips = [x for x in (home_xfip, away_xfip) if x is not None]
         avg_xfip = sum(xfips) / len(xfips) if xfips else None
 
+        total_info = insights.get("total") or {}
+        under_edge = total_info.get("under_edge") or 0
+        over_edge  = total_info.get("over_edge")  or 0
+
         if avg_xfip is not None and avg_xfip > 4.20:
-            reasons.append(
-                f"Both arms are hittable (avg xFIP {avg_xfip:.2f}) — run environment favors the OVER"
-            )
+            if under_edge >= 0.10:
+                reasons.append(
+                    f"Both arms are hittable (avg xFIP {avg_xfip:.2f}), "
+                    f"but historical comps lean UNDER — regression in run-scoring likely"
+                )
+            else:
+                reasons.append(
+                    f"Both arms are hittable (avg xFIP {avg_xfip:.2f}) — run environment favors the OVER"
+                )
         elif home_xfip is not None and home_xfip < 3.60:
             reasons.append(
                 f"{home_sp} (xFIP {home_xfip:.2f}) is elite — historically suppresses run totals"
@@ -318,6 +328,20 @@ def main(dry_run: bool = False) -> None:
         candidates += score_moneyline_f5(game, cache)
 
         total_candidates += len(candidates)
+
+        # When game-total comps strongly favour one direction, penalise team-total
+        # picks going the other way so the two signals don't contradict each other.
+        if insights and insights.get("total"):
+            comp_under = insights["total"].get("under_edge") or 0
+            comp_over  = insights["total"].get("over_edge")  or 0
+            for c in candidates:
+                if c["bet_type"] != "TEAM_TOTAL":
+                    continue
+                if c["direction"] == "OVER" and comp_under >= 0.10:
+                    c["signal"] = max(0.0, round(c["signal"] - comp_under * 5, 1))
+                elif c["direction"] == "UNDER" and comp_over >= 0.10:
+                    c["signal"] = max(0.0, round(c["signal"] - comp_over  * 5, 1))
+
         qualifying = [c for c in candidates if c["signal"] >= SIGNAL_THRESHOLD]
         for pick in qualifying:
             pick["tier"] = _assign_tier(pick["signal"])
