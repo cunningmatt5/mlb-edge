@@ -315,61 +315,81 @@ function renderGame(game, idx) {
 // ── Trends view ────────────────────────────────────────────────────────────────
 function trendBadge(signal) {
   const MAP = {
-    HOT_K:          { cls: 'hot',   label: 'K Surge' },
-    COLD_K:         { cls: 'cold',  label: 'K Fade'  },
-    HIGH_WHIFF:     { cls: 'hot',   label: 'High Whiff' },
-    WILD:           { cls: 'wild',  label: 'Wild'    },
-    SHARP:          { cls: 'sharp', label: 'Sharp'   },
-    UNDERPERFORMING:{ cls: 'under', label: 'Rebound Candidate' },
-    OVERPERFORMING: { cls: 'over',  label: 'Fade'    },
-    HIGH_BARREL:    { cls: 'hot',   label: 'Power'   },
+    ERA_LUCK:    { cls: 'over',  label: 'ERA Lucky'   },
+    ERA_STRUGGLE:{ cls: 'under', label: 'ERA Unlucky' },
+    HOT_K:       { cls: 'hot',   label: 'K Surge'     },
+    COLD_K:      { cls: 'cold',  label: 'K Fade'      },
+    COLD_BAT:    { cls: 'under', label: 'Cold Bat'    },
+    HOT_BAT:     { cls: 'over',  label: 'Hot Bat'     },
   };
   const m = MAP[signal] || { cls: '', label: signal };
   return `<span class="trend-badge trend-badge-${m.cls}">${m.label}</span>`;
 }
 
-function renderPitcherTrend(p) {
-  const stats = [];
-  if (p.k_pct != null)        stats.push(`<div class="trend-stat"><label>K%</label><span>${(p.k_pct * 100).toFixed(1)}%</span></div>`);
-  if (p.recent_k_pct != null) stats.push(`<div class="trend-stat"><label>Recent K%</label><span class="${p.k_pct_delta > 0 ? 'delta-pos' : 'delta-neg'}">${(p.recent_k_pct * 100).toFixed(1)}%</span></div>`);
-  if (p.k_pct_delta != null)  stats.push(`<div class="trend-stat"><label>Δ</label><span class="${p.k_pct_delta > 0 ? 'delta-pos' : 'delta-neg'}">${p.k_pct_delta > 0 ? '+' : ''}${(p.k_pct_delta * 100).toFixed(1)}pp</span></div>`);
-  if (p.whiff_pct != null)    stats.push(`<div class="trend-stat"><label>Whiff%</label><span>${(p.whiff_pct * 100).toFixed(1)}%</span></div>`);
-  if (p.bb_pct != null)       stats.push(`<div class="trend-stat"><label>BB%</label><span>${(p.bb_pct * 100).toFixed(1)}%</span></div>`);
-  if (p.recent_bb_pct != null)stats.push(`<div class="trend-stat"><label>Recent BB%</label><span class="${(p.bb_pct_delta || 0) > 0 ? 'delta-pos' : 'delta-neg'}">${(p.recent_bb_pct * 100).toFixed(1)}%</span></div>`);
-  if (p.xfip != null)         stats.push(`<div class="trend-stat"><label>xFIP</label><span>${p.xfip.toFixed(2)}</span></div>`);
+function renderTrendCard(entry) {
+  const isKTrend = entry.signal === 'HOT_K' || entry.signal === 'COLD_K';
+  const fmtA = isKTrend
+    ? `${(entry.stat_a * 100).toFixed(1)}%`
+    : entry.stat_a != null ? entry.stat_a.toFixed(2) : '—';
+  const fmtB = isKTrend
+    ? `${(entry.stat_b * 100).toFixed(1)}%`
+    : entry.stat_b != null ? entry.stat_b.toFixed(2) : '—';
+  const isBatter = entry.signal === 'COLD_BAT' || entry.signal === 'HOT_BAT';
+  const fmtDelta = isBatter
+    ? `+.${Math.round(entry.delta * 1000)}`
+    : isKTrend
+      ? `+${(entry.delta * 100).toFixed(1)}pp`
+      : `+${entry.delta.toFixed(2)}`;
 
   return `<div class="trend-card">
     <div class="trend-header">
       <div class="trend-identity">
-        <span class="trend-name">${p.name}</span>
-        <span class="trend-meta">${p.team} · ${p.game}</span>
+        <span class="trend-name">${entry.name}</span>
+        <span class="trend-meta">${entry.team} · ${entry.game}</span>
       </div>
-      ${trendBadge(p.signal)}
+      ${trendBadge(entry.signal)}
     </div>
-    <div class="trend-stats-row">${stats.join('')}</div>
-    <div class="trend-implication">${p.implication}</div>
+    <div class="trend-stats-row">
+      <div class="trend-stat"><label>${entry.stat_a_label}</label><span>${fmtA}</span></div>
+      <div class="trend-stat"><label>${entry.stat_b_label}</label><span>${fmtB}</span></div>
+      <div class="trend-stat"><label>Gap</label><span class="delta-pos">${fmtDelta}</span></div>
+    </div>
+    <div class="trend-implication">${entry.implication}</div>
   </div>`;
 }
 
-function renderBatterTrend(b) {
-  const stats = [];
-  if (b.xwoba != null)      stats.push(`<div class="trend-stat"><label>xwOBA</label><span>.${Math.round(b.xwoba * 1000)}</span></div>`);
-  if (b.woba != null)       stats.push(`<div class="trend-stat"><label>wOBA</label><span>.${Math.round(b.woba * 1000)}</span></div>`);
-  if (b.xwoba_gap != null)  stats.push(`<div class="trend-stat"><label>Gap</label><span class="${b.xwoba_gap > 0 ? 'delta-pos' : 'delta-neg'}">${b.xwoba_gap > 0 ? '+' : ''}.${Math.abs(Math.round(b.xwoba_gap * 1000))}</span></div>`);
-  if (b.barrel_pct != null) stats.push(`<div class="trend-stat"><label>Barrel%</label><span>${(b.barrel_pct * 100).toFixed(1)}%</span></div>`);
-
-  return `<div class="trend-card">
-    <div class="trend-header">
-      <div class="trend-identity">
-        <span class="trend-name">${b.name}</span>
-        <span class="trend-meta">${b.team} · ${b.game}</span>
-      </div>
-      ${trendBadge(b.signal)}
-    </div>
-    <div class="trend-stats-row">${stats.join('')}</div>
-    <div class="trend-implication">${b.implication}</div>
-  </div>`;
-}
+const TREND_SECTIONS = [
+  {
+    key:         'pitcher_lucky',
+    title:       'Lucky Pitchers — Due for Regression',
+    subtext:     'ERA significantly below xFIP. Results are outpacing process — lean OVER against these starters.',
+  },
+  {
+    key:         'pitcher_unlucky',
+    title:       'Unlucky Pitchers — Rebound Candidates',
+    subtext:     'ERA significantly above xFIP. Pitching better than results — back these starters or lean UNDER.',
+  },
+  {
+    key:         'pitcher_hot_k',
+    title:       'K Rate Surging',
+    subtext:     'Strikeout rate up 3+ pp vs. season average in recent starts. K props have value.',
+  },
+  {
+    key:         'pitcher_cold_k',
+    title:       'K Rate Fading',
+    subtext:     'Strikeout rate down 3+ pp vs. season average in recent starts. Fade K overs.',
+  },
+  {
+    key:         'batter_cold',
+    title:       'Cold Batters — Rebound Candidates',
+    subtext:     'xwOBA 25+ points above wOBA. Hitting well below expected quality — positive regression likely.',
+  },
+  {
+    key:         'batter_hot',
+    title:       'Hot Batters — Fade Candidates',
+    subtext:     'wOBA 25+ points above xwOBA. Results outpacing expected quality — negative regression likely.',
+  },
+];
 
 function renderTrends(trends) {
   if (!trends) {
@@ -380,27 +400,18 @@ function renderTrends(trends) {
     </div>`;
   }
 
-  const pitchers = trends.pitchers || [];
-  const batters  = trends.batters  || [];
-
-  if (pitchers.length === 0 && batters.length === 0) {
-    return `<div class="state-view">
-      <p class="state-icon">🔍</p>
-      <p>No notable trends today.</p>
-      <p class="state-sub">No SPs or batters met the trend thresholds.</p>
-    </div>`;
-  }
-
   let html = '';
-
-  if (pitchers.length > 0) {
-    html += '<div class="trend-section-header">Pitchers</div>';
-    html += pitchers.map(renderPitcherTrend).join('');
-  }
-
-  if (batters.length > 0) {
-    html += '<div class="trend-section-header">Batters</div>';
-    html += batters.map(renderBatterTrend).join('');
+  for (const sec of TREND_SECTIONS) {
+    const entries = trends[sec.key] || [];
+    html += `<div class="trend-section">
+      <div class="trend-section-header">${sec.title}</div>
+      <div class="trend-section-sub">${sec.subtext}</div>`;
+    if (entries.length === 0) {
+      html += `<div class="trend-section-empty">None today</div>`;
+    } else {
+      html += entries.map(renderTrendCard).join('');
+    }
+    html += `</div>`;
   }
 
   return html;
