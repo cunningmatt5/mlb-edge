@@ -12,7 +12,7 @@ let activeSubFilter = 'ALL';
 
 // ── Service Worker ─────────────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(console.error);
+  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(console.error);
 }
 
 // ── Data fetching ──────────────────────────────────────────────────────────────
@@ -623,7 +623,7 @@ document.getElementById('filter-bar').addEventListener('click', e => {
   renderAll();
 });
 
-document.getElementById('sub-filter-bar').addEventListener('click', e => {
+document.getElementById('sub-filter-bar')?.addEventListener('click', e => {
   const btn = e.target.closest('.sub-filter-btn');
   if (!btn) return;
   document.querySelectorAll('.sub-filter-btn').forEach(b => b.classList.remove('active'));

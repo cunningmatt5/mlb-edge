@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'mlb-edge-v10';
+const CACHE_NAME = 'mlb-edge-v11';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -10,8 +10,18 @@ const STATIC_ASSETS = [
 ];
 
 self.addEventListener('install', event => {
+  // cache: 'reload' bypasses the HTTP cache so the SW always stores the
+  // freshest files, not whatever the CDN may have served 10 min ago.
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_ASSETS))
+    caches.open(CACHE_NAME).then(cache =>
+      Promise.all(
+        STATIC_ASSETS.map(url =>
+          fetch(new Request(url, { cache: 'reload' }))
+            .then(res => { if (res.ok || res.type === 'basic') cache.put(url, res); })
+            .catch(() => {})
+        )
+      )
+    )
   );
   self.skipWaiting();
 });

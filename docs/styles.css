@@ -437,7 +437,6 @@ h1 {
   padding: 0 18px 12px;
   overflow-x: auto;
   scrollbar-width: none;
-  border-bottom: 1px solid var(--border);
 }
 .sub-filter-bar::-webkit-scrollbar { display: none; }
 .sub-filter-bar.hidden { display: none; }
