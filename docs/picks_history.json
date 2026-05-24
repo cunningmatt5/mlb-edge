@@ -168,8 +168,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 2.0
     },
     {
       "date": "2026-05-23",
@@ -192,8 +192,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 7
     },
     {
       "date": "2026-05-23",
@@ -216,8 +216,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 6
     },
     {
       "date": "2026-05-23",
@@ -239,8 +239,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 1.0
     },
     {
       "date": "2026-05-23",
@@ -266,8 +266,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 13
     },
     {
       "date": "2026-05-23",
@@ -293,8 +293,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 13
     },
     {
       "date": "2026-05-23",
@@ -1572,8 +1572,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 2.0
     },
     {
       "date": "2026-05-23",
@@ -1599,8 +1599,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 14
     },
     {
       "date": "2026-05-23",
@@ -1623,8 +1623,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 3
     },
     {
       "date": "2026-05-23",
@@ -1647,8 +1647,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 11
     },
     {
       "date": "2026-05-23",
@@ -1670,8 +1670,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 4.0
     },
     {
       "date": "2026-05-23",
@@ -1697,8 +1697,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 2
     },
     {
       "date": "2026-05-23",
@@ -1721,8 +1721,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 2
     },
     {
       "date": "2026-05-23",
@@ -1745,8 +1745,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 0
     },
     {
       "date": "2026-05-23",
@@ -1768,8 +1768,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 6.0
     },
     {
       "date": "2026-05-23",
@@ -1791,8 +1791,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 5.0
     },
     {
       "date": "2026-05-23",
@@ -1814,8 +1814,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 2.0
     },
     {
       "date": "2026-05-23",
@@ -1841,8 +1841,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 7
     },
     {
       "date": "2026-05-23",
@@ -1865,8 +1865,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 5
     },
     {
       "date": "2026-05-23",
@@ -1889,8 +1889,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 2
     },
     {
       "date": "2026-05-23",
@@ -1912,8 +1912,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 3.0
     },
     {
       "date": "2026-05-23",
@@ -1935,8 +1935,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 3.0
     },
     {
       "date": "2026-05-23",
@@ -1958,8 +1958,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 2.0
     },
     {
       "date": "2026-05-23",
@@ -1981,8 +1981,8 @@
         "lineup_patience": 0.5,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 1.0
     },
     {
       "date": "2026-05-23",
@@ -2008,8 +2008,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 9
     },
     {
       "date": "2026-05-23",
@@ -2035,8 +2035,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 9
     },
     {
       "date": "2026-05-23",
@@ -2059,8 +2059,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "WIN",
+      "actual_value": 5
     },
     {
       "date": "2026-05-23",
@@ -2083,8 +2083,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 5
     },
     {
       "date": "2026-05-23",
@@ -2107,8 +2107,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 4
     },
     {
       "date": "2026-05-23",
@@ -2131,8 +2131,8 @@
         "umpire_modifier": null,
         "umpire": null
       },
-      "outcome": "PENDING",
-      "actual_value": null
+      "outcome": "LOSS",
+      "actual_value": 4
     },
     {
       "date": "2026-05-23",
@@ -2154,8 +2154,8 @@
         "lineup_patience": 0.5,
         "umpire": "Tripp Gibson"
       },
-      "outcome": "PENDING",
-      "actual_value": null,
+      "outcome": "LOSS",
+      "actual_value": 4.0,
       "has_line": false,
       "line_at_pick": null,
       "edge_pct_at_pick": null
@@ -3059,46 +3059,211 @@
       "has_line": false,
       "line_at_pick": null,
       "edge_pct_at_pick": null
+    },
+    {
+      "date": "2026-05-24",
+      "game_pk": 823297,
+      "bet_type": "TEAM_TOTAL",
+      "subject": "Athletics",
+      "subject_id": null,
+      "subject_side": "away",
+      "direction": "UNDER",
+      "headline": "Athletics Team Total \u2014 UNDER",
+      "signal": 6.5,
+      "tier": "GREAT",
+      "raw_scores": {
+        "lineup_xwoba": 0.31,
+        "sp_xfip": 3.6,
+        "sp_siera": null,
+        "park_run_factor": 92,
+        "sp_suppress": 0.602,
+        "offense_score": 0.4,
+        "umpire_modifier": null,
+        "umpire": null
+      },
+      "outcome": "PENDING",
+      "actual_value": null,
+      "has_line": false,
+      "line_at_pick": null,
+      "edge_pct_at_pick": null
+    },
+    {
+      "date": "2026-05-24",
+      "game_pk": 823297,
+      "bet_type": "TEAM_TOTAL",
+      "subject": "San Diego Padres",
+      "subject_id": null,
+      "subject_side": "home",
+      "direction": "UNDER",
+      "headline": "San Diego Padres Team Total \u2014 UNDER",
+      "signal": 5.9,
+      "tier": "APPEALING",
+      "raw_scores": {
+        "lineup_xwoba": 0.31,
+        "sp_xfip": 4.62,
+        "sp_siera": null,
+        "park_run_factor": 92,
+        "sp_suppress": 0.413,
+        "offense_score": 0.4,
+        "umpire_modifier": null,
+        "umpire": null
+      },
+      "outcome": "PENDING",
+      "actual_value": null,
+      "has_line": false,
+      "line_at_pick": null,
+      "edge_pct_at_pick": null
+    },
+    {
+      "date": "2026-05-24",
+      "game_pk": 824921,
+      "bet_type": "TEAM_TOTAL",
+      "subject": "Atlanta Braves",
+      "subject_id": null,
+      "subject_side": "home",
+      "direction": "OVER",
+      "headline": "Atlanta Braves Team Total \u2014 OVER",
+      "signal": 5.2,
+      "tier": "APPEALING",
+      "raw_scores": {
+        "lineup_xwoba": 0.31,
+        "sp_xfip": 4.35,
+        "sp_siera": null,
+        "park_run_factor": 103,
+        "sp_suppress": 0.463,
+        "offense_score": 0.4,
+        "umpire_modifier": null,
+        "umpire": null
+      },
+      "outcome": "PENDING",
+      "actual_value": null,
+      "has_line": false,
+      "line_at_pick": null,
+      "edge_pct_at_pick": null
+    },
+    {
+      "date": "2026-05-24",
+      "game_pk": 824028,
+      "bet_type": "TEAM_TOTAL",
+      "subject": "Texas Rangers",
+      "subject_id": null,
+      "subject_side": "away",
+      "direction": "UNDER",
+      "headline": "Texas Rangers Team Total \u2014 UNDER",
+      "signal": 6.6,
+      "tier": "GREAT",
+      "raw_scores": {
+        "lineup_xwoba": 0.31,
+        "sp_xfip": 3.23,
+        "sp_siera": null,
+        "park_run_factor": 99,
+        "sp_suppress": 0.67,
+        "offense_score": 0.4,
+        "umpire_modifier": null,
+        "umpire": null
+      },
+      "outcome": "PENDING",
+      "actual_value": null,
+      "has_line": false,
+      "line_at_pick": null,
+      "edge_pct_at_pick": null
+    },
+    {
+      "date": "2026-05-24",
+      "game_pk": 824028,
+      "bet_type": "TOTAL",
+      "subject": "Texas Rangers @ Los Angeles Angels",
+      "subject_id": null,
+      "subject_side": null,
+      "direction": "UNDER",
+      "headline": "Texas Rangers @ Los Angeles Angels Total Runs \u2014 UNDER",
+      "signal": 6.4,
+      "tier": "APPEALING",
+      "raw_scores": {
+        "home_sp_xfip": 3.23,
+        "away_sp_xfip": 3.98,
+        "home_sp_siera": null,
+        "away_sp_siera": null,
+        "avg_lineup_xwoba": 0.31,
+        "park_run_factor": 99,
+        "avg_suppression": 0.601,
+        "offense_score": 0.4,
+        "weather_modifier": -0.3,
+        "umpire_modifier": null,
+        "umpire": null
+      },
+      "outcome": "PENDING",
+      "actual_value": null,
+      "has_line": false,
+      "line_at_pick": null,
+      "edge_pct_at_pick": null
+    },
+    {
+      "date": "2026-05-24",
+      "game_pk": 824028,
+      "bet_type": "TEAM_TOTAL",
+      "subject": "Los Angeles Angels",
+      "subject_id": null,
+      "subject_side": "home",
+      "direction": "UNDER",
+      "headline": "Los Angeles Angels Team Total \u2014 UNDER",
+      "signal": 6.1,
+      "tier": "APPEALING",
+      "raw_scores": {
+        "lineup_xwoba": 0.31,
+        "sp_xfip": 3.98,
+        "sp_siera": null,
+        "park_run_factor": 99,
+        "sp_suppress": 0.531,
+        "offense_score": 0.4,
+        "umpire_modifier": null,
+        "umpire": null
+      },
+      "outcome": "PENDING",
+      "actual_value": null,
+      "has_line": false,
+      "line_at_pick": null,
+      "edge_pct_at_pick": null
     }
   ],
   "summary": {
-    "total": 122,
-    "wins": 27,
-    "losses": 15,
-    "pending": 80,
-    "win_rate": 0.643,
+    "total": 128,
+    "wins": 41,
+    "losses": 32,
+    "pending": 55,
+    "win_rate": 0.562,
     "by_type": {
       "WALK_PROP": {
-        "total": 18,
-        "wins": 9,
-        "losses": 9,
-        "win_rate": 0.5
+        "total": 30,
+        "wins": 14,
+        "losses": 16,
+        "win_rate": 0.467
       },
       "TEAM_TOTAL": {
-        "total": 16,
-        "wins": 11,
-        "losses": 5,
-        "win_rate": 0.688
+        "total": 28,
+        "wins": 16,
+        "losses": 12,
+        "win_rate": 0.571
       },
       "TOTAL": {
-        "total": 8,
-        "wins": 7,
-        "losses": 1,
-        "win_rate": 0.875
+        "total": 15,
+        "wins": 11,
+        "losses": 4,
+        "win_rate": 0.733
       }
     },
     "by_signal_band": {
       "5.0-5.9": {
-        "total": 36,
-        "wins": 24,
-        "losses": 12,
-        "win_rate": 0.667
+        "total": 60,
+        "wins": 34,
+        "losses": 26,
+        "win_rate": 0.567
       },
       "6.0-6.9": {
-        "total": 6,
-        "wins": 3,
-        "losses": 3,
-        "win_rate": 0.5
+        "total": 13,
+        "wins": 7,
+        "losses": 6,
+        "win_rate": 0.538
       },
       "7.0-7.9": {
         "total": 0,
@@ -3133,10 +3298,10 @@
         "win_rate": 0.333
       },
       "APPEALING": {
-        "total": 39,
-        "wins": 26,
-        "losses": 13,
-        "win_rate": 0.667
+        "total": 70,
+        "wins": 40,
+        "losses": 30,
+        "win_rate": 0.571
       }
     }
   }

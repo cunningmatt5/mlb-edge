@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-24T02:11:25.860906+00:00",
+  "generated_at": "2026-05-24T09:30:31.813551+00:00",
   "date": "2026-05-24",
   "pitcher_lucky": [
     {
@@ -15,6 +15,18 @@
       "implication": "ERA (1.20) is 2.25 runs below xFIP (3.45) \u2014 results outpacing process. Lean OVER against Tyler Phillips."
     },
     {
+      "name": "Luis Medina",
+      "team": "Athletics",
+      "game": "Athletics @ Padres",
+      "signal": "ERA_LUCK",
+      "stat_a_label": "ERA",
+      "stat_a": 2.41,
+      "stat_b_label": "xFIP",
+      "stat_b": 4.62,
+      "delta": 2.21,
+      "implication": "ERA (2.41) is 2.21 runs below xFIP (4.62) \u2014 results outpacing process. Lean OVER against Luis Medina."
+    },
+    {
       "name": "Sonny Gray",
       "team": "Sox",
       "game": "Twins @ Sox",
@@ -25,6 +37,18 @@
       "stat_b": 4.44,
       "delta": 1.52,
       "implication": "ERA (2.92) is 1.52 runs below xFIP (4.44) \u2014 results outpacing process. Lean OVER against Sonny Gray."
+    },
+    {
+      "name": "Michael King",
+      "team": "Padres",
+      "game": "Athletics @ Padres",
+      "signal": "ERA_LUCK",
+      "stat_a_label": "ERA",
+      "stat_a": 2.31,
+      "stat_b_label": "xFIP",
+      "stat_b": 3.6,
+      "delta": 1.29,
+      "implication": "ERA (2.31) is 1.29 runs below xFIP (3.60) \u2014 results outpacing process. Lean OVER against Michael King."
     },
     {
       "name": "Seth Lugo",
@@ -40,6 +64,18 @@
     }
   ],
   "pitcher_unlucky": [
+    {
+      "name": "Reid Detmers",
+      "team": "Angels",
+      "game": "Rangers @ Angels",
+      "signal": "ERA_STRUGGLE",
+      "stat_a_label": "ERA",
+      "stat_a": 5.07,
+      "stat_b_label": "xFIP",
+      "stat_b": 3.23,
+      "delta": 1.84,
+      "implication": "ERA (5.07) is 1.84 runs above xFIP (3.23) \u2014 pitching better than results. Back Reid Detmers or lean UNDER."
+    },
     {
       "name": "Andrew Painter",
       "team": "Phillies",
