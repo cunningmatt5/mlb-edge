@@ -1,305 +1,17 @@
 {
-  "generated_at": "2026-05-23T22:39:52.350960+00:00",
-  "date": "2026-05-23",
-  "game_count": 14,
-  "pick_count": 67,
+  "generated_at": "2026-05-24T01:35:17.298038+00:00",
+  "date": "2026-05-24",
+  "game_count": 13,
+  "pick_count": 31,
   "games": [
     {
-      "gamePk": 824518,
-      "game_time": "2026-05-23T17:10:00Z",
-      "home_team": "Cincinnati Reds",
-      "away_team": "St. Louis Cardinals",
-      "venue": "Great American Ball Park",
-      "home_sp": "Chris Paddack",
-      "away_sp": "Andre Pallante",
-      "home_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "away_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "home_lineup_xwoba": null,
-      "away_lineup_xwoba": null,
-      "park_run_factor": 108.0,
-      "comps_count": 30,
-      "insights": {
-        "total": {
-          "line": 10.0,
-          "over_price": -101,
-          "under_price": -111,
-          "pinnacle_over_prob": 0.4885,
-          "pinnacle_under_prob": 0.5115,
-          "historical_over_rate": 0.3,
-          "historical_under_rate": 0.7,
-          "over_edge": -0.1885,
-          "under_edge": 0.1885
-        },
-        "moneyline": {
-          "home_price": -104,
-          "away_price": -104,
-          "pinnacle_home_prob": 0.5,
-          "pinnacle_away_prob": 0.5,
-          "historical_home_rate": 0.5667,
-          "historical_away_rate": 0.4333,
-          "home_edge": 0.0667,
-          "away_edge": -0.0667
-        }
-      },
-      "picks": [
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Pallante, Andre",
-          "subject_id": 669467,
-          "direction": "UNDER",
-          "headline": "Pallante, Andre Walks \u2014 UNDER",
-          "signal": 5.6,
-          "reasons": [
-            "Pallante, Andre BB% of 6.7% (blended w/ recent 3 starts) \u2014 elite walk avoidance"
-          ],
-          "raw_scores": {
-            "bb_pct": "6.7%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.593,
-            "lineup_patience": 0.5,
-            "umpire": "Ben May"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Paddack, Chris",
-          "subject_id": 663978,
-          "direction": "OVER",
-          "headline": "Paddack, Chris Walks \u2014 OVER",
-          "signal": 5.2,
-          "reasons": [
-            "Paddack, Chris BB% of 9.8% \u2014 elevated walk rate this season"
-          ],
-          "raw_scores": {
-            "bb_pct": "9.8%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.47,
-            "lineup_patience": 0.5,
-            "umpire": "Ben May"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Cincinnati Reds",
-          "subject_side": "home",
-          "direction": "UNDER",
-          "headline": "Cincinnati Reds Team Total \u2014 UNDER",
-          "signal": 5.1,
-          "reasons": [],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 108,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": "Ben May"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "St. Louis Cardinals",
-          "subject_side": "away",
-          "direction": "UNDER",
-          "headline": "St. Louis Cardinals Team Total \u2014 UNDER",
-          "signal": 5.1,
-          "reasons": [],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 108,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": "Ben May"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        }
-      ]
-    },
-    {
-      "gamePk": 824516,
-      "game_time": "2026-05-23T23:15:00Z",
-      "home_team": "Cincinnati Reds",
-      "away_team": "St. Louis Cardinals",
-      "venue": "Great American Ball Park",
-      "home_sp": "Chase Petty",
-      "away_sp": "Kyle Leahy",
-      "home_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "away_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "home_lineup_xwoba": null,
-      "away_lineup_xwoba": null,
-      "park_run_factor": 108.0,
-      "comps_count": 30,
-      "insights": {
-        "total": {
-          "line": 10.0,
-          "over_price": -101,
-          "under_price": -111,
-          "pinnacle_over_prob": 0.4885,
-          "pinnacle_under_prob": 0.5115,
-          "historical_over_rate": 0.3,
-          "historical_under_rate": 0.7,
-          "over_edge": -0.1885,
-          "under_edge": 0.1885
-        },
-        "moneyline": {
-          "home_price": -104,
-          "away_price": -104,
-          "pinnacle_home_prob": 0.5,
-          "pinnacle_away_prob": 0.5,
-          "historical_home_rate": 0.5667,
-          "historical_away_rate": 0.4333,
-          "home_edge": 0.0667,
-          "away_edge": -0.0667
-        }
-      },
-      "picks": [
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Leahy, Kyle",
-          "subject_id": 681517,
-          "direction": "OVER",
-          "headline": "Leahy, Kyle Walks \u2014 OVER",
-          "signal": 5.8,
-          "reasons": [
-            "Leahy, Kyle BB% of 12.7% \u2014 elevated walk rate this season"
-          ],
-          "raw_scores": {
-            "bb_pct": "12.7%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.353,
-            "lineup_patience": 0.5,
-            "umpire": "John Tumpane"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Cincinnati Reds",
-          "subject_side": "home",
-          "direction": "UNDER",
-          "headline": "Cincinnati Reds Team Total \u2014 UNDER",
-          "signal": 5.1,
-          "reasons": [],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 108,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": "John Tumpane"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "St. Louis Cardinals",
-          "subject_side": "away",
-          "direction": "UNDER",
-          "headline": "St. Louis Cardinals Team Total \u2014 UNDER",
-          "signal": 5.1,
-          "reasons": [],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 108,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": "John Tumpane"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Chase Petty",
-          "subject_id": 695534,
-          "direction": "UNDER",
-          "headline": "Chase Petty Walks \u2014 UNDER",
-          "signal": 5.1,
-          "reasons": [
-            "SP BB% of 8.7% (blended w/ recent 1 starts) \u2014 elite walk avoidance"
-          ],
-          "raw_scores": {
-            "bb_pct": "8.7%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.512,
-            "lineup_patience": 0.5,
-            "umpire": "John Tumpane"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        }
-      ]
-    },
-    {
-      "gamePk": 824674,
-      "game_time": "2026-05-23T18:20:00Z",
+      "gamePk": 824676,
+      "game_time": "2026-05-24T18:20:00Z",
       "home_team": "Chicago Cubs",
       "away_team": "Houston Astros",
       "venue": "Wrigley Field",
-      "home_sp": "Colin Rea",
-      "away_sp": "Kai-Wei Teng",
+      "home_sp": "Shota Imanaga",
+      "away_sp": "Peter Lambert",
       "home_sp_stats": {
         "xfip": null,
         "siera": null,
@@ -319,32 +31,24 @@
       "home_lineup_xwoba": null,
       "away_lineup_xwoba": null,
       "park_run_factor": 100.0,
-      "comps_count": 0,
-      "insights": null,
-      "picks": [
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Teng, Kai-Wei",
-          "subject_id": 678906,
-          "direction": "OVER",
-          "headline": "Teng, Kai-Wei Walks \u2014 OVER",
-          "signal": 5.9,
+      "comps_count": 30,
+      "insights": {
+        "total": null,
+        "moneyline": {
+          "home_price": -162,
+          "away_price": 145,
+          "pinnacle_home_prob": 0.6024,
+          "pinnacle_away_prob": 0.3976,
+          "historical_home_rate": 0.3,
+          "historical_away_rate": 0.7,
+          "home_edge": -0.3024,
+          "away_edge": 0.3024,
           "reasons": [
-            "Teng, Kai-Wei BB% of 13.5% \u2014 elevated walk rate this season"
-          ],
-          "raw_scores": {
-            "bb_pct": "13.5%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.319,
-            "lineup_patience": 0.5,
-            "umpire": "Chad Whitson"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
+            "Similar-caliber matchup \u2014 comps edge is narrow"
+          ]
+        }
+      },
+      "picks": [
         {
           "bet_type": "TEAM_TOTAL",
           "subject": "Chicago Cubs",
@@ -361,7 +65,7 @@
             "sp_suppress": 0.5,
             "offense_score": 0.4,
             "umpire_modifier": null,
-            "umpire": "Chad Whitson"
+            "umpire": null
           },
           "tier": "APPEALING",
           "odds": null,
@@ -383,7 +87,7 @@
             "sp_suppress": 0.5,
             "offense_score": 0.4,
             "umpire_modifier": null,
-            "umpire": "Chad Whitson"
+            "umpire": null
           },
           "tier": "APPEALING",
           "odds": null,
@@ -407,30 +111,7 @@
             "offense_score": 0.4,
             "weather_modifier": null,
             "umpire_modifier": null,
-            "umpire": "Chad Whitson"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Rea, Colin",
-          "subject_id": 607067,
-          "direction": "UNDER",
-          "headline": "Rea, Colin Walks \u2014 UNDER",
-          "signal": 5.3,
-          "reasons": [
-            "Rea, Colin BB% of 7.7% (blended w/ recent 3 starts) \u2014 elite walk avoidance"
-          ],
-          "raw_scores": {
-            "bb_pct": "7.7%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.552,
-            "lineup_patience": 0.5,
-            "umpire": "Chad Whitson"
+            "umpire": null
           },
           "tier": "APPEALING",
           "odds": null,
@@ -439,1061 +120,13 @@
       ]
     },
     {
-      "gamePk": 822814,
-      "game_time": "2026-05-23T19:07:00Z",
-      "home_team": "Toronto Blue Jays",
-      "away_team": "Pittsburgh Pirates",
-      "venue": "Rogers Centre",
-      "home_sp": "Patrick Corbin",
-      "away_sp": "Paul Skenes",
-      "home_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "away_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "home_lineup_xwoba": null,
-      "away_lineup_xwoba": null,
-      "park_run_factor": 98.0,
-      "comps_count": 0,
-      "insights": null,
-      "picks": [
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Skenes, Paul",
-          "subject_id": 694973,
-          "direction": "UNDER",
-          "headline": "Skenes, Paul Walks \u2014 UNDER",
-          "signal": 6.2,
-          "reasons": [
-            "Skenes, Paul BB% of 1.3% (blended w/ recent 3 starts) \u2014 elite walk avoidance"
-          ],
-          "raw_scores": {
-            "bb_pct": "1.3%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.7,
-            "lineup_patience": 0.5,
-            "umpire": "Alan Porter"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TOTAL",
-          "subject": "Pittsburgh Pirates @ Toronto Blue Jays",
-          "direction": "UNDER",
-          "headline": "Pittsburgh Pirates @ Toronto Blue Jays Total Runs \u2014 UNDER",
-          "signal": 5.8,
-          "reasons": [],
-          "raw_scores": {
-            "home_sp_xfip": null,
-            "away_sp_xfip": null,
-            "home_sp_siera": null,
-            "away_sp_siera": null,
-            "avg_lineup_xwoba": 0.31,
-            "park_run_factor": 98,
-            "avg_suppression": 0.5,
-            "offense_score": 0.4,
-            "weather_modifier": null,
-            "umpire_modifier": null,
-            "umpire": "Alan Porter"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Toronto Blue Jays",
-          "subject_side": "home",
-          "direction": "UNDER",
-          "headline": "Toronto Blue Jays Team Total \u2014 UNDER",
-          "signal": 5.8,
-          "reasons": [],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 98,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": "Alan Porter"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Pittsburgh Pirates",
-          "subject_side": "away",
-          "direction": "UNDER",
-          "headline": "Pittsburgh Pirates Team Total \u2014 UNDER",
-          "signal": 5.8,
-          "reasons": [],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 98,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": "Alan Porter"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Corbin, Patrick",
-          "subject_id": 571578,
-          "direction": "OVER",
-          "headline": "Corbin, Patrick Walks \u2014 OVER",
-          "signal": 5.1,
-          "reasons": [
-            "Corbin, Patrick BB% of 9.2% \u2014 elevated walk rate this season"
-          ],
-          "raw_scores": {
-            "bb_pct": "9.2%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.491,
-            "lineup_patience": 0.5,
-            "umpire": "Alan Porter"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        }
-      ]
-    },
-    {
-      "gamePk": 823458,
-      "game_time": "2026-05-23T20:05:00Z",
-      "home_team": "Philadelphia Phillies",
-      "away_team": "Cleveland Guardians",
-      "venue": "Citizens Bank Park",
-      "home_sp": "Zack Wheeler",
-      "away_sp": "Slade Cecconi",
-      "home_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "away_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "home_lineup_xwoba": null,
-      "away_lineup_xwoba": null,
-      "park_run_factor": 102.0,
-      "comps_count": 30,
-      "insights": {
-        "total": {
-          "line": 5.0,
-          "over_price": -114,
-          "under_price": -110,
-          "pinnacle_over_prob": 0.5042,
-          "pinnacle_under_prob": 0.4958,
-          "historical_over_rate": 0.7333,
-          "historical_under_rate": 0.2667,
-          "over_edge": 0.2291,
-          "under_edge": -0.2291
-        },
-        "moneyline": {
-          "home_price": -167,
-          "away_price": 137,
-          "pinnacle_home_prob": 0.5972,
-          "pinnacle_away_prob": 0.4028,
-          "historical_home_rate": 0.6,
-          "historical_away_rate": 0.4,
-          "home_edge": 0.0028,
-          "away_edge": -0.0028
-        }
-      },
-      "picks": [
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Wheeler, Zack",
-          "subject_id": 554430,
-          "direction": "UNDER",
-          "headline": "Wheeler, Zack Walks \u2014 UNDER",
-          "signal": 6.2,
-          "reasons": [
-            "Wheeler, Zack BB% of 2.6% (blended w/ recent 3 starts) \u2014 elite walk avoidance"
-          ],
-          "raw_scores": {
-            "bb_pct": "2.6%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.7,
-            "lineup_patience": 0.5,
-            "umpire": "Jordan Baker"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Philadelphia Phillies",
-          "subject_side": "home",
-          "direction": "UNDER",
-          "headline": "Philadelphia Phillies Team Total \u2014 UNDER",
-          "signal": 6.1,
-          "reasons": [
-            "Wind 10 mph blowing in"
-          ],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 102,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": "Jordan Baker"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Cleveland Guardians",
-          "subject_side": "away",
-          "direction": "UNDER",
-          "headline": "Cleveland Guardians Team Total \u2014 UNDER",
-          "signal": 6.1,
-          "reasons": [
-            "Wind 10 mph blowing in"
-          ],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 102,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": "Jordan Baker"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Cecconi, Slade",
-          "subject_id": 677944,
-          "direction": "UNDER",
-          "headline": "Cecconi, Slade Walks \u2014 UNDER",
-          "signal": 5.0,
-          "reasons": [
-            "Cecconi, Slade BB% of 8.8% (blended w/ recent 3 starts) \u2014 elite walk avoidance"
-          ],
-          "raw_scores": {
-            "bb_pct": "8.8%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.507,
-            "lineup_patience": 0.5,
-            "umpire": "Jordan Baker"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Cecconi, Slade",
-          "subject_id": 677944,
-          "direction": "OVER",
-          "headline": "Cecconi, Slade Walks \u2014 OVER",
-          "signal": 5.0,
-          "reasons": [
-            "Cecconi, Slade BB% of 8.8% \u2014 elevated walk rate this season"
-          ],
-          "raw_scores": {
-            "bb_pct": "8.8%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.507,
-            "lineup_patience": 0.5,
-            "umpire": "Jordan Baker"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        }
-      ]
-    },
-    {
-      "gamePk": 823222,
-      "game_time": "2026-05-23T20:05:00Z",
-      "home_team": "San Francisco Giants",
-      "away_team": "Chicago White Sox",
-      "venue": "Oracle Park",
-      "home_sp": "Adrian Houser",
-      "away_sp": "Bryan Hudson",
-      "home_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "away_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "home_lineup_xwoba": null,
-      "away_lineup_xwoba": null,
-      "park_run_factor": 93.0,
-      "comps_count": 30,
-      "insights": {
-        "total": {
-          "line": 13.5,
-          "over_price": 103,
-          "under_price": -131,
-          "pinnacle_over_prob": 0.4649,
-          "pinnacle_under_prob": 0.5351,
-          "historical_over_rate": 0.1667,
-          "historical_under_rate": 0.8333,
-          "over_edge": -0.2982,
-          "under_edge": 0.2982
-        },
-        "moneyline": null
-      },
-      "picks": [
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "San Francisco Giants",
-          "subject_side": "home",
-          "direction": "UNDER",
-          "headline": "San Francisco Giants Team Total \u2014 UNDER",
-          "signal": 6.1,
-          "reasons": [
-            "Oracle Park run factor of 93 \u2014 suppresses scoring"
-          ],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 93,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": "Louie Krupa"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Chicago White Sox",
-          "subject_side": "away",
-          "direction": "UNDER",
-          "headline": "Chicago White Sox Team Total \u2014 UNDER",
-          "signal": 6.1,
-          "reasons": [
-            "Oracle Park run factor of 93 \u2014 suppresses scoring"
-          ],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 93,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": "Louie Krupa"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Houser, Adrian",
-          "subject_id": 605288,
-          "direction": "OVER",
-          "headline": "Houser, Adrian Walks \u2014 OVER",
-          "signal": 5.8,
-          "reasons": [
-            "Houser, Adrian BB% of 12.7% \u2014 elevated walk rate this season"
-          ],
-          "raw_scores": {
-            "bb_pct": "12.7%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.353,
-            "lineup_patience": 0.5,
-            "umpire": "Louie Krupa"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Hudson, Bryan",
-          "subject_id": 663542,
-          "direction": "UNDER",
-          "headline": "Hudson, Bryan Walks \u2014 UNDER",
-          "signal": 5.0,
-          "reasons": [],
-          "raw_scores": {
-            "bb_pct": null,
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.5,
-            "lineup_patience": 0.5,
-            "umpire": "Louie Krupa"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Hudson, Bryan",
-          "subject_id": 663542,
-          "direction": "OVER",
-          "headline": "Hudson, Bryan Walks \u2014 OVER",
-          "signal": 5.0,
-          "reasons": [],
-          "raw_scores": {
-            "bb_pct": null,
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.5,
-            "lineup_patience": 0.5,
-            "umpire": "Louie Krupa"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        }
-      ]
-    },
-    {
-      "gamePk": 824109,
-      "game_time": "2026-05-23T20:10:00Z",
-      "home_team": "Kansas City Royals",
-      "away_team": "Seattle Mariners",
-      "venue": "Kauffman Stadium",
-      "home_sp": "Stephen Kolek",
-      "away_sp": "George Kirby",
-      "home_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "away_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "home_lineup_xwoba": null,
-      "away_lineup_xwoba": null,
-      "park_run_factor": 98.0,
-      "comps_count": 0,
-      "insights": null,
-      "picks": [
-        {
-          "bet_type": "TOTAL",
-          "subject": "Seattle Mariners @ Kansas City Royals",
-          "direction": "UNDER",
-          "headline": "Seattle Mariners @ Kansas City Royals Total Runs \u2014 UNDER",
-          "signal": 5.8,
-          "reasons": [],
-          "raw_scores": {
-            "home_sp_xfip": null,
-            "away_sp_xfip": null,
-            "home_sp_siera": null,
-            "away_sp_siera": null,
-            "avg_lineup_xwoba": 0.31,
-            "park_run_factor": 98,
-            "avg_suppression": 0.5,
-            "offense_score": 0.4,
-            "weather_modifier": null,
-            "umpire_modifier": null,
-            "umpire": "Todd Tichenor"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Kansas City Royals",
-          "subject_side": "home",
-          "direction": "UNDER",
-          "headline": "Kansas City Royals Team Total \u2014 UNDER",
-          "signal": 5.8,
-          "reasons": [],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 98,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": "Todd Tichenor"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Seattle Mariners",
-          "subject_side": "away",
-          "direction": "UNDER",
-          "headline": "Seattle Mariners Team Total \u2014 UNDER",
-          "signal": 5.8,
-          "reasons": [],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 98,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": "Todd Tichenor"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Kolek, Stephen",
-          "subject_id": 663568,
-          "direction": "UNDER",
-          "headline": "Kolek, Stephen Walks \u2014 UNDER",
-          "signal": 5.8,
-          "reasons": [
-            "Kolek, Stephen BB% of 5.8% (blended w/ recent 3 starts) \u2014 elite walk avoidance"
-          ],
-          "raw_scores": {
-            "bb_pct": "5.8%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.628,
-            "lineup_patience": 0.5,
-            "umpire": "Todd Tichenor"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Kirby, George",
-          "subject_id": 669923,
-          "direction": "UNDER",
-          "headline": "Kirby, George Walks \u2014 UNDER",
-          "signal": 5.5,
-          "reasons": [
-            "Kirby, George BB% of 6.8% (blended w/ recent 3 starts) \u2014 elite walk avoidance"
-          ],
-          "raw_scores": {
-            "bb_pct": "6.8%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.586,
-            "lineup_patience": 0.5,
-            "umpire": "Todd Tichenor"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        }
-      ]
-    },
-    {
-      "gamePk": 824760,
-      "game_time": "2026-05-23T20:10:00Z",
-      "home_team": "Boston Red Sox",
-      "away_team": "Minnesota Twins",
-      "venue": "Fenway Park",
-      "home_sp": "Jovani Mor\u00e1n",
-      "away_sp": "Taj Bradley",
-      "home_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "away_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "home_lineup_xwoba": null,
-      "away_lineup_xwoba": null,
-      "park_run_factor": 103.0,
-      "comps_count": 30,
-      "insights": {
-        "total": {
-          "line": 5.5,
-          "over_price": -126,
-          "under_price": 104,
-          "pinnacle_over_prob": 0.5321,
-          "pinnacle_under_prob": 0.4679,
-          "historical_over_rate": 0.7333,
-          "historical_under_rate": 0.2667,
-          "over_edge": 0.2012,
-          "under_edge": -0.2012
-        },
-        "moneyline": {
-          "home_price": 1558,
-          "away_price": -3359,
-          "pinnacle_home_prob": 0.0585,
-          "pinnacle_away_prob": 0.9415,
-          "historical_home_rate": 0.6333,
-          "historical_away_rate": 0.3667,
-          "home_edge": 0.5748,
-          "away_edge": -0.5748
-        }
-      },
-      "picks": [
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Mor\u00e1n, Jovani",
-          "subject_id": 663558,
-          "direction": "OVER",
-          "headline": "Mor\u00e1n, Jovani Walks \u2014 OVER",
-          "signal": 6.0,
-          "reasons": [
-            "Mor\u00e1n, Jovani BB% of 25.0% \u2014 elevated walk rate this season"
-          ],
-          "raw_scores": {
-            "bb_pct": "25.0%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.3,
-            "lineup_patience": 0.5,
-            "umpire": "Jen Pawol"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Boston Red Sox",
-          "subject_side": "home",
-          "direction": "UNDER",
-          "headline": "Boston Red Sox Team Total \u2014 UNDER",
-          "signal": 5.5,
-          "reasons": [],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 103,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": "Jen Pawol"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Minnesota Twins",
-          "subject_side": "away",
-          "direction": "UNDER",
-          "headline": "Minnesota Twins Team Total \u2014 UNDER",
-          "signal": 5.5,
-          "reasons": [],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 103,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": "Jen Pawol"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Bradley, Taj",
-          "subject_id": 671737,
-          "direction": "UNDER",
-          "headline": "Bradley, Taj Walks \u2014 UNDER",
-          "signal": 5.3,
-          "reasons": [
-            "Bradley, Taj BB% of 8.0% (blended w/ recent 1 starts) \u2014 elite walk avoidance"
-          ],
-          "raw_scores": {
-            "bb_pct": "8.0%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.54,
-            "lineup_patience": 0.5,
-            "umpire": "Jen Pawol"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        }
-      ]
-    },
-    {
-      "gamePk": 824920,
-      "game_time": "2026-05-23T20:10:00Z",
-      "home_team": "Atlanta Braves",
-      "away_team": "Washington Nationals",
-      "venue": "Truist Park",
-      "home_sp": "Grant Holmes",
-      "away_sp": "Jake Irvin",
-      "home_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "away_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "home_lineup_xwoba": null,
-      "away_lineup_xwoba": null,
-      "park_run_factor": 103.0,
-      "comps_count": 30,
-      "insights": {
-        "total": {
-          "line": 4.5,
-          "over_price": -102,
-          "under_price": -114,
-          "pinnacle_over_prob": 0.4866,
-          "pinnacle_under_prob": 0.5134,
-          "historical_over_rate": 0.8,
-          "historical_under_rate": 0.2,
-          "over_edge": 0.3134,
-          "under_edge": -0.3134
-        },
-        "moneyline": {
-          "home_price": 291,
-          "away_price": -360,
-          "pinnacle_home_prob": 0.2463,
-          "pinnacle_away_prob": 0.7537,
-          "historical_home_rate": 0.6333,
-          "historical_away_rate": 0.3667,
-          "home_edge": 0.387,
-          "away_edge": -0.387
-        }
-      },
-      "picks": [
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Holmes, Grant",
-          "subject_id": 656550,
-          "direction": "OVER",
-          "headline": "Holmes, Grant Walks \u2014 OVER",
-          "signal": 5.7,
-          "reasons": [
-            "Holmes, Grant BB% of 12.2% \u2014 elevated walk rate this season"
-          ],
-          "raw_scores": {
-            "bb_pct": "12.2%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.372,
-            "lineup_patience": 0.5,
-            "umpire": "Ron Kulpa"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Atlanta Braves",
-          "subject_side": "home",
-          "direction": "UNDER",
-          "headline": "Atlanta Braves Team Total \u2014 UNDER",
-          "signal": 5.5,
-          "reasons": [],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 103,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": "Ron Kulpa"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Washington Nationals",
-          "subject_side": "away",
-          "direction": "UNDER",
-          "headline": "Washington Nationals Team Total \u2014 UNDER",
-          "signal": 5.5,
-          "reasons": [],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 103,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": "Ron Kulpa"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Irvin, Jake",
-          "subject_id": 663623,
-          "direction": "OVER",
-          "headline": "Irvin, Jake Walks \u2014 OVER",
-          "signal": 5.3,
-          "reasons": [
-            "Irvin, Jake BB% of 10.3% \u2014 elevated walk rate this season"
-          ],
-          "raw_scores": {
-            "bb_pct": "10.3%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.446,
-            "lineup_patience": 0.5,
-            "umpire": "Ron Kulpa"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        }
-      ]
-    },
-    {
-      "gamePk": 823862,
-      "game_time": "2026-05-23T20:10:00Z",
-      "home_team": "Miami Marlins",
-      "away_team": "New York Mets",
-      "venue": "loanDepot park",
-      "home_sp": "Max Meyer",
-      "away_sp": "Freddy Peralta",
-      "home_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "away_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "home_lineup_xwoba": null,
-      "away_lineup_xwoba": null,
-      "park_run_factor": 98.0,
-      "comps_count": 30,
-      "insights": {
-        "total": {
-          "line": 4.5,
-          "over_price": 208,
-          "under_price": -262,
-          "pinnacle_over_prob": 0.3097,
-          "pinnacle_under_prob": 0.6903,
-          "historical_over_rate": 0.8,
-          "historical_under_rate": 0.2,
-          "over_edge": 0.4903,
-          "under_edge": -0.4903
-        },
-        "moneyline": null
-      },
-      "picks": [
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Peralta, Freddy",
-          "subject_id": 642547,
-          "direction": "OVER",
-          "headline": "Peralta, Freddy Walks \u2014 OVER",
-          "signal": 5.8,
-          "reasons": [
-            "Peralta, Freddy BB% of 13.0% \u2014 elevated walk rate this season"
-          ],
-          "raw_scores": {
-            "bb_pct": "13.0%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.338,
-            "lineup_patience": 0.5,
-            "umpire": "Derek Thomas"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Miami Marlins",
-          "subject_side": "home",
-          "direction": "UNDER",
-          "headline": "Miami Marlins Team Total \u2014 UNDER",
-          "signal": 5.3,
-          "reasons": [
-            "Wind 11 mph blowing out"
-          ],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 98,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": "Derek Thomas"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "New York Mets",
-          "subject_side": "away",
-          "direction": "UNDER",
-          "headline": "New York Mets Team Total \u2014 UNDER",
-          "signal": 5.3,
-          "reasons": [
-            "Wind 11 mph blowing out"
-          ],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 98,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": null,
-            "umpire": "Derek Thomas"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Meyer, Max",
-          "subject_id": 676974,
-          "direction": "UNDER",
-          "headline": "Meyer, Max Walks \u2014 UNDER",
-          "signal": 5.1,
-          "reasons": [
-            "Meyer, Max BB% of 8.5% (blended w/ recent 3 starts) \u2014 elite walk avoidance"
-          ],
-          "raw_scores": {
-            "bb_pct": "8.5%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.522,
-            "lineup_patience": 0.5,
-            "umpire": "Derek Thomas"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        }
-      ]
-    },
-    {
-      "gamePk": 823787,
-      "game_time": "2026-05-23T23:15:00Z",
+      "gamePk": 823786,
+      "game_time": "2026-05-24T18:10:00Z",
       "home_team": "Milwaukee Brewers",
       "away_team": "Los Angeles Dodgers",
       "venue": "American Family Field",
-      "home_sp": "Robert Gasser",
-      "away_sp": "Roki Sasaki",
+      "home_sp": "Brandon Sproat",
+      "away_sp": "Yoshinobu Yamamoto",
       "home_sp_stats": {
         "xfip": null,
         "siera": null,
@@ -1516,62 +149,40 @@
       "comps_count": 30,
       "insights": {
         "total": {
-          "line": 8.5,
-          "over_price": -112,
-          "under_price": 100,
-          "pinnacle_over_prob": 0.5138,
-          "pinnacle_under_prob": 0.4862,
+          "line": 8.0,
+          "over_price": -109,
+          "under_price": -105,
+          "pinnacle_over_prob": 0.5045,
+          "pinnacle_under_prob": 0.4955,
           "historical_over_rate": 0.5667,
           "historical_under_rate": 0.4333,
-          "over_edge": 0.0529,
-          "under_edge": -0.0529
+          "over_edge": 0.0622,
+          "under_edge": -0.0622,
+          "reasons": []
         },
         "moneyline": {
-          "home_price": 105,
-          "away_price": -113,
-          "pinnacle_home_prob": 0.479,
-          "pinnacle_away_prob": 0.521,
+          "home_price": 153,
+          "away_price": -170,
+          "pinnacle_home_prob": 0.3857,
+          "pinnacle_away_prob": 0.6143,
           "historical_home_rate": 0.6,
           "historical_away_rate": 0.4,
-          "home_edge": 0.121,
-          "away_edge": -0.121
+          "home_edge": 0.2143,
+          "away_edge": -0.2143,
+          "reasons": [
+            "Similar-caliber matchup \u2014 comps edge is narrow"
+          ]
         }
       },
       "picks": [
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Sasaki, Roki",
-          "subject_id": 808963,
-          "direction": "UNDER",
-          "headline": "Sasaki, Roki Walks \u2014 UNDER",
-          "signal": 6.5,
-          "reasons": [
-            "Sasaki, Roki BB% of 4.1% (blended w/ recent 3 starts) \u2014 elite walk avoidance",
-            "HP umpire Tripp Gibson expands zone \u2014 fewer walks expected"
-          ],
-          "raw_scores": {
-            "bb_pct": "4.1%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.696,
-            "lineup_patience": 0.5,
-            "umpire": "Tripp Gibson"
-          },
-          "tier": "GREAT",
-          "odds": null,
-          "has_line": false
-        },
         {
           "bet_type": "TEAM_TOTAL",
           "subject": "Milwaukee Brewers",
           "subject_side": "home",
           "direction": "UNDER",
           "headline": "Milwaukee Brewers Team Total \u2014 UNDER",
-          "signal": 5.8,
-          "reasons": [
-            "HP umpire Tripp Gibson expands zone \u2014 suppresses run environment"
-          ],
+          "signal": 5.6,
+          "reasons": [],
           "raw_scores": {
             "lineup_xwoba": 0.31,
             "sp_xfip": null,
@@ -1579,8 +190,8 @@
             "park_run_factor": 101,
             "sp_suppress": 0.5,
             "offense_score": 0.4,
-            "umpire_modifier": 0.18,
-            "umpire": "Tripp Gibson"
+            "umpire_modifier": null,
+            "umpire": null
           },
           "tier": "APPEALING",
           "odds": null,
@@ -1592,10 +203,8 @@
           "subject_side": "away",
           "direction": "UNDER",
           "headline": "Los Angeles Dodgers Team Total \u2014 UNDER",
-          "signal": 5.8,
-          "reasons": [
-            "HP umpire Tripp Gibson expands zone \u2014 suppresses run environment"
-          ],
+          "signal": 5.6,
+          "reasons": [],
           "raw_scores": {
             "lineup_xwoba": 0.31,
             "sp_xfip": null,
@@ -1603,114 +212,90 @@
             "park_run_factor": 101,
             "sp_suppress": 0.5,
             "offense_score": 0.4,
-            "umpire_modifier": 0.18,
-            "umpire": "Tripp Gibson"
+            "umpire_modifier": null,
+            "umpire": null
           },
           "tier": "APPEALING",
           "odds": null,
           "has_line": false
+        }
+      ]
+    },
+    {
+      "gamePk": 824514,
+      "game_time": "2026-05-24T17:40:00Z",
+      "home_team": "Cincinnati Reds",
+      "away_team": "St. Louis Cardinals",
+      "venue": "Great American Ball Park",
+      "home_sp": "Brady Singer",
+      "away_sp": "Matthew Liberatore",
+      "home_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "away_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "home_lineup_xwoba": null,
+      "away_lineup_xwoba": null,
+      "park_run_factor": 108.0,
+      "comps_count": 30,
+      "insights": {
+        "total": {
+          "line": 9.5,
+          "over_price": -114,
+          "under_price": 100,
+          "pinnacle_over_prob": 0.5158,
+          "pinnacle_under_prob": 0.4842,
+          "historical_over_rate": 0.3333,
+          "historical_under_rate": 0.6667,
+          "over_edge": -0.1825,
+          "under_edge": 0.1825,
+          "reasons": [
+            "Hitter-friendly park (factor 108) inflates scoring"
+          ]
         },
+        "moneyline": {
+          "home_price": -115,
+          "away_price": 104,
+          "pinnacle_home_prob": 0.5218,
+          "pinnacle_away_prob": 0.4782,
+          "historical_home_rate": 0.5667,
+          "historical_away_rate": 0.4333,
+          "home_edge": 0.0449,
+          "away_edge": -0.0449,
+          "reasons": [
+            "Similar-caliber matchup \u2014 comps edge is narrow"
+          ]
+        }
+      },
+      "picks": [
         {
-          "bet_type": "WALK_PROP",
-          "subject": "Robert Gasser",
-          "subject_id": 688107,
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Cincinnati Reds",
+          "subject_side": "home",
           "direction": "UNDER",
-          "headline": "Robert Gasser Walks \u2014 UNDER",
+          "headline": "Cincinnati Reds Team Total \u2014 UNDER",
           "signal": 5.1,
-          "reasons": [
-            "SP BB% of 10.0% (blended w/ recent 1 starts) \u2014 elite walk avoidance",
-            "HP umpire Tripp Gibson expands zone \u2014 fewer walks expected"
-          ],
-          "raw_scores": {
-            "bb_pct": "10.0%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.46,
-            "lineup_patience": 0.5,
-            "umpire": "Tripp Gibson"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        }
-      ]
-    },
-    {
-      "gamePk": 823300,
-      "game_time": "2026-05-24T01:40:00Z",
-      "home_team": "San Diego Padres",
-      "away_team": "Athletics",
-      "venue": "Petco Park",
-      "home_sp": "Lucas Giolito",
-      "away_sp": "J.T. Ginn",
-      "home_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "away_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "home_lineup_xwoba": null,
-      "away_lineup_xwoba": null,
-      "park_run_factor": 92.0,
-      "comps_count": 0,
-      "insights": null,
-      "picks": [
-        {
-          "bet_type": "TOTAL",
-          "subject": "Athletics @ San Diego Padres",
-          "direction": "UNDER",
-          "headline": "Athletics @ San Diego Padres Total Runs \u2014 UNDER",
-          "signal": 6.3,
-          "reasons": [
-            "Petco Park run factor of 92 \u2014 suppresses scoring"
-          ],
-          "raw_scores": {
-            "home_sp_xfip": null,
-            "away_sp_xfip": null,
-            "home_sp_siera": null,
-            "away_sp_siera": null,
-            "avg_lineup_xwoba": 0.31,
-            "park_run_factor": 92,
-            "avg_suppression": 0.5,
-            "offense_score": 0.4,
-            "weather_modifier": null,
-            "umpire_modifier": null,
-            "umpire": "Laz Diaz"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "San Diego Padres",
-          "subject_side": "home",
-          "direction": "UNDER",
-          "headline": "San Diego Padres Team Total \u2014 UNDER",
-          "signal": 6.2,
-          "reasons": [
-            "Petco Park run factor of 92 \u2014 suppresses scoring"
-          ],
+          "reasons": [],
           "raw_scores": {
             "lineup_xwoba": 0.31,
             "sp_xfip": null,
             "sp_siera": null,
-            "park_run_factor": 92,
+            "park_run_factor": 108,
             "sp_suppress": 0.5,
             "offense_score": 0.4,
             "umpire_modifier": null,
-            "umpire": "Laz Diaz"
+            "umpire": null
           },
           "tier": "APPEALING",
           "odds": null,
@@ -1718,69 +303,21 @@
         },
         {
           "bet_type": "TEAM_TOTAL",
-          "subject": "Athletics",
+          "subject": "St. Louis Cardinals",
           "subject_side": "away",
           "direction": "UNDER",
-          "headline": "Athletics Team Total \u2014 UNDER",
-          "signal": 6.2,
-          "reasons": [
-            "Petco Park run factor of 92 \u2014 suppresses scoring"
-          ],
+          "headline": "St. Louis Cardinals Team Total \u2014 UNDER",
+          "signal": 5.1,
+          "reasons": [],
           "raw_scores": {
             "lineup_xwoba": 0.31,
             "sp_xfip": null,
             "sp_siera": null,
-            "park_run_factor": 92,
+            "park_run_factor": 108,
             "sp_suppress": 0.5,
             "offense_score": 0.4,
             "umpire_modifier": null,
-            "umpire": "Laz Diaz"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Ginn, J.T.",
-          "subject_id": 669372,
-          "direction": "UNDER",
-          "headline": "Ginn, J.T. Walks \u2014 UNDER",
-          "signal": 6.2,
-          "reasons": [
-            "Ginn, J.T. BB% of 3.7% (blended w/ recent 3 starts) \u2014 elite walk avoidance"
-          ],
-          "raw_scores": {
-            "bb_pct": "3.7%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.7,
-            "lineup_patience": 0.5,
-            "umpire": "Laz Diaz"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Lucas Giolito",
-          "subject_id": 608337,
-          "direction": "OVER",
-          "headline": "Lucas Giolito Walks \u2014 OVER",
-          "signal": 6.0,
-          "reasons": [
-            "SP BB% of 15.0% \u2014 elevated walk rate this season"
-          ],
-          "raw_scores": {
-            "bb_pct": "15.0%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.3,
-            "lineup_patience": 0.5,
-            "umpire": "Laz Diaz"
+            "umpire": null
           },
           "tier": "APPEALING",
           "odds": null,
@@ -1789,159 +326,13 @@
       ]
     },
     {
-      "gamePk": 824030,
-      "game_time": "2026-05-24T02:05:00Z",
-      "home_team": "Los Angeles Angels",
-      "away_team": "Texas Rangers",
-      "venue": "Angel Stadium",
-      "home_sp": "Walbert Ure\u00f1a",
-      "away_sp": "Nathan Eovaldi",
-      "home_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "away_sp_stats": {
-        "xfip": null,
-        "siera": null,
-        "k_pct": null,
-        "stuff_plus": null,
-        "bb_pct": null,
-        "hr_per_9": null
-      },
-      "home_lineup_xwoba": null,
-      "away_lineup_xwoba": null,
-      "park_run_factor": 99.0,
-      "comps_count": 0,
-      "insights": null,
-      "picks": [
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Eovaldi, Nathan",
-          "subject_id": 543135,
-          "direction": "UNDER",
-          "headline": "Eovaldi, Nathan Walks \u2014 UNDER",
-          "signal": 6.4,
-          "reasons": [
-            "Eovaldi, Nathan BB% of 3.7% (blended w/ recent 2 starts) \u2014 elite walk avoidance"
-          ],
-          "raw_scores": {
-            "bb_pct": "3.7%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.7,
-            "lineup_patience": 0.5,
-            "umpire": "D.J. Reyburn"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TOTAL",
-          "subject": "Texas Rangers @ Los Angeles Angels",
-          "direction": "UNDER",
-          "headline": "Texas Rangers @ Los Angeles Angels Total Runs \u2014 UNDER",
-          "signal": 5.8,
-          "reasons": [],
-          "raw_scores": {
-            "home_sp_xfip": null,
-            "away_sp_xfip": null,
-            "home_sp_siera": null,
-            "away_sp_siera": null,
-            "avg_lineup_xwoba": 0.31,
-            "park_run_factor": 99,
-            "avg_suppression": 0.5,
-            "offense_score": 0.4,
-            "weather_modifier": null,
-            "umpire_modifier": 0.09,
-            "umpire": "D.J. Reyburn"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Los Angeles Angels",
-          "subject_side": "home",
-          "direction": "UNDER",
-          "headline": "Los Angeles Angels Team Total \u2014 UNDER",
-          "signal": 5.8,
-          "reasons": [],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 99,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": 0.09,
-            "umpire": "D.J. Reyburn"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TEAM_TOTAL",
-          "subject": "Texas Rangers",
-          "subject_side": "away",
-          "direction": "UNDER",
-          "headline": "Texas Rangers Team Total \u2014 UNDER",
-          "signal": 5.8,
-          "reasons": [],
-          "raw_scores": {
-            "lineup_xwoba": 0.31,
-            "sp_xfip": null,
-            "sp_siera": null,
-            "park_run_factor": 99,
-            "sp_suppress": 0.5,
-            "offense_score": 0.4,
-            "umpire_modifier": 0.09,
-            "umpire": "D.J. Reyburn"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Ure\u00f1a, Walbert",
-          "subject_id": 700712,
-          "direction": "UNDER",
-          "headline": "Ure\u00f1a, Walbert Walks \u2014 UNDER",
-          "signal": 5.2,
-          "reasons": [
-            "Ure\u00f1a, Walbert BB% of 9.1% (blended w/ recent 3 starts) \u2014 elite walk avoidance"
-          ],
-          "raw_scores": {
-            "bb_pct": "9.1%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.496,
-            "lineup_patience": 0.5,
-            "umpire": "D.J. Reyburn"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        }
-      ]
-    },
-    {
-      "gamePk": 825080,
-      "game_time": "2026-05-24T02:10:00Z",
+      "gamePk": 825081,
+      "game_time": "2026-05-24T20:10:00Z",
       "home_team": "Arizona Diamondbacks",
       "away_team": "Colorado Rockies",
       "venue": "Chase Field",
-      "home_sp": "Zac Gallen",
-      "away_sp": "Michael Lorenzen",
+      "home_sp": "Ryne Nelson",
+      "away_sp": "Jose Quintana",
       "home_sp_stats": {
         "xfip": null,
         "siera": null,
@@ -1961,109 +352,35 @@
       "home_lineup_xwoba": null,
       "away_lineup_xwoba": null,
       "park_run_factor": 103.0,
-      "comps_count": 0,
-      "insights": null,
+      "comps_count": 30,
+      "insights": {
+        "total": {
+          "line": 9.5,
+          "over_price": 104,
+          "under_price": -119,
+          "pinnacle_over_prob": 0.4743,
+          "pinnacle_under_prob": 0.5257,
+          "historical_over_rate": 0.3,
+          "historical_under_rate": 0.7,
+          "over_edge": -0.1743,
+          "under_edge": 0.1743,
+          "reasons": []
+        },
+        "moneyline": {
+          "home_price": -186,
+          "away_price": 166,
+          "pinnacle_home_prob": 0.6337,
+          "pinnacle_away_prob": 0.3663,
+          "historical_home_rate": 0.6333,
+          "historical_away_rate": 0.3667,
+          "home_edge": -0.0004,
+          "away_edge": 0.0004,
+          "reasons": [
+            "Similar-caliber matchup \u2014 comps edge is narrow"
+          ]
+        }
+      },
       "picks": [
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Gallen, Zac",
-          "subject_id": 668678,
-          "direction": "UNDER",
-          "headline": "Gallen, Zac Walks \u2014 UNDER",
-          "signal": 5.6,
-          "reasons": [
-            "Gallen, Zac BB% of 6.7% (blended w/ recent 3 starts) \u2014 elite walk avoidance"
-          ],
-          "raw_scores": {
-            "bb_pct": "6.7%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.593,
-            "lineup_patience": 0.5,
-            "umpire": "Rob Drake"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "WALK_PROP",
-          "subject": "Lorenzen, Michael",
-          "subject_id": 547179,
-          "direction": "OVER",
-          "headline": "Lorenzen, Michael Walks \u2014 OVER",
-          "signal": 5.4,
-          "reasons": [
-            "Lorenzen, Michael BB% of 11.0% \u2014 elevated walk rate this season"
-          ],
-          "raw_scores": {
-            "bb_pct": "11.0%",
-            "zone_pct": null,
-            "f_strike_pct": null,
-            "opp_lineup_bb_pct": null,
-            "command_component": 0.422,
-            "lineup_patience": 0.5,
-            "umpire": "Rob Drake"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TOTAL",
-          "subject": "Colorado Rockies @ Arizona Diamondbacks",
-          "direction": "OVER",
-          "headline": "Colorado Rockies @ Arizona Diamondbacks Total Runs \u2014 OVER",
-          "signal": 5.0,
-          "reasons": [
-            "Combined lineup xwOBA of 0.310 \u2014 above-average run environment",
-            "Chase Field run factor of 103 \u2014 offense-friendly park",
-            "Hot (92\u00b0F) \u2014 ball carries well in warm air"
-          ],
-          "raw_scores": {
-            "home_sp_xfip": null,
-            "away_sp_xfip": null,
-            "home_sp_siera": null,
-            "away_sp_siera": null,
-            "avg_lineup_xwoba": 0.31,
-            "park_run_factor": 103,
-            "avg_suppression": 0.5,
-            "offense_score": 0.4,
-            "weather_modifier": 0.4,
-            "umpire_modifier": null,
-            "umpire": "Rob Drake"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
-        {
-          "bet_type": "TOTAL",
-          "subject": "Colorado Rockies @ Arizona Diamondbacks",
-          "direction": "UNDER",
-          "headline": "Colorado Rockies @ Arizona Diamondbacks Total Runs \u2014 UNDER",
-          "signal": 5.0,
-          "reasons": [
-            "Hot (92\u00b0F) \u2014 ball carries well in warm air"
-          ],
-          "raw_scores": {
-            "home_sp_xfip": null,
-            "away_sp_xfip": null,
-            "home_sp_siera": null,
-            "away_sp_siera": null,
-            "avg_lineup_xwoba": 0.31,
-            "park_run_factor": 103,
-            "avg_suppression": 0.5,
-            "offense_score": 0.4,
-            "weather_modifier": 0.4,
-            "umpire_modifier": null,
-            "umpire": "Rob Drake"
-          },
-          "tier": "APPEALING",
-          "odds": null,
-          "has_line": false
-        },
         {
           "bet_type": "TEAM_TOTAL",
           "subject": "Arizona Diamondbacks",
@@ -2074,7 +391,7 @@
           "reasons": [
             "Arizona Diamondbacks lineup xwOBA of 0.310 \u2014 above-average offensive unit",
             "Chase Field run factor of 103 \u2014 boosts run scoring environment",
-            "Hot (92\u00b0F) \u2014 ball carries well in warm air"
+            "Hot (97\u00b0F) \u2014 ball carries well in warm air"
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
@@ -2084,7 +401,7 @@
             "sp_suppress": 0.5,
             "offense_score": 0.4,
             "umpire_modifier": null,
-            "umpire": "Rob Drake"
+            "umpire": null
           },
           "tier": "APPEALING",
           "odds": null,
@@ -2098,7 +415,7 @@
           "headline": "Arizona Diamondbacks Team Total \u2014 UNDER",
           "signal": 5.0,
           "reasons": [
-            "Hot (92\u00b0F) \u2014 ball carries well in warm air"
+            "Hot (97\u00b0F) \u2014 ball carries well in warm air"
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
@@ -2108,7 +425,7 @@
             "sp_suppress": 0.5,
             "offense_score": 0.4,
             "umpire_modifier": null,
-            "umpire": "Rob Drake"
+            "umpire": null
           },
           "tier": "APPEALING",
           "odds": null,
@@ -2124,7 +441,7 @@
           "reasons": [
             "Colorado Rockies lineup xwOBA of 0.310 \u2014 above-average offensive unit",
             "Chase Field run factor of 103 \u2014 boosts run scoring environment",
-            "Hot (92\u00b0F) \u2014 ball carries well in warm air"
+            "Hot (97\u00b0F) \u2014 ball carries well in warm air"
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
@@ -2134,7 +451,7 @@
             "sp_suppress": 0.5,
             "offense_score": 0.4,
             "umpire_modifier": null,
-            "umpire": "Rob Drake"
+            "umpire": null
           },
           "tier": "APPEALING",
           "odds": null,
@@ -2148,7 +465,7 @@
           "headline": "Colorado Rockies Team Total \u2014 UNDER",
           "signal": 5.0,
           "reasons": [
-            "Hot (92\u00b0F) \u2014 ball carries well in warm air"
+            "Hot (97\u00b0F) \u2014 ball carries well in warm air"
           ],
           "raw_scores": {
             "lineup_xwoba": 0.31,
@@ -2158,7 +475,943 @@
             "sp_suppress": 0.5,
             "offense_score": 0.4,
             "umpire_modifier": null,
-            "umpire": "Rob Drake"
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        }
+      ]
+    },
+    {
+      "gamePk": 824108,
+      "game_time": "2026-05-24T18:10:00Z",
+      "home_team": "Kansas City Royals",
+      "away_team": "Seattle Mariners",
+      "venue": "Kauffman Stadium",
+      "home_sp": "Seth Lugo",
+      "away_sp": "Bryan Woo",
+      "home_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "away_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "home_lineup_xwoba": null,
+      "away_lineup_xwoba": null,
+      "park_run_factor": 98.0,
+      "comps_count": 30,
+      "insights": {
+        "total": {
+          "line": 8.5,
+          "over_price": -112,
+          "under_price": -102,
+          "pinnacle_over_prob": 0.5113,
+          "pinnacle_under_prob": 0.4887,
+          "historical_over_rate": 0.3667,
+          "historical_under_rate": 0.6333,
+          "over_edge": -0.1446,
+          "under_edge": 0.1446,
+          "reasons": []
+        },
+        "moneyline": {
+          "home_price": 122,
+          "away_price": -135,
+          "pinnacle_home_prob": 0.4395,
+          "pinnacle_away_prob": 0.5605,
+          "historical_home_rate": 0.5,
+          "historical_away_rate": 0.5,
+          "home_edge": 0.0605,
+          "away_edge": -0.0605,
+          "reasons": [
+            "Similar-caliber matchup \u2014 comps edge is narrow"
+          ]
+        }
+      },
+      "picks": [
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Kansas City Royals",
+          "subject_side": "home",
+          "direction": "UNDER",
+          "headline": "Kansas City Royals Team Total \u2014 UNDER",
+          "signal": 5.6,
+          "reasons": [],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 98,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Seattle Mariners",
+          "subject_side": "away",
+          "direction": "UNDER",
+          "headline": "Seattle Mariners Team Total \u2014 UNDER",
+          "signal": 5.6,
+          "reasons": [],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 98,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        }
+      ]
+    },
+    {
+      "gamePk": 823459,
+      "game_time": "2026-05-24T17:35:00Z",
+      "home_team": "Philadelphia Phillies",
+      "away_team": "Cleveland Guardians",
+      "venue": "Citizens Bank Park",
+      "home_sp": "Andrew Painter",
+      "away_sp": "Parker Messick",
+      "home_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "away_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "home_lineup_xwoba": null,
+      "away_lineup_xwoba": null,
+      "park_run_factor": 102.0,
+      "comps_count": 30,
+      "insights": {
+        "total": {
+          "line": 7.5,
+          "over_price": -116,
+          "under_price": 101,
+          "pinnacle_over_prob": 0.5191,
+          "pinnacle_under_prob": 0.4809,
+          "historical_over_rate": 0.5667,
+          "historical_under_rate": 0.4333,
+          "over_edge": 0.0476,
+          "under_edge": -0.0476,
+          "reasons": []
+        },
+        "moneyline": {
+          "home_price": 111,
+          "away_price": -122,
+          "pinnacle_home_prob": 0.4631,
+          "pinnacle_away_prob": 0.5369,
+          "historical_home_rate": 0.6,
+          "historical_away_rate": 0.4,
+          "home_edge": 0.1369,
+          "away_edge": -0.1369,
+          "reasons": [
+            "Similar-caliber matchup \u2014 comps edge is narrow"
+          ]
+        }
+      },
+      "picks": [
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Philadelphia Phillies",
+          "subject_side": "home",
+          "direction": "UNDER",
+          "headline": "Philadelphia Phillies Team Total \u2014 UNDER",
+          "signal": 5.5,
+          "reasons": [],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 102,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Cleveland Guardians",
+          "subject_side": "away",
+          "direction": "UNDER",
+          "headline": "Cleveland Guardians Team Total \u2014 UNDER",
+          "signal": 5.5,
+          "reasons": [],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 102,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        }
+      ]
+    },
+    {
+      "gamePk": 822813,
+      "game_time": "2026-05-24T16:15:00Z",
+      "home_team": "Toronto Blue Jays",
+      "away_team": "Pittsburgh Pirates",
+      "venue": "Rogers Centre",
+      "home_sp": "Dylan Cease",
+      "away_sp": "Mitch Keller",
+      "home_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "away_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "home_lineup_xwoba": null,
+      "away_lineup_xwoba": null,
+      "park_run_factor": 98.0,
+      "comps_count": 30,
+      "insights": {
+        "total": {
+          "line": 7.5,
+          "over_price": -113,
+          "under_price": -102,
+          "pinnacle_over_prob": 0.5123,
+          "pinnacle_under_prob": 0.4877,
+          "historical_over_rate": 0.4,
+          "historical_under_rate": 0.6,
+          "over_edge": -0.1123,
+          "under_edge": 0.1123,
+          "reasons": []
+        },
+        "moneyline": {
+          "home_price": -151,
+          "away_price": 136,
+          "pinnacle_home_prob": 0.5867,
+          "pinnacle_away_prob": 0.4133,
+          "historical_home_rate": 0.5,
+          "historical_away_rate": 0.5,
+          "home_edge": -0.0867,
+          "away_edge": 0.0867,
+          "reasons": [
+            "Similar-caliber matchup \u2014 comps edge is narrow"
+          ]
+        }
+      },
+      "picks": [
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Toronto Blue Jays",
+          "subject_side": "home",
+          "direction": "UNDER",
+          "headline": "Toronto Blue Jays Team Total \u2014 UNDER",
+          "signal": 5.8,
+          "reasons": [],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 98,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Pittsburgh Pirates",
+          "subject_side": "away",
+          "direction": "UNDER",
+          "headline": "Pittsburgh Pirates Team Total \u2014 UNDER",
+          "signal": 5.8,
+          "reasons": [],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 98,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        }
+      ]
+    },
+    {
+      "gamePk": 823544,
+      "game_time": "2026-05-24T17:35:00Z",
+      "home_team": "New York Yankees",
+      "away_team": "Tampa Bay Rays",
+      "venue": "Yankee Stadium",
+      "home_sp": "Ryan Weathers",
+      "away_sp": "Drew Rasmussen",
+      "home_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "away_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "home_lineup_xwoba": null,
+      "away_lineup_xwoba": null,
+      "park_run_factor": 104.0,
+      "comps_count": 30,
+      "insights": {
+        "total": {
+          "line": 7.5,
+          "over_price": 101,
+          "under_price": -116,
+          "pinnacle_over_prob": 0.4809,
+          "pinnacle_under_prob": 0.5191,
+          "historical_over_rate": 0.5333,
+          "historical_under_rate": 0.4667,
+          "over_edge": 0.0524,
+          "under_edge": -0.0524,
+          "reasons": []
+        },
+        "moneyline": {
+          "home_price": -131,
+          "away_price": 119,
+          "pinnacle_home_prob": 0.554,
+          "pinnacle_away_prob": 0.446,
+          "historical_home_rate": 0.6333,
+          "historical_away_rate": 0.3667,
+          "home_edge": 0.0793,
+          "away_edge": -0.0793,
+          "reasons": [
+            "Similar-caliber matchup \u2014 comps edge is narrow"
+          ]
+        }
+      },
+      "picks": [
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "New York Yankees",
+          "subject_side": "home",
+          "direction": "UNDER",
+          "headline": "New York Yankees Team Total \u2014 UNDER",
+          "signal": 5.6,
+          "reasons": [
+            "Cool (55\u00b0F) \u2014 slight suppression on scoring"
+          ],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 104,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Tampa Bay Rays",
+          "subject_side": "away",
+          "direction": "UNDER",
+          "headline": "Tampa Bay Rays Team Total \u2014 UNDER",
+          "signal": 5.6,
+          "reasons": [
+            "Cool (55\u00b0F) \u2014 slight suppression on scoring"
+          ],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 104,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        }
+      ]
+    },
+    {
+      "gamePk": 823220,
+      "game_time": "2026-05-24T20:05:00Z",
+      "home_team": "San Francisco Giants",
+      "away_team": "Chicago White Sox",
+      "venue": "Oracle Park",
+      "home_sp": "Robbie Ray",
+      "away_sp": "Noah Schultz",
+      "home_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "away_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "home_lineup_xwoba": null,
+      "away_lineup_xwoba": null,
+      "park_run_factor": 93.0,
+      "comps_count": 30,
+      "insights": {
+        "total": {
+          "line": 8.0,
+          "over_price": -108,
+          "under_price": -106,
+          "pinnacle_over_prob": 0.5023,
+          "pinnacle_under_prob": 0.4977,
+          "historical_over_rate": 0.4667,
+          "historical_under_rate": 0.5333,
+          "over_edge": -0.0356,
+          "under_edge": 0.0356,
+          "reasons": [
+            "Pitcher-friendly park (factor 93) suppresses run totals"
+          ]
+        },
+        "moneyline": {
+          "home_price": -106,
+          "away_price": -104,
+          "pinnacle_home_prob": 0.5023,
+          "pinnacle_away_prob": 0.4977,
+          "historical_home_rate": 0.4333,
+          "historical_away_rate": 0.5667,
+          "home_edge": -0.069,
+          "away_edge": 0.069,
+          "reasons": [
+            "Similar-caliber matchup \u2014 comps edge is narrow"
+          ]
+        }
+      },
+      "picks": [
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "San Francisco Giants",
+          "subject_side": "home",
+          "direction": "UNDER",
+          "headline": "San Francisco Giants Team Total \u2014 UNDER",
+          "signal": 6.4,
+          "reasons": [
+            "Oracle Park run factor of 93 \u2014 suppresses scoring",
+            "Wind 10 mph blowing in"
+          ],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 93,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Chicago White Sox",
+          "subject_side": "away",
+          "direction": "UNDER",
+          "headline": "Chicago White Sox Team Total \u2014 UNDER",
+          "signal": 6.4,
+          "reasons": [
+            "Oracle Park run factor of 93 \u2014 suppresses scoring",
+            "Wind 10 mph blowing in"
+          ],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 93,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        }
+      ]
+    },
+    {
+      "gamePk": 824921,
+      "game_time": "2026-05-24T20:10:00Z",
+      "home_team": "Atlanta Braves",
+      "away_team": "Washington Nationals",
+      "venue": "Truist Park",
+      "home_sp": "Mart\u00edn P\u00e9rez",
+      "away_sp": "Foster Griffin",
+      "home_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "away_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "home_lineup_xwoba": null,
+      "away_lineup_xwoba": null,
+      "park_run_factor": 103.0,
+      "comps_count": 30,
+      "insights": {
+        "total": {
+          "line": 8.5,
+          "over_price": -111,
+          "under_price": -103,
+          "pinnacle_over_prob": 0.509,
+          "pinnacle_under_prob": 0.491,
+          "historical_over_rate": 0.4667,
+          "historical_under_rate": 0.5333,
+          "over_edge": -0.0423,
+          "under_edge": 0.0423,
+          "reasons": []
+        },
+        "moneyline": {
+          "home_price": -155,
+          "away_price": 139,
+          "pinnacle_home_prob": 0.5923,
+          "pinnacle_away_prob": 0.4077,
+          "historical_home_rate": 0.6333,
+          "historical_away_rate": 0.3667,
+          "home_edge": 0.041,
+          "away_edge": -0.041,
+          "reasons": [
+            "Similar-caliber matchup \u2014 comps edge is narrow"
+          ]
+        }
+      },
+      "picks": [
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Atlanta Braves",
+          "subject_side": "home",
+          "direction": "UNDER",
+          "headline": "Atlanta Braves Team Total \u2014 UNDER",
+          "signal": 5.5,
+          "reasons": [],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 103,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Washington Nationals",
+          "subject_side": "away",
+          "direction": "UNDER",
+          "headline": "Washington Nationals Team Total \u2014 UNDER",
+          "signal": 5.5,
+          "reasons": [],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 103,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        }
+      ]
+    },
+    {
+      "gamePk": 824759,
+      "game_time": "2026-05-24T17:35:00Z",
+      "home_team": "Boston Red Sox",
+      "away_team": "Minnesota Twins",
+      "venue": "Fenway Park",
+      "home_sp": "Sonny Gray",
+      "away_sp": "Bailey Ober",
+      "home_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "away_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "home_lineup_xwoba": null,
+      "away_lineup_xwoba": null,
+      "park_run_factor": 103.0,
+      "comps_count": 30,
+      "insights": {
+        "total": {
+          "line": 7.5,
+          "over_price": -116,
+          "under_price": 101,
+          "pinnacle_over_prob": 0.5191,
+          "pinnacle_under_prob": 0.4809,
+          "historical_over_rate": 0.5,
+          "historical_under_rate": 0.5,
+          "over_edge": -0.0191,
+          "under_edge": 0.0191,
+          "reasons": []
+        },
+        "moneyline": {
+          "home_price": -154,
+          "away_price": 139,
+          "pinnacle_home_prob": 0.5917,
+          "pinnacle_away_prob": 0.4083,
+          "historical_home_rate": 0.6333,
+          "historical_away_rate": 0.3667,
+          "home_edge": 0.0416,
+          "away_edge": -0.0416,
+          "reasons": [
+            "Similar-caliber matchup \u2014 comps edge is narrow"
+          ]
+        }
+      },
+      "picks": [
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Boston Red Sox",
+          "subject_side": "home",
+          "direction": "UNDER",
+          "headline": "Boston Red Sox Team Total \u2014 UNDER",
+          "signal": 5.7,
+          "reasons": [
+            "Cool (52\u00b0F) \u2014 slight suppression on scoring"
+          ],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 103,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Minnesota Twins",
+          "subject_side": "away",
+          "direction": "UNDER",
+          "headline": "Minnesota Twins Team Total \u2014 UNDER",
+          "signal": 5.7,
+          "reasons": [
+            "Cool (52\u00b0F) \u2014 slight suppression on scoring"
+          ],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 103,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        }
+      ]
+    },
+    {
+      "gamePk": 824839,
+      "game_time": "2026-05-24T16:35:00Z",
+      "home_team": "Baltimore Orioles",
+      "away_team": "Detroit Tigers",
+      "venue": "Oriole Park at Camden Yards",
+      "home_sp": "Brandon Young",
+      "away_sp": "Framber Valdez",
+      "home_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "away_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "home_lineup_xwoba": null,
+      "away_lineup_xwoba": null,
+      "park_run_factor": 97.0,
+      "comps_count": 0,
+      "insights": null,
+      "picks": [
+        {
+          "bet_type": "TOTAL",
+          "subject": "Detroit Tigers @ Baltimore Orioles",
+          "direction": "UNDER",
+          "headline": "Detroit Tigers @ Baltimore Orioles Total Runs \u2014 UNDER",
+          "signal": 5.9,
+          "reasons": [],
+          "raw_scores": {
+            "home_sp_xfip": null,
+            "away_sp_xfip": null,
+            "home_sp_siera": null,
+            "away_sp_siera": null,
+            "avg_lineup_xwoba": 0.31,
+            "park_run_factor": 97,
+            "avg_suppression": 0.5,
+            "offense_score": 0.4,
+            "weather_modifier": null,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Baltimore Orioles",
+          "subject_side": "home",
+          "direction": "UNDER",
+          "headline": "Baltimore Orioles Team Total \u2014 UNDER",
+          "signal": 5.9,
+          "reasons": [],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 97,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Detroit Tigers",
+          "subject_side": "away",
+          "direction": "UNDER",
+          "headline": "Detroit Tigers Team Total \u2014 UNDER",
+          "signal": 5.9,
+          "reasons": [],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 97,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        }
+      ]
+    },
+    {
+      "gamePk": 823861,
+      "game_time": "2026-05-24T17:40:00Z",
+      "home_team": "Miami Marlins",
+      "away_team": "New York Mets",
+      "venue": "loanDepot park",
+      "home_sp": "Tyler Phillips",
+      "away_sp": "Christian Scott",
+      "home_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "away_sp_stats": {
+        "xfip": null,
+        "siera": null,
+        "k_pct": null,
+        "stuff_plus": null,
+        "bb_pct": null,
+        "hr_per_9": null
+      },
+      "home_lineup_xwoba": null,
+      "away_lineup_xwoba": null,
+      "park_run_factor": 98.0,
+      "comps_count": 0,
+      "insights": null,
+      "picks": [
+        {
+          "bet_type": "TOTAL",
+          "subject": "New York Mets @ Miami Marlins",
+          "direction": "UNDER",
+          "headline": "New York Mets @ Miami Marlins Total Runs \u2014 UNDER",
+          "signal": 5.3,
+          "reasons": [
+            "Wind 14 mph blowing out"
+          ],
+          "raw_scores": {
+            "home_sp_xfip": null,
+            "away_sp_xfip": null,
+            "home_sp_siera": null,
+            "away_sp_siera": null,
+            "avg_lineup_xwoba": 0.31,
+            "park_run_factor": 98,
+            "avg_suppression": 0.5,
+            "offense_score": 0.4,
+            "weather_modifier": 0.5,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "Miami Marlins",
+          "subject_side": "home",
+          "direction": "UNDER",
+          "headline": "Miami Marlins Team Total \u2014 UNDER",
+          "signal": 5.3,
+          "reasons": [
+            "Wind 14 mph blowing out"
+          ],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 98,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
+          },
+          "tier": "APPEALING",
+          "odds": null,
+          "has_line": false
+        },
+        {
+          "bet_type": "TEAM_TOTAL",
+          "subject": "New York Mets",
+          "subject_side": "away",
+          "direction": "UNDER",
+          "headline": "New York Mets Team Total \u2014 UNDER",
+          "signal": 5.3,
+          "reasons": [
+            "Wind 14 mph blowing out"
+          ],
+          "raw_scores": {
+            "lineup_xwoba": 0.31,
+            "sp_xfip": null,
+            "sp_siera": null,
+            "park_run_factor": 98,
+            "sp_suppress": 0.5,
+            "offense_score": 0.4,
+            "umpire_modifier": null,
+            "umpire": null
           },
           "tier": "APPEALING",
           "odds": null,
