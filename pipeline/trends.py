@@ -129,7 +129,7 @@ def _pitcher_k_trend(cache: dict, games: list[dict], *, surging: bool) -> list[d
             signal = "HOT_K"
             impl = (
                 f"K rate up {delta * 100:.1f}pp in last 3 starts "
-                f"(season {k_pct * 100:.1f}% → recent {recent_k_pct * 100:.1f}%) — "
+                f"(21-day avg {k_pct * 100:.1f}% → recent {recent_k_pct * 100:.1f}%) — "
                 "strikeout props have value."
             )
         else:
@@ -139,7 +139,7 @@ def _pitcher_k_trend(cache: dict, games: list[dict], *, surging: bool) -> list[d
             signal = "COLD_K"
             impl = (
                 f"K rate down {delta * 100:.1f}pp in last 3 starts "
-                f"(season {k_pct * 100:.1f}% → recent {recent_k_pct * 100:.1f}%) — "
+                f"(21-day avg {k_pct * 100:.1f}% → recent {recent_k_pct * 100:.1f}%) — "
                 "fade strikeout overs."
             )
 
@@ -148,9 +148,9 @@ def _pitcher_k_trend(cache: dict, games: list[dict], *, surging: bool) -> list[d
             "team":        team,
             "game":        game_label,
             "signal":      signal,
-            "stat_a_label": "Season K%",
+            "stat_a_label": "21-Day K%",
             "stat_a":      round(k_pct, 3),
-            "stat_b_label": "Recent K%",
+            "stat_b_label": "Last 3 K%",
             "stat_b":      round(recent_k_pct, 3),
             "delta":       round(delta, 3),
             "implication": impl,

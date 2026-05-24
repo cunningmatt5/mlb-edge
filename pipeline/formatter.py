@@ -67,11 +67,11 @@ def write_trends_json(trends: dict, dry_run: bool = False) -> None:
     os.makedirs(os.path.dirname(TRENDS_PATH), exist_ok=True)
     with open(TRENDS_PATH, "w", encoding="utf-8") as f:
         f.write(payload)
+    pitcher_n = sum(len(trends.get(k, [])) for k in ("pitcher_lucky", "pitcher_unlucky", "pitcher_hot_k", "pitcher_cold_k"))
+    batter_n  = sum(len(trends.get(k, [])) for k in ("batter_cold", "batter_hot"))
     log.info(
         "Wrote trends.json: %d pitcher signals, %d batter signals → %s",
-        len(trends.get("pitchers", [])),
-        len(trends.get("batters", [])),
-        TRENDS_PATH,
+        pitcher_n, batter_n, TRENDS_PATH,
     )
 
 

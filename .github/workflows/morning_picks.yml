@@ -42,7 +42,7 @@ jobs:
           " 2>/dev/null)
           AGE=$((NOW - GENERATED))
           echo "Picks age: ${AGE}s"
-          if [ "$AGE" -lt 60 ]; then
+          if [ "$AGE" -lt 780 ]; then
             echo "stale=false" >> $GITHUB_OUTPUT
             echo "Picks are ${AGE}s old — still fresh, skipping."
           else
