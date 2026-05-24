@@ -1,61 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="description" content="Daily MLB betting analytics powered by Statcast">
-
-  <!-- iOS PWA meta tags -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="MLB Edge">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
-
-  <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>MLB Edge</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0f1117" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 </head>
 <body>
-  <header class="app-header">
+  <header>
     <div class="header-inner">
-      <div class="header-title">
-        <svg class="header-logo-icon" width="27" height="27" viewBox="0 0 27 27" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <rect x="1"   y="18" width="5" height="8"  rx="1.5" fill="#00d4ff" opacity="0.38"/>
-          <rect x="8.5" y="12" width="5" height="14" rx="1.5" fill="#00d4ff" opacity="0.65"/>
-          <rect x="16"  y="5"  width="5" height="21" rx="1.5" fill="#00d4ff"/>
-          <circle cx="24.5" cy="3.5" r="2.5" fill="#00e676"/>
-        </svg>
-        <h1><span class="logo-mlb">MLB</span><span class="logo-edge">Edge</span></h1>
-      </div>
-      <span id="last-updated" class="last-updated"></span>
+      <div class="logo">MLB Edge</div>
+      <nav class="nav-tabs">
+        <button class="nav-btn active" data-view="games">Games</button>
+        <button class="nav-btn" data-view="record">Record</button>
+      </nav>
     </div>
-    <div class="filter-bar" id="filter-bar" role="tablist" aria-label="Filter by category">
-      <button class="filter-btn active" data-filter="ALL" role="tab" aria-selected="true">All</button>
-      <button class="filter-btn" data-filter="TOTAL" role="tab" aria-selected="false">Total</button>
-      <button class="filter-btn" data-filter="MONEYLINE" role="tab" aria-selected="false">Moneyline</button>
-      <button class="filter-btn" data-filter="PROPS" role="tab" aria-selected="false">Props</button>
-      <button class="filter-btn filter-btn-trends" data-filter="TRENDS" role="tab" aria-selected="false">Trends</button>
-      <button class="filter-btn filter-btn-record" data-filter="RECORD" role="tab" aria-selected="false">📊 Record</button>
-    </div>
-    <div class="sub-filter-bar hidden" id="sub-filter-bar"></div>
   </header>
 
-  <main id="main-content">
-    <div id="loading-state" class="state-view">
-      <div class="spinner" aria-hidden="true"></div>
-      <p>Loading today's picks…</p>
-    </div>
-    <div id="error-state" class="state-view hidden">
-      <p class="state-icon">📡</p>
-      <p>Could not load picks. Check back soon.</p>
-      <button class="retry-btn" id="retry-btn">Retry</button>
-    </div>
-    <div id="no-picks-state" class="state-view hidden">
-      <p class="state-icon">🧐</p>
-      <p>No games match the current filter.</p>
-      <p class="state-sub">Try switching to All, or check back once Pinnacle lines are posted.</p>
-    </div>
-    <div id="games-container"></div>
+  <main id="app">
+    <div id="games-view"></div>
+    <div id="record-view" hidden></div>
   </main>
 
   <script src="app.js"></script>

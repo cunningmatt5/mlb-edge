@@ -1,4 +1,4 @@
-name: MLB Morning Picks
+name: MLB Morning Games
 
 on:
   schedule:
@@ -7,14 +7,14 @@ on:
 
 # Prevent two runs from stepping on each other — queue, don't cancel
 concurrency:
-  group: generate-picks
+  group: generate-games
   cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  generate-picks:
+  generate-games:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
@@ -26,7 +26,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Skip if picks are fresh (< 13 min old)
+      - name: Skip if games.json is fresh (< 13 min old)
         id: check
         run: |
           NOW=$(date -u +%s)
@@ -34,20 +34,20 @@ jobs:
           import json, sys
           from datetime import datetime, timezone
           try:
-              d = json.load(open('docs/picks.json'))
+              d = json.load(open('docs/games.json'))
               ts = datetime.fromisoformat(d['generated_at'].replace('Z', '+00:00'))
               print(int(ts.timestamp()))
           except Exception:
               print(0)
           " 2>/dev/null)
           AGE=$((NOW - GENERATED))
-          echo "Picks age: ${AGE}s"
+          echo "Games data age: ${AGE}s"
           if [ "$AGE" -lt 780 ]; then
             echo "stale=false" >> $GITHUB_OUTPUT
-            echo "Picks are ${AGE}s old — still fresh, skipping."
+            echo "games.json is ${AGE}s old — still fresh, skipping."
           else
             echo "stale=true" >> $GITHUB_OUTPUT
-            echo "Picks are ${AGE}s old — regenerating."
+            echo "games.json is ${AGE}s old — regenerating."
           fi
 
       - name: Set up Python
@@ -61,18 +61,22 @@ jobs:
         if: steps.check.outputs.stale == 'true'
         run: pip install -r requirements.txt
 
-      - name: Run analytics pipeline
+      - name: Run game intelligence pipeline
         if: steps.check.outputs.stale == 'true'
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: python -m pipeline.main
 
-      - name: Commit picks.json
+      - name: Resolve yesterday's predictions
+        if: steps.check.outputs.stale == 'true'
+        run: python -m pipeline.history --resolve || true
+
+      - name: Commit output files
         if: steps.check.outputs.stale == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/picks.json docs/picks_history.json docs/trends.json
-          git diff --staged --quiet || git commit -m "chore: update picks [skip ci]"
+          git add docs/games.json docs/history.json
+          git diff --staged --quiet || git commit -m "chore: update games [skip ci]"
           git pull --rebase origin master
           git push

@@ -1,762 +1,535 @@
 'use strict';
 
-const PICKS_URL   = './picks.json';
-const HISTORY_URL = './picks_history.json';
-const TRENDS_URL  = './trends.json';
+// ── Data sources ─────────────────────────────────────────────────────────────
+const GAMES_URL   = './games.json';
+const HISTORY_URL = './history.json';
 
-let allGames     = [];
-let historyData  = null;
-let trendsData   = null;
-let activeFilter    = 'ALL';
-let activeSubFilter = 'ALL';
+// ── App state ─────────────────────────────────────────────────────────────────
+let gamesData   = null;
+let historyData = [];
+let expandedPk  = null;
+let currentView = 'games';
 
-// ── Service Worker ─────────────────────────────────────────────────────────────
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(console.error);
+// ── Bootstrap ─────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  setupNav();
+  await Promise.all([loadGames(), loadHistory()]);
+  renderGamesView();
+});
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function setupNav() {
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentView = btn.dataset.view;
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b === btn));
+      document.getElementById('games-view').hidden  = currentView !== 'games';
+      document.getElementById('record-view').hidden = currentView !== 'record';
+      if (currentView === 'record') renderRecordView();
+    });
+  });
 }
 
-// ── Data fetching ──────────────────────────────────────────────────────────────
-async function loadPicks() {
+// ── Data loading ──────────────────────────────────────────────────────────────
+async function loadGames() {
   try {
-    const res = await fetch(`${PICKS_URL}?t=${Date.now()}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } catch (networkErr) {
-    try {
-      const cached = await caches.match(PICKS_URL);
-      if (cached) return await cached.json();
-    } catch (_) {}
-    throw networkErr;
+    const r = await fetch(GAMES_URL + '?v=' + Date.now());
+    gamesData = await r.json();
+  } catch {
+    gamesData = { games: [], date: new Date().toISOString().slice(0, 10), game_count: 0 };
   }
 }
 
 async function loadHistory() {
   try {
-    const res = await fetch(`${HISTORY_URL}?t=${Date.now()}`);
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (_) {
-    return null;
+    const r = await fetch(HISTORY_URL);
+    if (r.ok) historyData = await r.json();
+  } catch {
+    historyData = [];
   }
 }
 
-async function loadTrends() {
-  try {
-    const res = await fetch(`${TRENDS_URL}?t=${Date.now()}`);
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (_) {
-    return null;
+// ── Games view ────────────────────────────────────────────────────────────────
+function renderGamesView() {
+  const view = document.getElementById('games-view');
+  if (!gamesData || !gamesData.games.length) {
+    view.innerHTML = `<div class="empty-state">No games scheduled today.</div>`;
+    return;
   }
-}
 
-// ── Label maps ─────────────────────────────────────────────────────────────────
-const BET_LABELS = {
-  K_PROP:     'Strikeouts',
-  HR_PROP:    'Home Run',
-  HIT_PROP:   'Hit Prop',
-  TB_PROP:    'Total Bases',
-  WALK_PROP:  'Walks',        // legacy — removed from pipeline but may exist in cached picks
-  TOTAL:      'Game Total',
-  TEAM_TOTAL: 'Team Total',
-  ML_F5:      'ML / F5',
-};
+  const label = formatDateLabel(gamesData.date);
+  view.innerHTML = `
+    <div class="view-header">
+      <h1>Today's Games</h1>
+      <span class="sub-label">${label} &nbsp;·&nbsp; ${gamesData.game_count} games</span>
+    </div>
+    <div class="game-list" id="game-list">
+      ${gamesData.games.map(g => gameCardHTML(g)).join('')}
+    </div>
+    <div class="generated-at">Updated: ${formatGeneratedAt(gamesData.generated_at)}</div>
+  `;
 
-const BET_COLORS = {
-  K_PROP:     '#7c3aed',
-  HR_PROP:    '#e11d48',
-  HIT_PROP:   '#0284c7',
-  TB_PROP:    '#0891b2',
-  WALK_PROP:  '#6b7280',
-  TOTAL:      '#059669',
-  TEAM_TOTAL: '#047857',
-  ML_F5:      '#d97706',
-};
-
-// Sub-filter options for Props view
-const PROP_SUB = [
-  { type: 'ALL',      label: 'All Props'   },
-  { type: 'K_PROP',   label: 'Strikeouts'  },
-  { type: 'HR_PROP',  label: 'Home Runs'   },
-  { type: 'HIT_PROP', label: 'Hits'        },
-  { type: 'TB_PROP',  label: 'Total Bases' },
-];
-const PROP_BET_TYPES = new Set(['K_PROP', 'HR_PROP', 'HIT_PROP', 'TB_PROP', 'WALK_PROP', 'TEAM_TOTAL', 'GAME_TOTAL']);
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-function formatGameTime(isoString) {
-  try {
-    return new Date(isoString).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      timeZone: 'America/New_York',
-      timeZoneName: 'short',
+  view.querySelectorAll('.game-card-header').forEach(h => {
+    h.addEventListener('click', () => {
+      const card = h.closest('.game-card');
+      const pk   = +card.dataset.pk;
+      toggleCard(pk);
     });
-  } catch (_) {
-    return isoString;
+  });
+}
+
+function toggleCard(pk) {
+  const prevPk = expandedPk;
+
+  // Collapse all
+  document.querySelectorAll('.game-card').forEach(c => {
+    c.classList.remove('expanded');
+    const body = c.querySelector('.game-card-body');
+    if (body) body.hidden = true;
+  });
+
+  if (prevPk !== pk) {
+    expandedPk = pk;
+    const card = document.querySelector(`.game-card[data-pk="${pk}"]`);
+    if (!card) return;
+    card.classList.add('expanded');
+    card.querySelector('.game-card-body').hidden = false;
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else {
+    expandedPk = null;
   }
 }
 
-function fmtPct(val) {
-  if (val === null || val === undefined) return '—';
-  return (val * 100).toFixed(1) + '%';
-}
+// ── Game card HTML ─────────────────────────────────────────────────────────────
+function gameCardHTML(g) {
+  const pred   = g.prediction || {};
+  const homePct = Math.round((pred.home_win_pct || 0.5) * 100);
+  const awayPct = 100 - homePct;
+  const favIsHome = homePct >= awayPct;
+  const favTeam = abbrev(favIsHome ? g.home_team : g.away_team);
+  const favPct  = Math.max(homePct, awayPct);
 
-function teamAbbr(fullName) {
-  if (!fullName) return '';
-  const parts = fullName.trim().split(' ');
-  return parts[parts.length - 1];
-}
+  const hXera = g.home_sp?.season?.xera;
+  const aXera = g.away_sp?.season?.xera;
 
-// ── Edge badge for insights panel ──────────────────────────────────────────────
-function edgeBadge(edge) {
-  if (edge === null || edge === undefined) return '';
-  const pct  = (edge * 100).toFixed(1);
-  const sign = edge >= 0 ? '+' : '';
-  if (edge >= 0.05) return `<span class="insight-edge edge-green">${sign}${pct}% ✓</span>`;
-  if (edge >= 0.02) return `<span class="insight-edge edge-amber">${sign}${pct}%</span>`;
-  return `<span class="insight-edge edge-plain">${sign}${pct}%</span>`;
-}
+  const timeStr  = g.game_time_et || formatTimeET(g.game_time_utc);
+  const oddsStr  = g.odds ? formatOddsLine(g.odds, g.home_team) : '';
+  const wxStr    = formatWeather(g.weather);
 
-// ── SP + lineup stat line ──────────────────────────────────────────────────────
-function renderSpLine(game) {
-  const hs = game.home_sp_stats || {};
-  const as = game.away_sp_stats || {};
+  const hFlags = (g.home_sp?.trend_flags || []).slice(0, 1);
+  const aFlags = (g.away_sp?.trend_flags || []).slice(0, 1);
 
-  function spBit(name, stats) {
-    const xfip  = stats.xfip  != null ? `xFIP ${stats.xfip.toFixed(2)}`               : null;
-    const kpct  = stats.k_pct != null ? `${(stats.k_pct * 100).toFixed(0)}%K`           : null;
-    const stuff = stats.stuff_plus != null ? `Stuff+ ${Math.round(stats.stuff_plus)}`  : null;
-    const info  = [xfip, kpct, stuff].filter(Boolean).join(' · ');
-    return `<span class="sp-name">${name || 'TBD'}</span>${info ? `<span class="sp-stats">${info}</span>` : ''}`;
-  }
-
-  const homeAbbr = teamAbbr(game.home_team);
-  const awayAbbr = teamAbbr(game.away_team);
-  const homeXw   = game.home_lineup_xwoba != null ? `.${Math.round(game.home_lineup_xwoba * 1000)} xwOBA` : null;
-  const awayXw   = game.away_lineup_xwoba != null ? `.${Math.round(game.away_lineup_xwoba * 1000)} xwOBA` : null;
-  const park     = game.park_run_factor   != null ? `Park ${Math.round(game.park_run_factor)}`            : null;
-
-  const lineupParts = [
-    homeXw ? `${homeAbbr} ${homeXw}` : null,
-    awayXw ? `${awayAbbr} ${awayXw}` : null,
-    park,
-  ].filter(Boolean);
-
-  return `<div class="game-sp-line">
-    <div class="sp-matchup">
-      <div class="sp-entry">${spBit(game.home_sp, hs)}</div>
-      <span class="vs-sep">vs</span>
-      <div class="sp-entry">${spBit(game.away_sp, as)}</div>
-    </div>
-    ${lineupParts.length ? `<div class="lineup-line">${lineupParts.join(' · ')}</div>` : ''}
-  </div>`;
-}
-
-// ── Insights panel ─────────────────────────────────────────────────────────────
-function insightRow(dirCls, label, hist, impl, edge) {
-  return `<div class="insight-row">
-    <span class="insight-dir ${dirCls}">${label}</span>
-    <div class="insight-data">
-      <div class="insight-data-top">
-        <span class="insight-hist">${fmtPct(hist)}</span>
-        ${edgeBadge(edge)}
+  return `
+<div class="game-card" data-pk="${g.gamePk}">
+  <div class="game-card-header">
+    <div class="matchup-grid">
+      <div class="team-cell away-cell">
+        <span class="team-name">${g.away_team}</span>
+        <span class="sp-line">${g.away_sp?.name || 'TBD'}${aXera != null ? spEra(aXera) : ''}</span>
+        ${aFlags.map(f => `<span class="trend-pill">${f}</span>`).join('')}
       </div>
-      <span class="insight-impl">vs ${fmtPct(impl)}</span>
+      <div class="game-info-cell">
+        <span class="game-time">${timeStr}</span>
+        <span class="venue-name">${g.venue}</span>
+        ${oddsStr ? `<span class="odds-display">${oddsStr}</span>` : ''}
+        ${wxStr   ? `<span class="weather-display">${wxStr}</span>`   : ''}
+      </div>
+      <div class="team-cell home-cell">
+        <span class="team-name">${g.home_team}</span>
+        <span class="sp-line">${g.home_sp?.name || 'TBD'}${hXera != null ? spEra(hXera) : ''}</span>
+        ${hFlags.map(f => `<span class="trend-pill">${f}</span>`).join('')}
+      </div>
     </div>
-  </div>`;
+    <div class="pred-strip">
+      <span class="pred-fav">${favTeam} ${favPct}%</span>
+      ${pred.predicted_away_runs != null
+        ? `<span class="pred-score">${pred.predicted_away_runs} – ${pred.predicted_home_runs} est.</span>`
+        : ''}
+      <span class="expand-arrow">▼</span>
+    </div>
+  </div>
+  <div class="game-card-body" hidden>
+    ${expandedBodyHTML(g)}
+  </div>
+</div>`;
 }
 
-function renderInsightsPanel(game) {
-  const ins = game.insights;
+function spEra(val) {
+  return ` <span class="xera-tag">xERA ${val.toFixed(2)}</span>`;
+}
 
-  if (!ins || (!ins.total && !ins.moneyline)) {
-    const msg = !ins
-      ? 'Comps unavailable — trigger backfill to build game_comps.json'
-      : 'No Pinnacle line';
-    return `<div class="insights-panel insights-na">
-      <span class="insights-na-msg">${msg}</span>
-    </div>`;
-  }
+// ── Expanded card body ────────────────────────────────────────────────────────
+function expandedBodyHTML(g) {
+  return `
+<div class="expanded-inner">
+  <div class="expanded-section">
+    <div class="section-heading">Pitchers</div>
+    ${pitcherTableHTML(g)}
+  </div>
+  <div class="expanded-section">
+    <div class="section-heading">Lineups</div>
+    ${lineupsHTML(g)}
+  </div>
+  <div class="expanded-section">
+    <div class="section-heading">Prediction</div>
+    ${predictionHTML(g)}
+  </div>
+</div>`;
+}
 
-  // Total column
-  let totalCol = '';
-  if (ins.total) {
-    const t = ins.total;
-    const lineStr = t.line != null ? `O/U ${t.line}` : '';
-    totalCol = `<div class="insight-col">
-      <div class="insight-mkt-label">TOTAL <span class="insight-line-val">${lineStr}</span></div>
-      ${insightRow('ins-over',  'OVER',  t.historical_over_rate,  t.pinnacle_over_prob,  t.over_edge)}
-      ${insightRow('ins-under', 'UNDER', t.historical_under_rate, t.pinnacle_under_prob, t.under_edge)}
-    </div>`;
-  } else {
-    totalCol = `<div class="insight-col insight-col-empty">
-      <div class="insight-mkt-label">TOTAL</div>
-      <span class="insight-na-inline">No line</span>
-    </div>`;
-  }
+// ── Pitcher table ─────────────────────────────────────────────────────────────
+function pitcherTableHTML(g) {
+  const hsp = g.home_sp || {};
+  const asp = g.away_sp || {};
+  const hs  = hsp.season || {};
+  const as_ = asp.season || {};
+  const hr  = hsp.recent || {};
+  const ar  = asp.recent || {};
 
-  // Moneyline column
-  let mlCol = '';
-  if (ins.moneyline) {
-    const m = ins.moneyline;
-    mlCol = `<div class="insight-col">
-      <div class="insight-mkt-label">MONEYLINE</div>
-      ${insightRow('ins-home', teamAbbr(game.home_team), m.historical_home_rate, m.pinnacle_home_prob, m.home_edge)}
-      ${insightRow('ins-away', teamAbbr(game.away_team), m.historical_away_rate, m.pinnacle_away_prob, m.away_edge)}
-    </div>`;
-  } else {
-    mlCol = `<div class="insight-col insight-col-empty">
-      <div class="insight-mkt-label">MONEYLINE</div>
-      <span class="insight-na-inline">No line</span>
-    </div>`;
-  }
-
-  const footer = game.comps_count > 0
-    ? `<div class="comps-footer">Based on ${game.comps_count} similar games (2023–2025)</div>`
-    : '';
-
-  // Collect reasons from whichever side has the actionable edge
-  const allReasons = [
-    ...((ins.total    && ins.total.reasons)    || []),
-    ...((ins.moneyline && ins.moneyline.reasons) || []),
+  // [label, awayVal, homeVal, lowerIsBetter, recentAway, recentHome]
+  const rows = [
+    ['xERA',        as_.xera,      hs.xera,      true,  ar.xera,      hr.xera],
+    ['xBA Against', as_.xba,       hs.xba,       true,  null,         null],
+    ['Whiff%',      as_.whiff_pct, hs.whiff_pct, false, ar.whiff_pct, hr.whiff_pct],
+    ['Chase%',      as_.chase_pct, hs.chase_pct, false, ar.chase_pct, hr.chase_pct],
+    ['K%',          as_.k_pct,     hs.k_pct,     false, ar.k_pct,     hr.k_pct],
+    ['BB%',         as_.bb_pct,    hs.bb_pct,    true,  ar.bb_pct,    hr.bb_pct],
+    ['RV/100',      as_.rv100,     hs.rv100,     false, null,         null],
   ];
-  const uniqueReasons = [...new Set(allReasons)];
-  const reasonsHtml = uniqueReasons.length
-    ? `<ul class="insight-reasons">${uniqueReasons.map(r => `<li>${r}</li>`).join('')}</ul>`
-    : '';
 
-  return `<div class="insights-panel">
-    <div class="insights-grid">
-      ${totalCol}
-      <div class="insights-divider"></div>
-      ${mlCol}
-    </div>
-    ${footer}
-    ${reasonsHtml}
-  </div>`;
-}
-
-// ── Prop pick cards ────────────────────────────────────────────────────────────
-function signalColor(signal) {
-  if (signal >= 9.0) return '#00e676';
-  if (signal >= 8.0) return '#ffab00';
-  if (signal >= 6.5) return '#00d4ff';
-  return '#7a88a0';
-}
-
-function renderSignalBar(signal) {
-  const pct   = Math.round(((signal - 5) / 5) * 100);
-  const color = signalColor(signal);
-  return `<div class="signal-row">
-    <div class="signal-track">
-      <div class="signal-fill" style="width:${pct}%;background:${color};box-shadow:0 0 8px ${color}80"></div>
-    </div>
-    <span class="signal-label" style="color:${color}">${signal.toFixed(1)}</span>
-  </div>`;
-}
-
-function renderBadge(betType) {
-  const label = BET_LABELS[betType] || betType;
-  return `<span class="badge badge-${betType.toLowerCase().replaceAll('_', '')}">${label}</span>`;
-}
-
-function renderPickOdds(pick) {
-  if (!pick.odds || !pick.has_line) {
-    return '<div class="pick-odds-none">No line available</div>';
+  let tbody = '';
+  for (const [label, av, hv, lowerBetter, ar_v, hr_v] of rows) {
+    const awayBetter = av != null && hv != null && (lowerBetter ? av < hv : av > hv);
+    const homeBetter = av != null && hv != null && (lowerBetter ? hv < av : hv > av);
+    tbody += `
+    <tr>
+      <td class="stat-lbl">${label}</td>
+      <td class="stat-val away-val${awayBetter ? ' better' : homeBetter ? ' worse' : ''}">
+        ${fmtStatVal(av, label)}${ar_v != null ? ` <span class="rcnt">(${fmtStatVal(ar_v, label)})</span>` : ''}
+      </td>
+      <td class="stat-val home-val${homeBetter ? ' better' : awayBetter ? ' worse' : ''}">
+        ${fmtStatVal(hv, label)}${hr_v != null ? ` <span class="rcnt">(${fmtStatVal(hr_v, label)})</span>` : ''}
+      </td>
+    </tr>`;
   }
-  const { line, over_price, under_price, edge_pct } = pick.odds;
-  const edgePct = (edge_pct * 100).toFixed(1);
-  const edgeCls = edge_pct >= 0.08 ? 'edge-high' : edge_pct >= 0.03 ? 'edge-mid' : 'edge-low';
-  const price = (pick.direction === 'OVER' || pick.direction === 'HOME') ? over_price : under_price;
-  const priceStr = price > 0 ? `+${price}` : `${price}`;
-  const lineStr  = (line !== null && line !== undefined) ? `Line ${line} · ` : '';
-  return `<div class="pick-odds">
-    <span class="odds-line">${lineStr}<span class="odds-price">${priceStr}</span></span>
-    <span class="edge-badge ${edgeCls}">+${edgePct}% edge</span>
-  </div>`;
+
+  const awayFlags = asp.trend_flags || [];
+  const homeFlags = hsp.trend_flags || [];
+  const allFlags  = [
+    ...awayFlags.map(f => `<span class="trend-pill away-pill">${asp.name || g.away_team}: ${f}</span>`),
+    ...homeFlags.map(f => `<span class="trend-pill home-pill">${hsp.name || g.home_team}: ${f}</span>`),
+  ];
+
+  return `
+<table class="pitcher-table">
+  <thead>
+    <tr>
+      <th></th>
+      <th class="away-th">${asp.name || g.away_team}</th>
+      <th class="home-th">${hsp.name || g.home_team}</th>
+    </tr>
+  </thead>
+  <tbody>${tbody}</tbody>
+</table>
+${allFlags.length ? `<div class="flag-row">${allFlags.join('')}</div>` : ''}`;
 }
 
-function renderPickStatsRow(pick) {
-  const rs = pick.raw_scores || {};
-  const bt = pick.bet_type;
-  if (bt === 'HR_PROP' || bt === 'HIT_PROP') {
-    const stats = [];
-    if (rs.xwoba   != null) stats.push(`<span class="stat-pill"><span class="sp-label">xwOBA</span> <span class="sp-val">${rs.xwoba.toFixed(3)}</span></span>`);
-    if (rs.bb_pct  != null) stats.push(`<span class="stat-pill"><span class="sp-label">BB%</span> <span class="sp-val">${rs.bb_pct}</span></span>`);
-    if (rs.k_pct   != null) stats.push(`<span class="stat-pill"><span class="sp-label">K%</span> <span class="sp-val">${rs.k_pct}</span></span>`);
-    if (rs.hard_hit_pct != null) stats.push(`<span class="stat-pill"><span class="sp-label">HH%</span> <span class="sp-val">${rs.hard_hit_pct}</span></span>`);
-    if (rs.barrel_pct  != null && bt === 'HR_PROP') stats.push(`<span class="stat-pill"><span class="sp-label">Barrel%</span> <span class="sp-val">${rs.barrel_pct}</span></span>`);
-    if (rs.edge_score  != null) {
-      const ecls = rs.edge_score >= 70 ? 'edge-hi' : rs.edge_score >= 50 ? 'edge-mid' : 'edge-lo';
-      stats.push(`<span class="edge-score-badge ${ecls}">Edge ${rs.edge_score}</span>`);
-    }
-    return stats.length ? `<div class="pick-stats-row">${stats.join('')}</div>` : '';
+// ── Lineups ───────────────────────────────────────────────────────────────────
+function lineupsHTML(g) {
+  if (g.lineup_status === 'tbd') {
+    return `<div class="lineup-tbd">
+      Lineups not yet posted — check back closer to game time.
+    </div>`;
   }
-  if (bt === 'K_PROP') {
-    const stats = [];
-    if (rs.k_pct_season != null) stats.push(`<span class="stat-pill"><span class="sp-label">K% (season)</span> <span class="sp-val">${rs.k_pct_season}</span></span>`);
-    if (rs.k_pct_recent != null) stats.push(`<span class="stat-pill"><span class="sp-label">K% (recent)</span> <span class="sp-val">${rs.k_pct_recent}</span></span>`);
-    if (rs.whiff_pct    != null) stats.push(`<span class="stat-pill"><span class="sp-label">Whiff%</span> <span class="sp-val">${rs.whiff_pct}</span></span>`);
-    if (rs.stuff_plus   != null) stats.push(`<span class="stat-pill"><span class="sp-label">Stuff+</span> <span class="sp-val">${rs.stuff_plus}</span></span>`);
-    if (rs.o_swing_pct  != null) stats.push(`<span class="stat-pill"><span class="sp-label">Chase%</span> <span class="sp-val">${rs.o_swing_pct}</span></span>`);
-    return stats.length ? `<div class="pick-stats-row">${stats.join('')}</div>` : '';
-  }
-  return '';
+
+  return `
+<div class="lineup-pair">
+  <div class="lineup-half">
+    <div class="lineup-team-label">${g.away_team} <span class="side-tag">Away</span></div>
+    ${lineupTableHTML(g.away_lineup || [])}
+  </div>
+  <div class="lineup-half">
+    <div class="lineup-team-label">${g.home_team} <span class="side-tag">Home</span></div>
+    ${lineupTableHTML(g.home_lineup || [])}
+  </div>
+</div>`;
 }
 
-function renderLast5Row(pick) {
-  const rs  = pick.raw_scores || {};
-  const bt  = pick.bet_type;
-  let games = null;
-  let label = '';
-  let mode  = 'binary'; // binary = hit/no-hit circles; count = numeric
-  if (bt === 'HR_PROP' && rs.recent_hr_games) {
-    games = rs.recent_hr_games; label = 'Last 5 HR'; mode = 'binary';
-  } else if (bt === 'HIT_PROP' && rs.recent_h_games) {
-    games = rs.recent_h_games;  label = 'Last 5 H';  mode = 'count';
-  } else if (bt === 'K_PROP' && rs.recent_k_games) {
-    games = rs.recent_k_games;  label = 'Last starts'; mode = 'kcount';
+function lineupTableHTML(lineup) {
+  if (!lineup || !lineup.length) {
+    return `<div class="lineup-empty">Lineup not available</div>`;
   }
-  if (!games || !games.length) return '';
 
-  const cells = games.map(v => {
-    if (mode === 'binary') {
-      const cls = v > 0 ? 'hit' : 'miss';
-      return `<span class="last5-cell ${cls}" title="${v}">${v > 0 ? v : ''}</span>`;
-    } else if (mode === 'count') {
-      const cls = v >= 2 ? 'multi' : v === 1 ? 'hit' : 'miss';
-      return `<span class="last5-cell ${cls}">${v}</span>`;
-    } else { // kcount
-      const cls = v >= 7 ? 'k-hot' : v >= 4 ? 'k-mid' : 'k-cold';
-      return `<span class="last5-cell kcount ${cls}">${v}K</span>`;
-    }
+  const rows = lineup.map(b => {
+    const flagDot = b.trend_flags?.length
+      ? ` <span class="batter-dot" title="${escapeHtml(b.trend_flags[0])}">●</span>`
+      : '';
+    return `
+  <tr${b.trend_flags?.length ? ' class="batter-flagged"' : ''}>
+    <td class="bo">${b.batting_order}</td>
+    <td class="bname">${shortName(b.name)}${flagDot}</td>
+    <td>${b.xwoba != null ? fmtWoba(b.xwoba) : dash()}</td>
+    <td>${b.avg_ev != null ? b.avg_ev.toFixed(1) : dash()}</td>
+    <td>${b.hard_hit_pct != null ? fmtPct(b.hard_hit_pct) : dash()}</td>
+    <td>${b.k_pct != null ? fmtPct(b.k_pct) : dash()}</td>
+    <td>${b.bb_pct != null ? fmtPct(b.bb_pct) : dash()}</td>
+  </tr>`;
   }).join('');
 
-  return `<div class="last5-row"><span class="last5-label">${label}:</span>${cells}</div>`;
+  return `
+<table class="lineup-table">
+  <thead>
+    <tr><th>#</th><th>Name</th><th>xwOBA</th><th>EV</th><th>HH%</th><th>K%</th><th>BB%</th></tr>
+  </thead>
+  <tbody>${rows}</tbody>
+</table>`;
 }
 
-function renderPick(pick) {
-  const color   = BET_COLORS[pick.bet_type] || '#00d4ff';
-  const reasons = pick.reasons.map(r => `<li>${r}</li>`).join('');
-  return `<div class="pick-card" data-bet-type="${pick.bet_type}" style="--bet-color:${color}">
-    <div class="pick-header">
-      ${renderBadge(pick.bet_type)}
-      <span class="direction-pill dir-${pick.direction.toLowerCase()}">${pick.direction}</span>
+// ── Prediction section ────────────────────────────────────────────────────────
+function predictionHTML(g) {
+  const pred    = g.prediction || {};
+  const signals = pred.model_signals || {};
+  const homePct = Math.round((pred.home_win_pct || 0.5) * 100);
+  const awayPct = 100 - homePct;
+  const pHome   = signals.pitcher_score_home;
+  const pAway   = signals.pitcher_score_away;
+  const lHome   = signals.lineup_score_home;
+  const lAway   = signals.lineup_score_away;
+
+  const pitchEdge  = pHome != null && pAway != null ? pHome - pAway : null;
+  const lineupEdge = lHome != null && lAway != null ? lHome - lAway : null;
+
+  function edgeBadge(val, homeLabel, awayLabel) {
+    if (val == null) return '';
+    const abs = Math.abs(val);
+    const label = abs < 0.03
+      ? 'Even'
+      : val > 0
+        ? `${homeLabel} +${(abs * 100).toFixed(0)}`
+        : `${awayLabel} +${(abs * 100).toFixed(0)}`;
+    const cls = abs < 0.03 ? 'neutral' : val > 0 ? 'edge-home' : 'edge-away';
+    return `<span class="sig-badge ${cls}">${label}</span>`;
+  }
+
+  return `
+<div class="prediction-block">
+  <div class="prob-bar-wrap">
+    <span class="prob-label">${g.away_team} ${awayPct}%</span>
+    <div class="prob-bar">
+      <div class="prob-fill away-fill" style="width:${awayPct}%"></div>
+      <div class="prob-fill home-fill" style="width:${homePct}%"></div>
     </div>
-    <div class="pick-headline">${pick.headline}</div>
-    ${renderSignalBar(pick.signal)}
-    ${renderPickOdds(pick)}
-    <ul class="pick-reasons">${reasons}</ul>
-    ${renderPickStatsRow(pick)}
-    ${renderLast5Row(pick)}
-  </div>`;
+    <span class="prob-label">${g.home_team} ${homePct}%</span>
+  </div>
+
+  ${pred.predicted_home_runs != null ? `
+  <div class="score-est">
+    <span>${g.away_team} <strong>${pred.predicted_away_runs}</strong></span>
+    <span class="score-dash">–</span>
+    <span><strong>${pred.predicted_home_runs}</strong> ${g.home_team}</span>
+    <span class="total-label">Total: ${pred.predicted_total}</span>
+  </div>` : ''}
+
+  ${pred.narrative ? `<p class="narrative">${pred.narrative}</p>` : ''}
+
+  <div class="signals-row">
+    <span class="sig-label">Signals:</span>
+    ${edgeBadge(pitchEdge,  'Home pitching', 'Away pitching')}
+    ${edgeBadge(lineupEdge, 'Home lineup',   'Away lineup')}
+    ${signals.comps_home_win_rate != null
+      ? `<span class="sig-badge neutral">Comps: ${Math.round(signals.comps_home_win_rate * 100)}% home (n=${signals.comps_count})</span>`
+      : ''}
+  </div>
+</div>`;
 }
 
-const PROP_GROUPS = [
-  { key: 'K_PROP',       label: 'Strikeouts'    },
-  { key: 'HR_PROP',      label: 'Home Runs'     },
-  { key: 'HIT_PROP',     label: 'Hits'          },
-  { key: 'TB_PROP',      label: 'Total Bases'   },
-  { key: 'GAME_TOTAL',   label: 'Game Total'    },
-  { key: 'TEAM_TOTAL',   label: 'Team Totals'   },
-  { key: 'MONEYLINE_F5', label: 'Moneyline F5'  },
-];
+// ── Record view ───────────────────────────────────────────────────────────────
+function renderRecordView() {
+  const view     = document.getElementById('record-view');
+  const resolved = historyData.filter(r => r.actual_winner != null);
 
-function renderPicksGrouped(picks) {
-  let html = '';
-  for (const { key, label } of PROP_GROUPS) {
-    const group = picks.filter(p => p.bet_type === key);
-    if (!group.length) continue;
-    html += `<div class="prop-type-group">
-      <div class="prop-type-header">${label} <span class="prop-group-count">${group.length}</span></div>
-      ${group.map(renderPick).join('')}
-    </div>`;
-  }
-  // Catch any unrecognized bet types
-  const known = new Set(PROP_GROUPS.map(g => g.key));
-  const rest = picks.filter(p => !known.has(p.bet_type));
-  if (rest.length) html += rest.map(renderPick).join('');
-  return html;
-}
-
-// ── Game card ──────────────────────────────────────────────────────────────────
-function renderGame(game, idx, subFilter = null) {
-  const gameTime  = formatGameTime(game.game_time);
-  const allPicks  = game.picks || [];
-  const picks     = subFilter ? allPicks.filter(p => p.bet_type === subFilter) : allPicks;
-  const isPropsFilter = activeFilter === 'PROPS';
-
-  const propsSection = picks.length > 0
-    ? `<details class="props-section" ${isPropsFilter ? 'open' : ''}>
-        <summary class="props-toggle">
-          Player Props <span class="props-count">${picks.length}</span>
-        </summary>
-        <div class="picks-list">${subFilter ? picks.map(renderPick).join('') : renderPicksGrouped(picks)}</div>
-      </details>`
-    : '';
-
-  return `<section class="game-block" style="animation-delay:${idx * 55}ms">
-    <div class="game-header">
-      <div class="matchup">
-        <span class="team">${game.away_team}</span>
-        <span class="at">@</span>
-        <span class="team">${game.home_team}</span>
-      </div>
-      <div class="game-meta">
-        <span class="game-time">${gameTime}</span>
-        <span class="venue">${game.venue}</span>
-      </div>
-      ${renderSpLine(game)}
-    </div>
-    ${renderInsightsPanel(game)}
-    ${propsSection}
-  </section>`;
-}
-
-// ── Trends view ────────────────────────────────────────────────────────────────
-function trendBadge(signal) {
-  const MAP = {
-    ERA_LUCK:    { cls: 'over',  label: 'ERA Lucky'   },
-    ERA_STRUGGLE:{ cls: 'under', label: 'ERA Unlucky' },
-    HOT_K:       { cls: 'hot',   label: 'K Surge'     },
-    COLD_K:      { cls: 'cold',  label: 'K Fade'      },
-    COLD_BAT:    { cls: 'under', label: 'Cold Bat'    },
-    HOT_BAT:     { cls: 'over',  label: 'Hot Bat'     },
-  };
-  const m = MAP[signal] || { cls: '', label: signal };
-  return `<span class="trend-badge trend-badge-${m.cls}">${m.label}</span>`;
-}
-
-function renderTrendCard(entry) {
-  const isKTrend = entry.signal === 'HOT_K' || entry.signal === 'COLD_K';
-  const fmtA = isKTrend
-    ? `${(entry.stat_a * 100).toFixed(1)}%`
-    : entry.stat_a != null ? entry.stat_a.toFixed(2) : '—';
-  const fmtB = isKTrend
-    ? `${(entry.stat_b * 100).toFixed(1)}%`
-    : entry.stat_b != null ? entry.stat_b.toFixed(2) : '—';
-  const isBatter = entry.signal === 'COLD_BAT' || entry.signal === 'HOT_BAT';
-  const fmtDelta = isBatter
-    ? `+.${Math.round(entry.delta * 1000)}`
-    : isKTrend
-      ? `+${(entry.delta * 100).toFixed(1)}pp`
-      : `+${entry.delta.toFixed(2)}`;
-
-  return `<div class="trend-card">
-    <div class="trend-header">
-      <div class="trend-identity">
-        <span class="trend-name">${entry.name}</span>
-        <span class="trend-meta">${entry.team} · ${entry.game}</span>
-      </div>
-      ${trendBadge(entry.signal)}
-    </div>
-    <div class="trend-stats-row">
-      <div class="trend-stat"><label>${entry.stat_a_label}</label><span>${fmtA}</span></div>
-      <div class="trend-stat"><label>${entry.stat_b_label}</label><span>${fmtB}</span></div>
-      <div class="trend-stat"><label>Gap</label><span class="delta-pos">${fmtDelta}</span></div>
-    </div>
-    <div class="trend-implication">${entry.implication}</div>
-  </div>`;
-}
-
-const TREND_SECTIONS = [
-  {
-    key:         'pitcher_lucky',
-    title:       'Lucky Pitchers — Due for Regression',
-    subtext:     'ERA significantly below xFIP. Results are outpacing process — lean OVER against these starters.',
-  },
-  {
-    key:         'pitcher_unlucky',
-    title:       'Unlucky Pitchers — Rebound Candidates',
-    subtext:     'ERA significantly above xFIP. Pitching better than results — back these starters or lean UNDER.',
-  },
-  {
-    key:         'pitcher_hot_k',
-    title:       'K Rate Surging',
-    subtext:     'Strikeout rate up 3+ pp vs. season average in recent starts. K props have value.',
-  },
-  {
-    key:         'pitcher_cold_k',
-    title:       'K Rate Fading',
-    subtext:     'Strikeout rate down 3+ pp vs. season average in recent starts. Fade K overs.',
-  },
-  {
-    key:         'batter_cold',
-    title:       'Cold Batters — Rebound Candidates',
-    subtext:     'xwOBA 25+ points above wOBA. Hitting well below expected quality — positive regression likely.',
-  },
-  {
-    key:         'batter_hot',
-    title:       'Hot Batters — Fade Candidates',
-    subtext:     'wOBA 25+ points above xwOBA. Results outpacing expected quality — negative regression likely.',
-  },
-];
-
-function renderTrends(trends) {
-  if (!trends) {
-    return `<div class="state-view">
-      <p class="state-icon">📡</p>
-      <p>Trends data unavailable.</p>
-      <p class="state-sub">Run the pipeline to generate trends.json.</p>
-    </div>`;
-  }
-
-  let html = '';
-  for (const sec of TREND_SECTIONS) {
-    const entries = trends[sec.key] || [];
-    html += `<div class="trend-section">
-      <div class="trend-section-header">${sec.title}</div>
-      <div class="trend-section-sub">${sec.subtext}</div>`;
-    if (entries.length === 0) {
-      html += `<div class="trend-section-empty">None today</div>`;
-    } else {
-      html += entries.map(renderTrendCard).join('');
-    }
-    html += `</div>`;
-  }
-
-  return html;
-}
-
-// ── Record view ────────────────────────────────────────────────────────────────
-function renderRecord(history) {
-  if (!history || !history.summary) {
-    return `<div class="state-view">
-      <p class="state-icon">📋</p>
-      <p>No record data yet.</p>
-      <p class="state-sub">Results will appear after picks are graded.</p>
-    </div>`;
-  }
-
-  const s      = history.summary;
-  const wr     = s.win_rate !== null ? (s.win_rate * 100).toFixed(1) + '%' : '—';
-  const graded = s.wins + s.losses;
-
-  let html = `<div class="record-summary">
-    <div class="record-stat">
-      <span class="record-num">${s.wins}–${s.losses}</span>
-      <span class="record-label">W – L</span>
-    </div>
-    <div class="record-stat">
-      <span class="record-num ${s.win_rate !== null ? (s.win_rate >= 0.55 ? 'good' : s.win_rate < 0.45 ? 'bad' : '') : ''}">${wr}</span>
-      <span class="record-label">Win Rate</span>
-    </div>
-    <div class="record-stat">
-      <span class="record-num muted">${s.pending}</span>
-      <span class="record-label">Pending</span>
-    </div>
-  </div>`;
-
-  if (graded === 0) {
-    html += '<p class="record-empty">No graded picks yet — check back after today\'s games finish.</p>';
-    return html;
-  }
-
-  const byType = s.by_type || {};
-  if (Object.keys(byType).length > 0) {
-    html += '<div class="record-section-title">By Bet Type</div><div class="record-table">';
-    for (const [type, data] of Object.entries(byType)) {
-      if (data.total === 0) continue;
-      const label  = BET_LABELS[type] || type;
-      const typeWR = data.win_rate !== null ? (data.win_rate * 100).toFixed(0) + '%' : '—';
-      const cls    = data.win_rate !== null ? (data.win_rate >= 0.55 ? 'good' : data.win_rate < 0.45 ? 'bad' : '') : '';
-      html += `<div class="record-row">
-        <span class="record-type">${label}</span>
-        <span class="record-wl">${data.wins}–${data.losses}</span>
-        <span class="record-wr ${cls}">${typeWR}</span>
-      </div>`;
-    }
-    html += '</div>';
-  }
-
-  const byTier = s.by_tier || {};
-  const TIER_META = {
-    ELITE:     { label: 'Elite',     color: '#ffab00' },
-    GREAT:     { label: 'Great',     color: '#00d4ff' },
-    APPEALING: { label: 'Appealing', color: '#7a88a0' },
-  };
-  if (Object.values(byTier).some(t => t.total > 0)) {
-    html += '<div class="record-section-title">By Tier</div><div class="record-table">';
-    for (const [tier, data] of Object.entries(byTier)) {
-      if (data.total === 0) continue;
-      const meta   = TIER_META[tier] || { label: tier, color: 'var(--text-muted)' };
-      const tierWR = data.win_rate !== null ? (data.win_rate * 100).toFixed(0) + '%' : '—';
-      const cls    = data.win_rate !== null ? (data.win_rate >= 0.55 ? 'good' : data.win_rate < 0.45 ? 'bad' : '') : '';
-      html += `<div class="record-row">
-        <span class="record-type" style="color:${meta.color};font-weight:700">${meta.label}</span>
-        <span class="record-wl">${data.wins}–${data.losses}</span>
-        <span class="record-wr ${cls}">${tierWR}</span>
-      </div>`;
-    }
-    html += '</div>';
-  }
-
-  const recent = (history.picks || [])
-    .filter(p => p.outcome !== 'PENDING')
-    .slice(-20)
-    .reverse();
-
-  if (recent.length > 0) {
-    html += '<div class="record-section-title">Recent Results</div><div class="record-table">';
-    for (const p of recent) {
-      const label     = BET_LABELS[p.bet_type] || p.bet_type;
-      const outcomeCls = p.outcome === 'WIN' ? 'win' : 'loss';
-      const dir       = (p.direction || '').toLowerCase();
-      const dirPill   = p.direction
-        ? `<span class="direction-pill dir-${dir}">${p.direction}</span>`
-        : '';
-
-      // Cushion: how far the actual result cleared (or missed) the line
-      let cushionHtml = '';
-      const av   = parseFloat(p.actual_value);
-      const line = parseFloat(p.line_at_pick);
-      if (!isNaN(av) && !isNaN(line)) {
-        const raw = (p.direction === 'OVER' || p.direction === 'HOME')
-          ? av - line
-          : line - av;
-        const sign = raw >= 0 ? '+' : '';
-        const cls  = raw >= 0 ? 'pos' : 'neg';
-        cushionHtml = `<span class="record-cushion ${cls}">${sign}${raw.toFixed(1)}</span>`;
-      }
-
-      html += `<div class="record-row">
-        <span class="record-type">${p.subject}<span class="record-date"> · ${p.date}</span></span>
-        <div class="record-row-right">
-          <span class="badge badge-${p.bet_type.toLowerCase().replaceAll('_','')} badge-sm">${label}</span>
-          ${dirPill}
-          ${cushionHtml}
-          <span class="record-outcome ${outcomeCls}">${p.outcome}</span>
-        </div>
-      </div>`;
-    }
-    html += '</div>';
-  }
-
-  return html;
-}
-
-// ── Props sub-filter ───────────────────────────────────────────────────────────
-function buildSubFilterBar() {
-  const subBar = document.getElementById('sub-filter-bar');
-  if (!subBar) return;
-
-  const available = new Set(['ALL']);
-  for (const g of allGames) {
-    for (const p of (g.picks || [])) {
-      if (PROP_BET_TYPES.has(p.bet_type)) available.add(p.bet_type);
-    }
-  }
-
-  subBar.innerHTML = PROP_SUB
-    .filter(s => available.has(s.type))
-    .map(s => `<button class="sub-filter-btn${activeSubFilter === s.type ? ' active' : ''}" data-sub="${s.type}">${s.label}</button>`)
-    .join('');
-}
-
-// ── Render all ─────────────────────────────────────────────────────────────────
-function renderAll() {
-  const container = document.getElementById('games-container');
-  const noPicks   = document.getElementById('no-picks-state');
-
-  if (activeFilter === 'RECORD') {
-    container.innerHTML = renderRecord(historyData);
-    noPicks.classList.add('hidden');
+  if (!resolved.length) {
+    view.innerHTML = `<div class="empty-state">No resolved predictions yet.<br>Check back after games have been played.</div>`;
     return;
   }
 
-  if (activeFilter === 'TRENDS') {
-    container.innerHTML = renderTrends(trendsData);
-    noPicks.classList.add('hidden');
-    return;
-  }
+  const signals  = calcSignalAccuracy(resolved);
+  const overall  = signals.overall;
+  const pct      = overall.total > 0 ? Math.round(overall.correct / overall.total * 100) : null;
 
-  const subFilter = (activeFilter === 'PROPS' && activeSubFilter !== 'ALL') ? activeSubFilter : null;
+  view.innerHTML = `
+<div class="view-header">
+  <h1>Prediction Record</h1>
+  <span class="sub-label">${resolved.length} resolved games${pct != null ? ' &nbsp;·&nbsp; ' + pct + '% overall' : ''}</span>
+</div>
 
-  const filtered = allGames.filter(game => {
-    if (activeFilter === 'ALL')       return true;
-    if (activeFilter === 'TOTAL')     return game.insights && game.insights.total;
-    if (activeFilter === 'MONEYLINE') return game.insights && game.insights.moneyline;
-    if (activeFilter === 'PROPS') {
-      const picks = game.picks || [];
-      if (subFilter) return picks.some(p => p.bet_type === subFilter);
-      return picks.some(p => PROP_BET_TYPES.has(p.bet_type));
-    }
-    return true;
-  });
+<div class="signal-section">
+  <div class="section-heading">Signal Accuracy</div>
+  <div class="signal-grid">
+    ${Object.values(signals).map(s => signalCardHTML(s)).join('')}
+  </div>
+</div>
 
-  container.innerHTML = filtered.map((game, i) => renderGame(game, i, subFilter)).join('');
-  noPicks.classList.toggle('hidden', filtered.length > 0);
+<div class="history-section">
+  <div class="section-heading">Game Log</div>
+  <table class="history-table">
+    <thead>
+      <tr><th>Date</th><th>Matchup</th><th>Predicted</th><th>Actual</th><th></th></tr>
+    </thead>
+    <tbody>
+      ${resolved.slice().reverse().map(r => {
+        const hit  = r.predicted_winner === r.actual_winner;
+        const pred = r.predicted_winner === 'home' ? r.home_team : r.away_team;
+        const act  = r.actual_winner    === 'home' ? r.home_team : r.away_team;
+        const score = (r.home_score != null && r.away_score != null)
+          ? ` (${r.away_score}–${r.home_score})`
+          : '';
+        return `
+      <tr class="${hit ? 'row-hit' : 'row-miss'}">
+        <td>${r.date}</td>
+        <td>${abbrev(r.away_team)} @ ${abbrev(r.home_team)}</td>
+        <td>${abbrev(pred)} (${Math.round((r.home_win_pct || 0.5) * 100)}%)</td>
+        <td>${abbrev(act)}${score}</td>
+        <td class="result-icon">${hit ? '✓' : '✗'}</td>
+      </tr>`;
+      }).join('')}
+    </tbody>
+  </table>
+</div>`;
 }
 
-// ── Filter bar ─────────────────────────────────────────────────────────────────
-document.getElementById('filter-bar').addEventListener('click', e => {
-  const btn = e.target.closest('.filter-btn');
-  if (!btn) return;
-  document.querySelectorAll('.filter-btn').forEach(b => {
-    b.classList.remove('active');
-    b.setAttribute('aria-selected', 'false');
-  });
-  btn.classList.add('active');
-  btn.setAttribute('aria-selected', 'true');
-  activeFilter    = btn.dataset.filter;
-  activeSubFilter = 'ALL';
-  const subBar = document.getElementById('sub-filter-bar');
-  if (activeFilter === 'PROPS') {
-    buildSubFilterBar();
-    subBar.classList.remove('hidden');
-  } else {
-    subBar.classList.add('hidden');
+function signalCardHTML(s) {
+  const rate = s.total > 0 ? Math.round(s.correct / s.total * 100) : null;
+  const cls  = rate == null ? '' : rate >= 60 ? 'sig-good' : rate >= 52 ? 'sig-ok' : 'sig-weak';
+  return `
+<div class="sig-card ${cls}">
+  <div class="sig-card-label">${s.label}</div>
+  <div class="sig-card-rate">${rate != null ? rate + '%' : '—'}</div>
+  <div class="sig-card-count">${s.correct}/${s.total}</div>
+</div>`;
+}
+
+function calcSignalAccuracy(resolved) {
+  const m = {
+    overall:       { label: 'Overall pick accuracy',           correct: 0, total: 0 },
+    pitcherHome:   { label: 'Home pitcher score edge ≥ 5pts',  correct: 0, total: 0 },
+    pitcherAway:   { label: 'Away pitcher score edge ≥ 5pts',  correct: 0, total: 0 },
+    lineupHome:    { label: 'Home lineup score edge ≥ 5pts',   correct: 0, total: 0 },
+    compsHome:     { label: 'Comps home rate ≥ 55%',           correct: 0, total: 0 },
+  };
+
+  for (const r of resolved) {
+    const homeWon = r.actual_winner === 'home';
+    m.overall.total++;
+    if ((r.predicted_winner === 'home') === homeWon) m.overall.correct++;
+
+    const ph = r.pitcher_score_home, pa = r.pitcher_score_away;
+    if (ph != null && pa != null) {
+      if (ph - pa >= 0.05) { m.pitcherHome.total++; if (homeWon) m.pitcherHome.correct++; }
+      if (pa - ph >= 0.05) { m.pitcherAway.total++; if (!homeWon) m.pitcherAway.correct++; }
+    }
+
+    const lh = r.lineup_score_home, la = r.lineup_score_away;
+    if (lh != null && la != null && lh - la >= 0.05) {
+      m.lineupHome.total++;
+      if (homeWon) m.lineupHome.correct++;
+    }
+
+    if (r.comps_home_win_rate != null && r.comps_home_win_rate >= 0.55) {
+      m.compsHome.total++;
+      if (homeWon) m.compsHome.correct++;
+    }
   }
-  renderAll();
-});
 
-document.getElementById('sub-filter-bar')?.addEventListener('click', e => {
-  const btn = e.target.closest('.sub-filter-btn');
-  if (!btn) return;
-  document.querySelectorAll('.sub-filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  activeSubFilter = btn.dataset.sub;
-  renderAll();
-});
+  return m;
+}
 
-// ── Init ───────────────────────────────────────────────────────────────────────
-async function init() {
-  const loading = document.getElementById('loading-state');
-  const errorEl = document.getElementById('error-state');
+// ── Formatting helpers ────────────────────────────────────────────────────────
+function formatDateLabel(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+}
 
+function formatGeneratedAt(iso) {
+  if (!iso) return '';
   try {
-    const [data, hist, trends] = await Promise.all([loadPicks(), loadHistory(), loadTrends()]);
-    historyData = hist;
-    trendsData  = trends;
-    allGames    = data.games || [];
-
-    const genAt   = new Date(data.generated_at);
-    const timeStr = genAt.toLocaleString('en-US', {
+    return new Date(iso).toLocaleString('en-US', {
       month: 'short', day: 'numeric',
       hour: 'numeric', minute: '2-digit',
       timeZone: 'America/New_York', timeZoneName: 'short',
     });
-    document.getElementById('last-updated').textContent = `Updated ${timeStr}`;
-
-    loading.classList.add('hidden');
-
-    if (allGames.length === 0 && activeFilter !== 'RECORD') {
-      document.getElementById('no-picks-state').classList.remove('hidden');
-    } else {
-      renderAll();
-    }
-  } catch (err) {
-    console.error('Failed to load picks:', err);
-    loading.classList.add('hidden');
-    errorEl.classList.remove('hidden');
-  }
+  } catch { return ''; }
 }
 
-document.getElementById('retry-btn')?.addEventListener('click', () => {
-  document.getElementById('error-state').classList.add('hidden');
-  document.getElementById('loading-state').classList.remove('hidden');
-  init();
-});
+function formatTimeET(utcStr) {
+  if (!utcStr) return '';
+  try {
+    const d = new Date(utcStr);
+    return d.toLocaleTimeString('en-US', {
+      hour: 'numeric', minute: '2-digit',
+      timeZone: 'America/New_York', timeZoneName: 'short',
+    });
+  } catch { return ''; }
+}
 
-init();
+function formatOddsLine(odds, homeTeam) {
+  const parts = [];
+  if (odds.home_ml != null) {
+    const sign = odds.home_ml > 0 ? '+' : '';
+    parts.push(`${abbrev(homeTeam)} ${sign}${odds.home_ml}`);
+  }
+  if (odds.total != null) {
+    parts.push(`O/U ${odds.total}`);
+  }
+  return parts.join(' · ');
+}
+
+function formatWeather(wx) {
+  if (!wx) return '';
+  if (wx.condition === 'Dome') return '🏟 Dome';
+  const parts = [];
+  if (wx.temp_f != null) parts.push(`${wx.temp_f}°F`);
+  if (wx.wind_dir) parts.push(wx.wind_dir);
+  return parts.join(', ');
+}
+
+function fmtStatVal(val, label) {
+  if (val == null) return dash();
+  if (label === 'xERA' || label === 'RV/100') return val.toFixed(2);
+  if (label === 'xBA Against') return fmtWoba(val);
+  if (label.endsWith('%')) return fmtPct(val);
+  return String(val);
+}
+
+function fmtWoba(v) {
+  return '.' + Math.round(v * 1000).toString().padStart(3, '0');
+}
+
+function fmtPct(v) {
+  return (v * 100).toFixed(1) + '%';
+}
+
+function dash() {
+  return '<span class="dash">—</span>';
+}
+
+function abbrev(team) {
+  if (!team) return '';
+  const words = team.split(' ');
+  return words[words.length - 1];
+}
+
+function shortName(name) {
+  if (!name) return '—';
+  const parts = name.split(' ');
+  if (parts.length >= 2) return parts[0][0] + '. ' + parts.slice(1).join(' ');
+  return name;
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}

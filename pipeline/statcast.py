@@ -279,6 +279,14 @@ def _merge_savant_pitcher(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
         if val is not None and not entry.get(entry_key):
             entry[entry_key] = round(val / divisor, 4)
 
+    # Explicitly store xera as its own key (separate from xfip for display)
+    if not entry.get("xera"):
+        xera_val = g("xera")
+        if xera_val is not None:
+            entry["xera"] = round(xera_val, 4)
+        elif entry.get("xfip"):
+            entry["xera"] = entry["xfip"]
+
 
 def _merge_savant_pitcher_leaderboard(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
     """Merge exit-velocity contact-quality stats from Savant statcast pitcher leaderboard.
@@ -318,6 +326,29 @@ def _merge_savant_pitcher_leaderboard(entry: dict, df: pd.DataFrame, mlbam_id: i
         entry["avg_ev_against"] = ev
     if la is not None and not entry.get("avg_la_against"):
         entry["avg_la_against"] = la
+
+    # K%, BB%, whiff%, xera from leaderboard as fallbacks when FanGraphs unavailable
+    for savant_col, entry_key in [
+        ("k_percent",      "k_pct"),
+        ("bb_percent",     "bb_pct"),
+        ("whiff_percent",  "whiff_pct"),
+    ]:
+        val = g(savant_col)
+        if val is not None and not entry.get(entry_key):
+            entry[entry_key] = round(val / 100.0, 4)
+
+    xera_lead = g("xera")
+    if xera_lead is not None and not entry.get("xera"):
+        entry["xera"] = round(xera_lead, 4)
+        if not entry.get("xfip"):
+            entry["xfip"] = entry["xera"]
+
+    # Run value per 100 pitches — try multiple candidate column names
+    for col in ("run_value_per_100", "rv100", "pitch_run_value"):
+        rv = g(col)
+        if rv is not None:
+            entry["rv100"] = round(rv, 2)
+            break
 
 
 def _merge_savant_batter_expected(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
