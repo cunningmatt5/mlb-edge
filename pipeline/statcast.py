@@ -409,7 +409,7 @@ def _merge_batter_game_log(entry: dict, mlbam_id: int, season: int, n: int = 5) 
     try:
         url = (
             f"{MLB_STATS_BASE}/people/{mlbam_id}/stats"
-            f"?stats=gameLog&group=hitting&season={season}&limit=20"
+            f"?stats=gameLog&group=hitting&season={season}"
         )
         resp = requests.get(url, headers=_HEADERS, timeout=TIMEOUT)
         resp.raise_for_status()
@@ -421,8 +421,8 @@ def _merge_batter_game_log(entry: dict, mlbam_id: int, season: int, n: int = 5) 
                 break
         if not splits:
             return
-        # API returns most-recent first; take the last n and reverse to oldest-first
-        recent = splits[:n][::-1]
+        # API returns chronological order (oldest first); take last n for most recent games
+        recent = splits[-n:]
         entry["recent_h_games"]  = [int(s["stat"].get("hits", 0))      for s in recent]
         entry["recent_hr_games"] = [int(s["stat"].get("homeRuns", 0))   for s in recent]
         entry["recent_k_games"]  = [int(s["stat"].get("strikeOuts", 0)) for s in recent]

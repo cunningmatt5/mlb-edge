@@ -392,7 +392,7 @@ function renderGame(game, idx, subFilter = null) {
         <summary class="props-toggle">
           Player Props <span class="props-count">${picks.length}</span>
         </summary>
-        <div class="picks-list">${renderPicksGrouped(picks)}</div>
+        <div class="picks-list">${subFilter ? picks.map(renderPick).join('') : renderPicksGrouped(picks)}</div>
       </details>`
     : '';
 

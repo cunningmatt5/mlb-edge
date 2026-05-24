@@ -10,7 +10,7 @@ Enhancement: wind speed/direction and temperature apply a weather modifier.
 from __future__ import annotations
 
 from pipeline.park_factors import get_hr_factor
-from pipeline.scorer import normalize, weighted_avg, safe_mean, batter_edge_score
+from pipeline.scorer import normalize, weighted_avg, batter_edge_score
 from pipeline.weather import compute_weather_modifier
 
 
@@ -101,7 +101,9 @@ def _build_reasons(b: dict, sp: dict, venue: str, hr_park: int) -> list[str]:
     hh = b.get("hard_hit_pct")
     if hh is not None:
         reasons.append(
-            f"Hard contact rate {hh:.1%} — exit velocity ≥95 mph on {hh:.0%} of batted balls"
+            f"Hard-hit rate {hh:.1%} — exit velocity ≥95 mph on nearly half of batted balls (MLB avg ~38%)"
+            if hh >= 0.44 else
+            f"Hard-hit rate {hh:.1%} — exit velocity ≥95 mph (MLB avg ~38%)"
         )
 
     xwoba = b.get("xwoba")
