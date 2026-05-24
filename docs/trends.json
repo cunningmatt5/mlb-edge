@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-24T01:57:41.277264+00:00",
+  "generated_at": "2026-05-24T02:11:25.860906+00:00",
   "date": "2026-05-24",
   "pitcher_lucky": [
     {
@@ -60,24 +60,24 @@
       "team": "Braves",
       "game": "Nationals @ Braves",
       "signal": "COLD_K",
-      "stat_a_label": "Season K%",
+      "stat_a_label": "21-Day K%",
       "stat_a": 0.372,
-      "stat_b_label": "Recent K%",
+      "stat_b_label": "Last 3 K%",
       "stat_b": 0.333,
       "delta": 0.039,
-      "implication": "K rate down 3.9pp in last 3 starts (season 37.2% \u2192 recent 33.3%) \u2014 fade strikeout overs."
+      "implication": "K rate down 3.9pp in last 3 starts (21-day avg 37.2% \u2192 recent 33.3%) \u2014 fade strikeout overs."
     },
     {
       "name": "Tyler Phillips",
       "team": "Marlins",
       "game": "Mets @ Marlins",
       "signal": "COLD_K",
-      "stat_a_label": "Season K%",
+      "stat_a_label": "21-Day K%",
       "stat_a": 0.163,
-      "stat_b_label": "Recent K%",
+      "stat_b_label": "Last 3 K%",
       "stat_b": 0.125,
       "delta": 0.038,
-      "implication": "K rate down 3.8pp in last 3 starts (season 16.3% \u2192 recent 12.5%) \u2014 fade strikeout overs."
+      "implication": "K rate down 3.8pp in last 3 starts (21-day avg 16.3% \u2192 recent 12.5%) \u2014 fade strikeout overs."
     }
   ],
   "batter_cold": [],
