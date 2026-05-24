@@ -81,7 +81,7 @@ const PROP_SUB = [
   { type: 'HIT_PROP', label: 'Hits'        },
   { type: 'TB_PROP',  label: 'Total Bases' },
 ];
-const PROP_BET_TYPES = new Set(['K_PROP', 'HR_PROP', 'HIT_PROP', 'TB_PROP', 'WALK_PROP']);
+const PROP_BET_TYPES = new Set(['K_PROP', 'HR_PROP', 'HIT_PROP', 'TB_PROP', 'WALK_PROP', 'TEAM_TOTAL', 'GAME_TOTAL']);
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function formatGameTime(isoString) {
