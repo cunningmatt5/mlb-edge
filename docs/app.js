@@ -102,13 +102,6 @@ function toggleCard(pk) {
 
 // ── Game card HTML ─────────────────────────────────────────────────────────────
 function gameCardHTML(g) {
-  const pred   = g.prediction || {};
-  const homePct = Math.round((pred.home_win_pct || 0.5) * 100);
-  const awayPct = 100 - homePct;
-  const favIsHome = homePct >= awayPct;
-  const favTeam = abbrev(favIsHome ? g.home_team : g.away_team);
-  const favPct  = Math.max(homePct, awayPct);
-
   const hXera = g.home_sp?.season?.xera;
   const aXera = g.away_sp?.season?.xera;
 
@@ -118,13 +111,14 @@ function gameCardHTML(g) {
 
   const hFlags = (g.home_sp?.trend_flags || []).slice(0, 1);
   const aFlags = (g.away_sp?.trend_flags || []).slice(0, 1);
+  const status  = g.game_status || 'preview';
 
   return `
-<div class="game-card" data-pk="${g.gamePk}">
+<div class="game-card" data-pk="${g.gamePk}" data-status="${status}">
   <div class="game-card-header">
     <div class="matchup-grid">
       <div class="team-cell away-cell">
-        <span class="team-name">${g.away_team}</span>
+        <span class="team-name away-name">${g.away_team}</span>
         <span class="sp-line">${g.away_sp?.name || 'TBD'}${aXera != null ? spEra(aXera) : ''}</span>
         ${aFlags.map(f => `<span class="trend-pill">${f}</span>`).join('')}
       </div>
@@ -135,22 +129,59 @@ function gameCardHTML(g) {
         ${wxStr   ? `<span class="weather-display">${wxStr}</span>`   : ''}
       </div>
       <div class="team-cell home-cell">
-        <span class="team-name">${g.home_team}</span>
+        <span class="team-name home-name">${g.home_team}</span>
         <span class="sp-line">${g.home_sp?.name || 'TBD'}${hXera != null ? spEra(hXera) : ''}</span>
         ${hFlags.map(f => `<span class="trend-pill">${f}</span>`).join('')}
       </div>
     </div>
-    <div class="pred-strip">
-      <span class="pred-fav">${favTeam} ${favPct}%</span>
-      ${pred.predicted_away_runs != null
-        ? `<span class="pred-score">${pred.predicted_away_runs} – ${pred.predicted_home_runs} est.</span>`
-        : ''}
-      <span class="expand-arrow">▼</span>
-    </div>
+    ${statusStrip(g)}
   </div>
   <div class="game-card-body" hidden>
     ${expandedBodyHTML(g)}
   </div>
+</div>`;
+}
+
+function statusStrip(g) {
+  const status = g.game_status || 'preview';
+
+  if (status === 'live') {
+    const aSc     = g.away_score ?? '–';
+    const hSc     = g.home_score ?? '–';
+    const inning  = g.inning_state || 'Live';
+    const outsStr = g.outs != null ? ` · ${g.outs} OUT${g.outs !== 1 ? 'S' : ''}` : '';
+    return `
+<div class="pred-strip">
+  <span class="live-state"><span class="live-dot"></span>${inning}${outsStr}</span>
+  <span class="live-score">${abbrev(g.away_team)} ${aSc} – ${hSc} ${abbrev(g.home_team)}</span>
+  <span class="expand-arrow">▼</span>
+</div>`;
+  }
+
+  if (status === 'final') {
+    const aSc = g.away_score ?? '–';
+    const hSc = g.home_score ?? '–';
+    return `
+<div class="pred-strip">
+  <span class="final-badge">FINAL</span>
+  <span class="live-score">${abbrev(g.away_team)} ${aSc} – ${hSc} ${abbrev(g.home_team)}</span>
+  <span class="expand-arrow">▼</span>
+</div>`;
+  }
+
+  // Preview
+  const pred    = g.prediction || {};
+  const homePct = Math.round((pred.home_win_pct || 0.5) * 100);
+  const awayPct = 100 - homePct;
+  const favTeam = abbrev(homePct >= awayPct ? g.home_team : g.away_team);
+  const favPct  = Math.max(homePct, awayPct);
+  return `
+<div class="pred-strip">
+  <span class="pred-fav">${favTeam} ${favPct}%</span>
+  ${pred.predicted_away_runs != null
+    ? `<span class="pred-score">${pred.predicted_away_runs} – ${pred.predicted_home_runs} est.</span>`
+    : ''}
+  <span class="expand-arrow">▼</span>
 </div>`;
 }
 
@@ -171,7 +202,7 @@ function expandedBodyHTML(g) {
     ${lineupsHTML(g)}
   </div>
   <div class="expanded-section">
-    <div class="section-heading">Prediction</div>
+    <div class="section-heading">${(g.game_status && g.game_status !== 'preview') ? 'Pre-game Prediction' : 'Prediction'}</div>
     ${predictionHTML(g)}
   </div>
 </div>`;

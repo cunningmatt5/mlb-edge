@@ -26,7 +26,7 @@ def fetch_schedule(game_date: date) -> list[dict]:
     params = {
         "sportId": 1,
         "date": game_date.strftime("%m/%d/%Y"),
-        "hydrate": "probablePitcher,lineups,venue,officials",
+        "hydrate": "probablePitcher,lineups,venue,officials,linescore",
     }
     try:
         resp = requests.get(url, params=params, timeout=TIMEOUT)
@@ -68,19 +68,38 @@ def _parse_game(raw: dict) -> dict | None:
     if not home_sp or not away_sp:
         return None
 
+    abstract_state = status.get("abstractGameState", "Preview")  # "Preview" | "Live" | "Final"
+    linescore   = raw.get("linescore", {})
+    ls_teams    = linescore.get("teams", {})
+    curr_inning = linescore.get("currentInning")
+    inning_ord  = linescore.get("currentInningOrdinal", "")
+    is_top      = linescore.get("isTopInning")
+
+    if curr_inning:
+        inning_half = "Top" if is_top else "Bot"
+        inning_state = f"{inning_half} {inning_ord}".strip()
+    else:
+        inning_state = None
+
     return {
-        "gamePk": raw["gamePk"],
-        "gameTime": raw.get("gameDate", ""),
-        "homeTeam": home.get("team", {}).get("name", "Unknown"),
-        "awayTeam": away.get("team", {}).get("name", "Unknown"),
-        "venue": raw.get("venue", {}).get("name", "Unknown"),
-        "home_sp_id": home_sp["id"],
-        "home_sp_name": home_sp.get("fullName", ""),
-        "away_sp_id": away_sp["id"],
-        "away_sp_name": away_sp.get("fullName", ""),
-        "home_lineup": _extract_lineup(home),
-        "away_lineup": _extract_lineup(away),
-        "umpire": _extract_hp_umpire(raw),
+        "gamePk":          raw["gamePk"],
+        "gameTime":        raw.get("gameDate", ""),
+        "homeTeam":        home.get("team", {}).get("name", "Unknown"),
+        "awayTeam":        away.get("team", {}).get("name", "Unknown"),
+        "venue":           raw.get("venue", {}).get("name", "Unknown"),
+        "home_sp_id":      home_sp["id"],
+        "home_sp_name":    home_sp.get("fullName", ""),
+        "away_sp_id":      away_sp["id"],
+        "away_sp_name":    away_sp.get("fullName", ""),
+        "home_lineup":     _extract_lineup(home),
+        "away_lineup":     _extract_lineup(away),
+        "umpire":          _extract_hp_umpire(raw),
+        "game_status":     abstract_state.lower(),
+        "home_score":      ls_teams.get("home", {}).get("runs"),
+        "away_score":      ls_teams.get("away", {}).get("runs"),
+        "current_inning":  curr_inning,
+        "inning_state":    inning_state,
+        "outs":            linescore.get("outs"),
     }
 
 

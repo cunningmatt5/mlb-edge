@@ -1,37 +1,44 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 /* ── Reset & base ─────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:           #0a0d14;
-  --bg-card:      #111827;
-  --bg-card-exp:  #141b2d;
-  --bg-header:    #0d1117;
-  --bg-table:     #0f1623;
-  --bg-table-alt: #111c2e;
-  --border:       #1e2d45;
-  --border-light: #243450;
+  --bg:           #0b0f17;
+  --bg-card:      #131922;
+  --bg-card-exp:  #171e2d;
+  --bg-header:    #0d1119;
+  --bg-table:     #111621;
+  --bg-input:     #1a2030;
 
-  --text:         #e2e8f0;
-  --text-muted:   #64748b;
-  --text-dim:     #4a5568;
+  --border:       #222c3f;
+  --border-light: #2c3a52;
 
-  --blue:         #3b82f6;
-  --blue-dark:    #1d4ed8;
-  --orange:       #f97316;
-  --orange-dark:  #c2410c;
-  --green:        #10b981;
-  --green-dark:   #065f46;
-  --red:          #ef4444;
-  --amber:        #f59e0b;
+  --text:         #f0f4f8;
+  --text-muted:   #8a9ab5;
+  --text-dim:     #4a5870;
 
-  --better-bg:    rgba(16, 185, 129, 0.12);
-  --better-color: #34d399;
-  --worse-bg:     rgba(239, 68, 68, 0.08);
+  --red:          #dc2626;
+  --red-light:    #ef4444;
+  --red-dim:      rgba(220,38,38,.12);
+
+  --blue:         #2563eb;
+  --blue-light:   #3b82f6;
+  --blue-dim:     rgba(37,99,235,.12);
+
+  --green:        #16a34a;
+  --green-light:  #22c55e;
+  --green-dim:    rgba(34,197,94,.15);
+  --amber:        #d97706;
+
+  --better-bg:    rgba(34,197,94,.10);
+  --better-color: #4ade80;
   --worse-color:  #f87171;
 
-  --radius:       8px;
-  --radius-sm:    4px;
-  --header-h:     52px;
+  --radius:       10px;
+  --radius-sm:    5px;
+  --header-h:     56px;
+
   font-size: 14px;
 }
 
@@ -40,7 +47,7 @@ html { scroll-behavior: smooth; }
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   min-height: 100vh;
 }
@@ -69,7 +76,7 @@ header {
   font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: var(--blue);
+  color: var(--blue-light);
 }
 
 .nav-tabs {
@@ -90,7 +97,7 @@ header {
 }
 
 .nav-btn:hover { color: var(--text); background: rgba(255,255,255,.04); }
-.nav-btn.active { color: var(--blue); background: rgba(59,130,246,.12); }
+.nav-btn.active { color: var(--blue-light); background: var(--blue-dim); }
 
 /* ── Main layout ─────────────────────────────────────────────────────────── */
 #app {
@@ -140,10 +147,12 @@ header {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
-  transition: border-color .15s;
+  box-shadow: 0 2px 8px rgba(0,0,0,.4);
+  transition: border-color .15s, box-shadow .15s;
 }
 
-.game-card.expanded { border-color: var(--blue-dark); }
+.game-card:hover { border-color: var(--border-light); }
+.game-card.expanded { border-color: var(--blue); box-shadow: 0 4px 16px rgba(37,99,235,.15); }
 
 .game-card-header {
   cursor: pointer;
@@ -183,10 +192,19 @@ header {
 
 .xera-tag {
   display: inline-block;
-  font-size: 11px;
-  color: var(--blue);
+  font-size: 10px;
+  color: var(--blue-light);
+  background: var(--blue-dim);
+  padding: 1px 4px;
+  border-radius: 3px;
   margin-left: 4px;
 }
+
+.away-name { color: var(--red-light); }
+.home-name { color: var(--blue-light); }
+
+/* Final-state card: slightly dim header content */
+[data-status="final"] .matchup-grid { opacity: 0.82; }
 
 .game-info-cell {
   display: flex;
@@ -316,8 +334,8 @@ header {
   white-space: nowrap;
 }
 
-.pitcher-table .away-th { color: var(--orange); }
-.pitcher-table .home-th { color: var(--blue); }
+.pitcher-table .away-th { color: var(--red-light); }
+.pitcher-table .home-th { color: var(--blue-light); }
 
 .pitcher-table tbody tr { border-top: 1px solid var(--border); }
 .pitcher-table tbody tr:first-child { border-top: none; }
@@ -343,8 +361,8 @@ header {
   margin-top: 8px;
 }
 
-.away-pill { background: rgba(249, 115, 22, .15); color: var(--orange); }
-.home-pill { background: rgba(59, 130, 246, .15); color: var(--blue); }
+.away-pill { background: var(--red-dim); color: var(--red-light); }
+.home-pill { background: var(--blue-dim); color: var(--blue-light); }
 
 /* ── Lineups ─────────────────────────────────────────────────────────────── */
 .lineup-tbd {
@@ -437,20 +455,20 @@ header {
   min-width: 70px;
 }
 
-.prob-label:first-child { text-align: right; color: var(--orange); }
-.prob-label:last-child  { text-align: left;  color: var(--blue); }
+.prob-label:first-child { text-align: right; color: var(--red-light); }
+.prob-label:last-child  { text-align: left;  color: var(--blue-light); }
 
 .prob-bar {
   flex: 1;
-  height: 10px;
+  height: 12px;
   border-radius: 6px;
   overflow: hidden;
   display: flex;
   background: var(--bg-table);
 }
 
-.away-fill { background: linear-gradient(90deg, var(--orange-dark), var(--orange)); }
-.home-fill { background: linear-gradient(90deg, var(--blue-dark), var(--blue)); }
+.away-fill { background: linear-gradient(90deg, var(--red), var(--red-light)); }
+.home-fill { background: linear-gradient(90deg, var(--blue), var(--blue-light)); }
 
 .score-est {
   display: flex;
@@ -492,9 +510,9 @@ header {
   font-weight: 500;
 }
 
-.sig-badge.neutral  { background: rgba(255,255,255,.06); color: var(--text-muted); }
-.sig-badge.edge-home { background: rgba(59,130,246,.15); color: var(--blue); }
-.sig-badge.edge-away { background: rgba(249,115,22,.15);  color: var(--orange); }
+.sig-badge.neutral   { background: rgba(255,255,255,.06); color: var(--text-muted); }
+.sig-badge.edge-home { background: var(--blue-dim); color: var(--blue-light); }
+.sig-badge.edge-away { background: var(--red-dim);  color: var(--red-light); }
 
 /* ── Record view ─────────────────────────────────────────────────────────── */
 .signal-section  { margin-bottom: 20px; }
@@ -513,9 +531,9 @@ header {
   padding: 10px 12px;
 }
 
-.sig-card.sig-good   { border-color: var(--green);  background: rgba(16,185,129,.06); }
-.sig-card.sig-ok     { border-color: var(--amber);  background: rgba(245,158,11,.05); }
-.sig-card.sig-weak   { border-color: var(--border); }
+.sig-card.sig-good   { border-left: 3px solid var(--green-light); background: var(--green-dim); }
+.sig-card.sig-ok     { border-left: 3px solid var(--amber);      background: rgba(217,119,6,.06); }
+.sig-card.sig-weak   { }
 
 .sig-card-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
 .sig-card-rate  { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1; }
@@ -547,6 +565,46 @@ header {
 .row-hit .result-icon { color: var(--green); font-weight: 700; }
 .row-miss .result-icon { color: var(--red); }
 .row-hit td { color: var(--text); }
+
+/* ── Live / Final status strip ───────────────────────────────────────────── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .3; }
+}
+
+.live-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--green-light);
+  animation: pulse-dot 1.4s ease-in-out infinite;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+
+.live-state {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--green-light);
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+
+.live-score {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
+}
+
+.final-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: .10em;
+}
 
 /* ── Scrollbar ───────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; }
