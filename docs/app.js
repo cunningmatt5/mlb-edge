@@ -208,10 +208,8 @@ function gameCardHTML(g) {
       </div>
       <div class="game-info-cell">
         <span class="game-time">${timeStr}</span>
-        <span class="at-divider">@</span>
         <span class="venue-name">${g.venue}</span>
-        ${oddsStr ? `<span class="odds-display">${oddsStr}</span>` : ''}
-        ${wxStr   ? `<span class="weather-display">${wxStr}</span>`   : ''}
+        ${wxStr || oddsStr ? `<span class="game-meta">${[wxStr, oddsStr].filter(Boolean).join(' · ')}</span>` : ''}
       </div>
       <div class="team-cell home-cell">
         <div class="logo-namerow home-namerow">
@@ -681,11 +679,14 @@ function formatOddsLine(odds, homeTeam) {
 
 function formatWeather(wx) {
   if (!wx) return '';
-  if (wx.condition === 'Dome') return '🏟 Dome';
+  if (wx.condition === 'Dome') return 'Dome';
   const parts = [];
   if (wx.temp_f != null) parts.push(`${wx.temp_f}°F`);
-  if (wx.wind_dir) parts.push(wx.wind_dir);
-  return parts.join(', ');
+  if (wx.wind_mph != null && wx.wind_mph > 0) {
+    const dir = wx.blowing_out === true ? 'Out' : wx.blowing_out === false ? 'In' : '';
+    parts.push(`${wx.wind_mph} mph${dir ? ' ' + dir : ''}`);
+  }
+  return parts.join(' · ');
 }
 
 function fmtStatVal(val, label) {

@@ -344,23 +344,17 @@ header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  min-width: 130px;
+  gap: 2px;
+  min-width: 120px;
   padding: 0 6px;
 }
 
 .game-time {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text);
   letter-spacing: .01em;
-}
-
-.at-divider {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-dim);
-  letter-spacing: .06em;
+  white-space: nowrap;
 }
 
 .venue-name {
@@ -373,14 +367,11 @@ header {
   white-space: nowrap;
 }
 
-.odds-display {
-  font-size: 11px;
-  color: var(--amber);
-}
-
-.weather-display {
-  font-size: 11px;
-  color: var(--text-muted);
+.game-meta {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-align: center;
+  white-space: nowrap;
 }
 
 /* Lineup status + batter highlights strip */
@@ -854,11 +845,11 @@ header {
   .matchup-grid { grid-template-columns: 1fr auto 1fr; gap: 4px; }
   .team-name    { font-size: 12px; }
   .sp-line      { font-size: 10px; }
-  .game-info-cell { min-width: 80px; padding: 0 2px; }
-  .logo-bubble  { width: 36px; height: 36px; padding: 3px; }
-  .logo-namerow { gap: 7px; }
-  .at-divider   { display: none; }
-  .venue-name   { max-width: 90px; }
+  .game-info-cell { min-width: 76px; padding: 0 2px; }
+  .game-time      { font-size: 12px; }
+  .logo-bubble    { width: 36px; height: 36px; padding: 3px; }
+  .logo-namerow   { gap: 7px; }
+  .venue-name     { max-width: 84px; font-size: 10px; }
 
   /* Hide wOBA column on narrow screens — 8 cols is too tight */
   .lineup-table th:nth-child(4),
