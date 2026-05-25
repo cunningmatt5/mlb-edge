@@ -4,6 +4,26 @@
 const GAMES_URL   = './games.json';
 const HISTORY_URL = './history.json';
 
+// ── Team logo map (ESPN CDN abbreviations) ────────────────────────────────────
+const TEAM_LOGO = {
+  'Arizona Diamondbacks':  'ari',  'Atlanta Braves':         'atl',
+  'Baltimore Orioles':     'bal',  'Boston Red Sox':          'bos',
+  'Chicago Cubs':          'chc',  'Chicago White Sox':       'chw',
+  'Cincinnati Reds':       'cin',  'Cleveland Guardians':     'cle',
+  'Colorado Rockies':      'col',  'Detroit Tigers':          'det',
+  'Houston Astros':        'hou',  'Kansas City Royals':      'kc',
+  'Los Angeles Angels':    'laa',  'Los Angeles Dodgers':     'lad',
+  'Miami Marlins':         'mia',  'Milwaukee Brewers':       'mil',
+  'Minnesota Twins':       'min',  'New York Mets':           'nym',
+  'New York Yankees':      'nyy',  'Athletics':               'oak',
+  'Oakland Athletics':     'oak',  'Philadelphia Phillies':   'phi',
+  'Pittsburgh Pirates':    'pit',  'San Diego Padres':        'sd',
+  'San Francisco Giants':  'sf',   'Seattle Mariners':        'sea',
+  'St. Louis Cardinals':   'stl',  'Tampa Bay Rays':          'tb',
+  'Texas Rangers':         'tex',  'Toronto Blue Jays':       'tor',
+  'Washington Nationals':  'wsh',
+};
+
 // ── App state ─────────────────────────────────────────────────────────────────
 let gamesData   = null;
 let historyData = [];
@@ -118,21 +138,32 @@ function gameCardHTML(g) {
   <div class="game-card-header">
     <div class="matchup-grid">
       <div class="team-cell away-cell">
-        <span class="team-name away-name">${g.away_team}</span>
-        <span class="sp-line">${g.away_sp?.name || 'TBD'}</span>
-        ${aXera != null ? `<span class="xera-line">${spEra(aXera, 'away')}</span>` : ''}
+        <div class="logo-namerow">
+          <div class="logo-bubble away-bubble">${teamLogoHTML(g.away_team)}</div>
+          <div class="team-info">
+            <span class="team-name away-name">${g.away_team}</span>
+            <span class="sp-line">${g.away_sp?.name || 'TBD'}</span>
+            ${aXera != null ? `<span class="xera-line">${spEra(aXera, 'away')}</span>` : ''}
+          </div>
+        </div>
         ${aFlags.map(f => `<span class="trend-pill">${f}</span>`).join('')}
       </div>
       <div class="game-info-cell">
         <span class="game-time">${timeStr}</span>
+        <span class="at-divider">@</span>
         <span class="venue-name">${g.venue}</span>
         ${oddsStr ? `<span class="odds-display">${oddsStr}</span>` : ''}
         ${wxStr   ? `<span class="weather-display">${wxStr}</span>`   : ''}
       </div>
       <div class="team-cell home-cell">
-        <span class="team-name home-name">${g.home_team}</span>
-        <span class="sp-line">${g.home_sp?.name || 'TBD'}</span>
-        ${hXera != null ? `<span class="xera-line">${spEra(hXera, 'home')}</span>` : ''}
+        <div class="logo-namerow home-namerow">
+          <div class="team-info home-info">
+            <span class="team-name home-name">${g.home_team}</span>
+            <span class="sp-line">${g.home_sp?.name || 'TBD'}</span>
+            ${hXera != null ? `<span class="xera-line">${spEra(hXera, 'home')}</span>` : ''}
+          </div>
+          <div class="logo-bubble home-bubble">${teamLogoHTML(g.home_team)}</div>
+        </div>
         ${hFlags.map(f => `<span class="trend-pill">${f}</span>`).join('')}
       </div>
     </div>
@@ -613,6 +644,13 @@ function abbrev(team) {
   if (!team) return '';
   const words = team.split(' ');
   return words[words.length - 1];
+}
+
+function teamLogoHTML(teamName) {
+  const abbrev = TEAM_LOGO[teamName];
+  if (!abbrev) return '';
+  const url = `https://a.espncdn.com/i/teamlogos/mlb/500/${abbrev}.png`;
+  return `<img class="team-logo" src="${url}" alt="" width="44" height="44" loading="lazy" onerror="this.style.display='none'">`;
 }
 
 function shortName(name) {
