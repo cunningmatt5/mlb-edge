@@ -29,12 +29,15 @@ let gamesData   = null;
 let historyData = [];
 let expandedPk  = null;
 let currentView = 'games';
+let lastCheckedAt = null;
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   setupNav();
   await Promise.all([loadGames(), loadHistory()]);
+  lastCheckedAt = Date.now();
   renderGamesView();
+  startAutoRefresh();
 });
 
 // ── Navigation ────────────────────────────────────────────────────────────────
@@ -69,6 +72,58 @@ async function loadHistory() {
   }
 }
 
+// ── Auto-refresh ──────────────────────────────────────────────────────────────
+let _autoTimer = null;
+
+function startAutoRefresh() {
+  if (_autoTimer) clearInterval(_autoTimer);
+  _autoTimer = setInterval(async () => {
+    const prev = gamesData?.generated_at;
+    await loadGames();
+    lastCheckedAt = Date.now();
+    if (gamesData?.generated_at !== prev) {
+      expandedPk = null;
+      renderGamesView();
+    } else {
+      updateFooter();
+    }
+  }, 5 * 60 * 1000);
+}
+
+async function manualRefresh() {
+  const btn = document.getElementById('refresh-btn');
+  if (btn) btn.classList.add('spinning');
+  const prev = gamesData?.generated_at;
+  await loadGames();
+  lastCheckedAt = Date.now();
+  setTimeout(() => { if (btn) btn.classList.remove('spinning'); }, 550);
+  if (gamesData?.generated_at !== prev) {
+    expandedPk = null;
+    renderGamesView();
+  } else {
+    updateFooter();
+  }
+}
+
+function updateFooter() {
+  const el = document.getElementById('data-footer-text');
+  if (el) el.innerHTML = dataFooterText();
+}
+
+function dataFooterText() {
+  const parts = [];
+  if (gamesData?.generated_at) parts.push(`Updated: ${formatGeneratedAt(gamesData.generated_at)}`);
+  if (lastCheckedAt) parts.push(`Checked ${timeAgo(lastCheckedAt)}`);
+  return parts.join(' &nbsp;·&nbsp; ');
+}
+
+function timeAgo(ts) {
+  const sec = Math.round((Date.now() - ts) / 1000);
+  if (sec < 90) return 'just now';
+  const min = Math.floor(sec / 60);
+  return `${min} min ago`;
+}
+
 // ── Games view ────────────────────────────────────────────────────────────────
 function renderGamesView() {
   const view = document.getElementById('games-view');
@@ -86,7 +141,10 @@ function renderGamesView() {
     <div class="game-list" id="game-list">
       ${gamesData.games.map(g => gameCardHTML(g)).join('')}
     </div>
-    <div class="generated-at">Updated: ${formatGeneratedAt(gamesData.generated_at)}</div>
+    <div class="data-footer">
+      <span id="data-footer-text">${dataFooterText()}</span>
+      <button class="refresh-btn" id="refresh-btn" onclick="manualRefresh()" title="Refresh data">↻</button>
+    </div>
   `;
 
   view.querySelectorAll('.game-card-header').forEach(h => {
@@ -167,7 +225,7 @@ function gameCardHTML(g) {
         ${hFlags.map(f => `<span class="trend-pill">${f}</span>`).join('')}
       </div>
     </div>
-    ${batterHighlightsHTML(g)}
+    ${lineupStatusHTML(g)}
     ${statusStrip(g)}
   </div>
   <div class="game-card-body" hidden>
@@ -224,19 +282,31 @@ function spEra(val, side = 'home') {
   return `<span class="${cls}">xERA ${val.toFixed(2)}</span>`;
 }
 
-// ── Batter highlights (collapsed card) ───────────────────────────────────────
-function batterHighlightsHTML(g) {
-  if (g.lineup_status === 'tbd') return '';
+// ── Lineup status + batter highlights (collapsed card) ───────────────────────
+function lineupStatusHTML(g) {
+  const isOfficial = g.lineup_status !== 'tbd';
+  const statusChip = isOfficial
+    ? `<span class="lineup-chip official">✓ Official</span>`
+    : `<span class="lineup-chip tbd">Lineups TBD</span>`;
+
+  if (!isOfficial) {
+    return `
+<div class="lineup-status-row">
+  <div class="bh-side bh-away"></div>
+  <div class="ls-center">${statusChip}</div>
+  <div class="bh-side bh-home"></div>
+</div>`;
+  }
+
   const awayBatters = getNotableBatters(g.away_lineup);
   const homeBatters = getNotableBatters(g.home_lineup);
-  if (!awayBatters.length && !homeBatters.length) return '';
-
   const chip = b =>
     `<span class="bh-chip ${b._type}">${shortName(b.name)} · ${b._label}</span>`;
 
   return `
-<div class="batter-highlights">
+<div class="lineup-status-row">
   <div class="bh-side bh-away">${awayBatters.map(chip).join('')}</div>
+  <div class="ls-center">${statusChip}</div>
   <div class="bh-side bh-home">${homeBatters.map(chip).join('')}</div>
 </div>`;
 }

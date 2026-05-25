@@ -123,12 +123,46 @@ header {
   color: var(--text-muted);
 }
 
-.generated-at {
-  text-align: center;
+.data-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   font-size: 11px;
   color: var(--text-dim);
   margin-top: 24px;
   padding-bottom: 32px;
+}
+
+.refresh-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 14px;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color .15s, border-color .15s;
+  padding: 0;
+  line-height: 1;
+}
+
+.refresh-btn:hover {
+  color: var(--text);
+  border-color: var(--border-light);
+}
+
+.refresh-btn.spinning {
+  animation: spin-once .5s linear;
+}
+
+@keyframes spin-once {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
 /* ── Empty state ─────────────────────────────────────────────────────────── */
@@ -329,14 +363,18 @@ header {
   color: var(--text-muted);
 }
 
-/* Batter highlights strip */
-.batter-highlights {
+/* Lineup status + batter highlights strip */
+.lineup-status-row {
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
   margin-top: 8px;
   padding-top: 6px;
   border-top: 1px solid var(--border);
+}
+
+.ls-center {
+  flex-shrink: 0;
 }
 
 .bh-side {
@@ -360,6 +398,25 @@ header {
 .bh-chip.cold  { background: rgba(148,163,184,.10);  color: var(--text-muted); }
 .bh-chip.over  { background: rgba(217,119,6,.15);    color: #fbbf24; }
 .bh-chip.under { background: var(--blue-dim);         color: var(--blue-light); }
+
+.lineup-chip {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  letter-spacing: .3px;
+}
+
+.lineup-chip.official {
+  background: rgba(34,197,94,.13);
+  color: var(--green-light);
+}
+
+.lineup-chip.tbd {
+  background: rgba(245,158,11,.12);
+  color: var(--amber);
+}
 
 /* Prediction strip */
 .pred-strip {
