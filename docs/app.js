@@ -119,7 +119,8 @@ function gameCardHTML(g) {
     <div class="matchup-grid">
       <div class="team-cell away-cell">
         <span class="team-name away-name">${g.away_team}</span>
-        <span class="sp-line">${g.away_sp?.name || 'TBD'}${aXera != null ? spEra(aXera) : ''}</span>
+        <span class="sp-line">${g.away_sp?.name || 'TBD'}</span>
+        ${aXera != null ? `<span class="xera-line">${spEra(aXera, 'away')}</span>` : ''}
         ${aFlags.map(f => `<span class="trend-pill">${f}</span>`).join('')}
       </div>
       <div class="game-info-cell">
@@ -130,10 +131,12 @@ function gameCardHTML(g) {
       </div>
       <div class="team-cell home-cell">
         <span class="team-name home-name">${g.home_team}</span>
-        <span class="sp-line">${g.home_sp?.name || 'TBD'}${hXera != null ? spEra(hXera) : ''}</span>
+        <span class="sp-line">${g.home_sp?.name || 'TBD'}</span>
+        ${hXera != null ? `<span class="xera-line">${spEra(hXera, 'home')}</span>` : ''}
         ${hFlags.map(f => `<span class="trend-pill">${f}</span>`).join('')}
       </div>
     </div>
+    ${batterHighlightsHTML(g)}
     ${statusStrip(g)}
   </div>
   <div class="game-card-body" hidden>
@@ -185,8 +188,58 @@ function statusStrip(g) {
 </div>`;
 }
 
-function spEra(val) {
-  return ` <span class="xera-tag">xERA ${val.toFixed(2)}</span>`;
+function spEra(val, side = 'home') {
+  const cls = side === 'away' ? 'xera-tag xera-tag-away' : 'xera-tag';
+  return `<span class="${cls}">xERA ${val.toFixed(2)}</span>`;
+}
+
+// ── Batter highlights (collapsed card) ───────────────────────────────────────
+function batterHighlightsHTML(g) {
+  if (g.lineup_status === 'tbd') return '';
+  const awayBatters = getNotableBatters(g.away_lineup);
+  const homeBatters = getNotableBatters(g.home_lineup);
+  if (!awayBatters.length && !homeBatters.length) return '';
+
+  const chip = b =>
+    `<span class="bh-chip ${b._type}">${shortName(b.name)} · ${b._label}</span>`;
+
+  return `
+<div class="batter-highlights">
+  <div class="bh-side bh-away">${awayBatters.map(chip).join('')}</div>
+  <div class="bh-side bh-home">${homeBatters.map(chip).join('')}</div>
+</div>`;
+}
+
+function getNotableBatters(lineup, maxShow = 3) {
+  if (!lineup?.length) return [];
+  const notable = [];
+  for (const b of lineup) {
+    let type = null, label = null, mag = 0;
+
+    if (b.trend_flags?.length) {
+      const flag = b.trend_flags[0];
+      const isHot = flag.startsWith('Hot');
+      if (isHot || flag.startsWith('Cold')) {
+        const m = flag.match(/(\d+)H in last (\d+)/);
+        type  = isHot ? 'hot' : 'cold';
+        label = m ? `${m[1]}H/${m[2]}G` : (isHot ? 'streak' : '0H streak');
+        mag   = 3;
+      }
+    }
+
+    if (type === null && b.woba != null && b.xwoba != null) {
+      const gap = b.woba - b.xwoba;
+      if (Math.abs(gap) >= 0.025) {
+        type  = gap > 0 ? 'over' : 'under';
+        label = `w${fmtWoba(b.woba)} xw${fmtWoba(b.xwoba)}`;
+        mag   = Math.abs(gap);
+      }
+    }
+
+    if (type) notable.push({ ...b, _type: type, _label: label, _mag: mag });
+  }
+  notable.sort((a, b) => b._mag - a._mag);
+  return notable.slice(0, maxShow);
 }
 
 // ── Expanded card body ────────────────────────────────────────────────────────
@@ -292,14 +345,18 @@ function lineupTableHTML(lineup) {
   }
 
   const rows = lineup.map(b => {
-    const flagDot = b.trend_flags?.length
-      ? ` <span class="batter-dot" title="${escapeHtml(b.trend_flags[0])}">●</span>`
-      : '';
+    const streakPill = (() => {
+      if (!b.trend_flags?.length) return '';
+      const isHot = b.trend_flags[0].startsWith('Hot');
+      return ` <span class="streak-pill ${isHot ? 'hot' : 'cold'}">${isHot ? 'HOT' : 'COLD'}</span>`;
+    })();
+    const wobaCls = wobaClass(b);
     return `
-  <tr${b.trend_flags?.length ? ' class="batter-flagged"' : ''}>
+  <tr>
     <td class="bo">${b.batting_order}</td>
-    <td class="bname">${shortName(b.name)}${flagDot}</td>
+    <td class="bname">${shortName(b.name)}${streakPill}</td>
     <td>${b.xwoba != null ? fmtWoba(b.xwoba) : dash()}</td>
+    <td class="${wobaCls}">${b.woba != null ? fmtWoba(b.woba) : dash()}</td>
     <td>${b.avg_ev != null ? b.avg_ev.toFixed(1) : dash()}</td>
     <td>${b.hard_hit_pct != null ? fmtPct(b.hard_hit_pct) : dash()}</td>
     <td>${b.k_pct != null ? fmtPct(b.k_pct) : dash()}</td>
@@ -310,7 +367,7 @@ function lineupTableHTML(lineup) {
   return `
 <table class="lineup-table">
   <thead>
-    <tr><th>#</th><th>Name</th><th>xwOBA</th><th>EV</th><th>HH%</th><th>K%</th><th>BB%</th></tr>
+    <tr><th>#</th><th>Name</th><th>xwOBA</th><th>wOBA</th><th>EV</th><th>HH%</th><th>K%</th><th>BB%</th></tr>
   </thead>
   <tbody>${rows}</tbody>
 </table>`;
@@ -534,6 +591,14 @@ function fmtStatVal(val, label) {
 
 function fmtWoba(v) {
   return '.' + Math.round(v * 1000).toString().padStart(3, '0');
+}
+
+function wobaClass(b) {
+  if (b.woba == null || b.xwoba == null) return '';
+  const gap = b.woba - b.xwoba;
+  if (gap >= 0.025)  return 'woba-over';
+  if (gap <= -0.025) return 'woba-under';
+  return '';
 }
 
 function fmtPct(v) {

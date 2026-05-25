@@ -299,6 +299,7 @@ def _format_batter(b: dict, order: int) -> dict:
         "mlbam_id":      b.get("mlbam_id"),
         "batting_order": order,
         "xwoba":         r(b.get("xwoba")),
+        "woba":          r(b.get("woba")),
         "avg_ev":        r(b.get("avg_ev"), 1),
         "hard_hit_pct":  r(b.get("hard_hit_pct")),
         "k_pct":         r(b.get("k_pct")),
