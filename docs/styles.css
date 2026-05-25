@@ -250,19 +250,39 @@ header {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: rgba(255,255,255,.06);
-  border: 1px solid var(--border-light);
+  background: radial-gradient(circle at 42% 38%, rgba(255,255,255,.28) 0%, rgba(255,255,255,.10) 65%, rgba(0,0,0,.06) 100%);
+  border: 1px solid rgba(255,255,255,.16);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
   padding: 5px;
-  box-shadow: 0 1px 4px rgba(0,0,0,.35);
+  box-shadow:
+    0 2px 8px rgba(0,0,0,.50),
+    inset 0 1px 4px rgba(255,255,255,.22),
+    inset 0 -2px 4px rgba(0,0,0,.22);
 }
 
-.away-bubble { box-shadow: 0 1px 6px rgba(220,38,38,.18), 0 1px 4px rgba(0,0,0,.35); }
-.home-bubble { box-shadow: 0 1px 6px rgba(37,99,235,.18),  0 1px 4px rgba(0,0,0,.35); }
+.away-bubble {
+  background: radial-gradient(circle at 42% 38%, rgba(255,255,255,.30) 0%, rgba(220,38,38,.12) 68%, rgba(220,38,38,.06) 100%);
+  border-color: rgba(220,38,38,.28);
+  box-shadow:
+    0 0 14px rgba(220,38,38,.22),
+    0 2px 8px rgba(0,0,0,.50),
+    inset 0 1px 4px rgba(255,255,255,.22),
+    inset 0 -2px 4px rgba(0,0,0,.22);
+}
+
+.home-bubble {
+  background: radial-gradient(circle at 42% 38%, rgba(255,255,255,.30) 0%, rgba(37,99,235,.12) 68%, rgba(37,99,235,.06) 100%);
+  border-color: rgba(37,99,235,.28);
+  box-shadow:
+    0 0 14px rgba(37,99,235,.22),
+    0 2px 8px rgba(0,0,0,.50),
+    inset 0 1px 4px rgba(255,255,255,.22),
+    inset 0 -2px 4px rgba(0,0,0,.22);
+}
 
 .team-logo {
   width: 100%;
