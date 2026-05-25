@@ -83,11 +83,12 @@ def resolve_yesterday(history: list[dict]) -> list[dict]:
 
     log.info("Resolving %d records for %s...", len(pending), yesterday)
 
+    yesterday_date = date.today() - timedelta(days=1)
     try:
         url    = f"{MLB_API}/schedule"
         params = {
             "sportId": 1,
-            "date":    yesterday.replace("-", "/"),
+            "date":    yesterday_date.strftime("%m/%d/%Y"),
             "hydrate": "linescore",
         }
         resp   = requests.get(url, params=params, timeout=TIMEOUT)

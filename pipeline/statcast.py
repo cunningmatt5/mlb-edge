@@ -208,7 +208,7 @@ def _fetch_savant_batter_expected_stats(season: int) -> pd.DataFrame:
     """xBA, xwOBA, xSLG per batter from the expected-statistics leaderboard."""
     url = (
         f"{SAVANT_BASE}/expected_statistics"
-        f"?type=batter&year={season}&position=&team=&min=q&csv=true"
+        f"?type=batter&year={season}&position=&team=&min=50&csv=true"
     )
     return _fetch_savant_csv(url, "batter-expected")
 
@@ -220,10 +220,11 @@ def _fetch_savant_batter_batted_ball_stats(season: int) -> pd.DataFrame:
       player_id, brl_percent (whole %, e.g. 8.5), ev95percent (whole %, e.g. 42.1),
       avg_hit_speed (mph), avg_hit_angle (degrees)
     Also contains woba, k_percent, bb_percent used as FanGraphs fallback.
+    min=50 instead of min=q so part-time players and recent call-ups are included.
     """
     url = (
         f"{SAVANT_BASE}/leaderboard/statcast"
-        f"?type=batter&year={season}&position=&team=&min=q&csv=true"
+        f"?type=batter&year={season}&position=&team=&min=50&csv=true"
     )
     return _fetch_savant_csv(url, "batter-batted-ball")
 

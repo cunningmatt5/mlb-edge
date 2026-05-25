@@ -2,7 +2,7 @@ name: MLB Morning Games
 
 on:
   schedule:
-    - cron: '*/20 * * * *'   # every 20 minutes
+    - cron: '*/30 * * * *'   # every 30 min (GitHub enforces ~30 min minimum in practice)
   workflow_dispatch:
 
 # Prevent two runs from stepping on each other — queue, don't cancel
@@ -42,7 +42,7 @@ jobs:
           " 2>/dev/null)
           AGE=$((NOW - GENERATED))
           echo "Games data age: ${AGE}s"
-          if [ "$AGE" -lt 780 ]; then
+          if [ "$AGE" -lt 1500 ]; then
             echo "stale=false" >> $GITHUB_OUTPUT
             echo "games.json is ${AGE}s old — still fresh, skipping."
           else

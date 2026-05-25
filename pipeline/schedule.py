@@ -46,7 +46,9 @@ def fetch_schedule(game_date: date) -> list[dict]:
         if parsed:
             games.append(parsed)
 
-    log.info("Schedule: %d games with probable starters for %s", len(games), game_date)
+    total_batters = sum(len(g.get("home_lineup", [])) + len(g.get("away_lineup", [])) for g in games)
+    log.info("Schedule: %d games with probable starters for %s (%d batter IDs collected)",
+             len(games), game_date, total_batters)
     return games
 
 
@@ -114,6 +116,22 @@ def _extract_hp_umpire(raw: dict) -> str:
 
 
 def _extract_lineup(team_data: dict) -> list[int]:
-    """Extract posted batting order MLBAM IDs, or return empty list."""
-    batters = team_data.get("battingOrder", [])
-    return [int(b["id"]) for b in batters if "id" in b]
+    """Extract posted batting order MLBAM IDs, or return empty list.
+
+    The schedule API with hydrate=lineups returns lineup as a list of player
+    dicts under the key 'lineup'.  The game-feed boxscore uses 'battingOrder'
+    (a flat list of integer IDs) — try both so we work in either context.
+    """
+    batters = team_data.get("lineup") or team_data.get("battingOrder") or []
+    ids = []
+    for b in batters:
+        if isinstance(b, dict):
+            pid = b.get("id") or b.get("person", {}).get("id")
+            if pid:
+                ids.append(int(pid))
+        elif isinstance(b, (int, str)):
+            try:
+                ids.append(int(b))
+            except ValueError:
+                pass
+    return ids
