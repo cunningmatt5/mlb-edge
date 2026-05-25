@@ -187,12 +187,13 @@ function gameCardHTML(g) {
   const oddsStr  = g.odds ? formatOddsLine(g.odds, g.home_team) : '';
   const wxStr    = formatWeather(g.weather);
 
-  const hFlags = (g.home_sp?.trend_flags || []).slice(0, 1);
-  const aFlags = (g.away_sp?.trend_flags || []).slice(0, 1);
+  const hFlags  = (g.home_sp?.trend_flags || []).slice(0, 1);
+  const aFlags  = (g.away_sp?.trend_flags || []).slice(0, 1);
   const status  = g.game_status || 'preview';
+  const fav     = (g.prediction?.home_win_pct ?? 0.5) >= 0.5 ? 'home' : 'away';
 
   return `
-<div class="game-card" data-pk="${g.gamePk}" data-status="${status}">
+<div class="game-card" data-pk="${g.gamePk}" data-status="${status}" data-fav="${fav}">
   <div class="game-card-header">
     <div class="matchup-grid">
       <div class="team-cell away-cell">
@@ -504,15 +505,16 @@ function predictionHTML(g) {
     return `<span class="sig-badge ${cls}">${label}</span>`;
   }
 
+  const awayFav = awayPct > homePct;
   return `
 <div class="prediction-block">
   <div class="prob-bar-wrap">
-    <span class="prob-label">${g.away_team} ${awayPct}%</span>
+    <span class="prob-label ${awayFav ? 'win-label' : 'lose-label'}">${g.away_team} ${awayPct}%</span>
     <div class="prob-bar">
-      <div class="prob-fill away-fill" style="width:${awayPct}%"></div>
-      <div class="prob-fill home-fill" style="width:${homePct}%"></div>
+      <div class="prob-fill ${awayFav ? 'win-fill' : 'lose-fill'}" style="width:${awayPct}%"></div>
+      <div class="prob-fill ${awayFav ? 'lose-fill' : 'win-fill'}" style="width:${homePct}%"></div>
     </div>
-    <span class="prob-label">${g.home_team} ${homePct}%</span>
+    <span class="prob-label ${awayFav ? 'lose-label' : 'win-label'}">${g.home_team} ${homePct}%</span>
   </div>
 
   ${pred.predicted_home_runs != null ? `
