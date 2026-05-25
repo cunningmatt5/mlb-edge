@@ -499,19 +499,21 @@ function predictionHTML(g) {
   const pitchEdge  = pHome != null && pAway != null ? pHome - pAway : null;
   const lineupEdge = lHome != null && lAway != null ? lHome - lAway : null;
 
+  const awayFav = awayPct > homePct;
+
   function edgeBadge(val, homeLabel, awayLabel) {
     if (val == null) return '';
     const abs = Math.abs(val);
-    const label = abs < 0.03
-      ? 'Even'
-      : val > 0
-        ? `${homeLabel} +${(abs * 100).toFixed(0)}`
-        : `${awayLabel} +${(abs * 100).toFixed(0)}`;
-    const cls = abs < 0.03 ? 'neutral' : val > 0 ? 'edge-home' : 'edge-away';
+    if (abs < 0.03) return `<span class="sig-badge neutral">Even</span>`;
+    const homeEdge = val > 0;
+    const label = homeEdge
+      ? `${homeLabel} +${(abs * 100).toFixed(0)}`
+      : `${awayLabel} +${(abs * 100).toFixed(0)}`;
+    // Green when the edge aligns with the predicted winner; red when it works against
+    const confirmsWinner = (homeEdge && !awayFav) || (!homeEdge && awayFav);
+    const cls = confirmsWinner ? 'edge-winner' : 'edge-loser';
     return `<span class="sig-badge ${cls}">${label}</span>`;
   }
-
-  const awayFav = awayPct > homePct;
   return `
 <div class="prediction-block">
   <div class="prob-bar-wrap">
@@ -751,9 +753,15 @@ function teamLogoHTML(teamName) {
 
 function shortName(name) {
   if (!name) return '—';
+  const comma = name.indexOf(',');
+  if (comma !== -1) {
+    const last  = name.slice(0, comma).trim();
+    const first = name.slice(comma + 1).trim();
+    return first ? `${last}, ${first[0]}.` : last;
+  }
+  // Fallback for "First Last" format
   const parts = name.split(' ');
-  if (parts.length >= 2) return parts[0][0] + '. ' + parts.slice(1).join(' ');
-  return name;
+  return parts.length >= 2 ? `${parts[parts.length - 1]}, ${parts[0][0]}.` : name;
 }
 
 function escapeHtml(str) {
