@@ -247,13 +247,53 @@ header {
 /* Logo bubble */
 .logo-namerow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
 }
 
 .home-namerow {
   justify-content: flex-end;
 }
+
+.logo-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.team-record-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.rec-overall {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
+}
+
+.rec-l10 {
+  font-size: 9px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.rec-streak {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: .04em;
+}
+
+.rec-streak.rec-win  { background: rgba(34,197,94,.13); color: var(--green-light); }
+.rec-streak.rec-loss { background: rgba(220,38,38,.12); color: var(--red-light); }
 
 .logo-bubble {
   width: 44px;
@@ -873,6 +913,8 @@ header {
   .game-time      { font-size: 12px; }
   .logo-bubble    { width: 36px; height: 36px; padding: 3px; }
   .logo-namerow   { gap: 7px; }
+  .rec-l10        { display: none; }
+  .rec-overall    { font-size: 10px; }
   .venue-name     { max-width: 84px; font-size: 10px; }
 
   /* Hide wOBA column on narrow screens — 8 cols is too tight */

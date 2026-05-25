@@ -86,6 +86,8 @@ def _parse_game(raw: dict) -> dict | None:
         "gameTime":        raw.get("gameDate", ""),
         "homeTeam":        home.get("team", {}).get("name", "Unknown"),
         "awayTeam":        away.get("team", {}).get("name", "Unknown"),
+        "homeTeamId":      home.get("team", {}).get("id"),
+        "awayTeamId":      away.get("team", {}).get("id"),
         "venue":           raw.get("venue", {}).get("name", "Unknown"),
         "home_sp_id":      home_sp["id"],
         "home_sp_name":    home_sp.get("fullName", ""),

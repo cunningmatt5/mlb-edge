@@ -18,6 +18,7 @@ from pipeline.comps import load_comps_db
 from pipeline.odds import fetch_mlb_game_lines, get_game_event
 from pipeline.predictor import build_game
 from pipeline.schedule import fetch_schedule
+from pipeline.standings import fetch_team_records
 from pipeline.statcast import build_player_cache
 from pipeline.weather import fetch_game_weather
 
@@ -43,6 +44,8 @@ def main(dry_run: bool = False) -> None:
                        "date": today.isoformat(), "game_count": 0, "games": []},
                       dry_run)
         return
+
+    team_records = fetch_team_records(today.year)
 
     log.info("Fetching weather for %d games...", len(games))
     for game in games:
@@ -73,6 +76,11 @@ def main(dry_run: bool = False) -> None:
             weather=game.get("weather"),
             odds=odds,
         )
+        for side, id_key in [("away", "awayTeamId"), ("home", "homeTeamId")]:
+            tid = game.get(id_key)
+            if tid and tid in team_records:
+                game_obj[f"{side}_record"] = team_records[tid]
+
         game_objects.append(game_obj)
 
         pred = game_obj["prediction"]

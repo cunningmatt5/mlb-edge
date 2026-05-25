@@ -198,7 +198,10 @@ function gameCardHTML(g) {
     <div class="matchup-grid">
       <div class="team-cell away-cell">
         <div class="logo-namerow">
-          <div class="logo-bubble away-bubble">${teamLogoHTML(g.away_team)}</div>
+          <div class="logo-col">
+            <div class="logo-bubble away-bubble">${teamLogoHTML(g.away_team)}</div>
+            ${teamRecordHTML(g.away_record)}
+          </div>
           <div class="team-info">
             <span class="team-name away-name">${g.away_team}</span>
             <span class="sp-line">${g.away_sp?.name || 'TBD'}</span>
@@ -219,7 +222,10 @@ function gameCardHTML(g) {
             <span class="sp-line">${g.home_sp?.name || 'TBD'}</span>
             ${hXera != null ? `<span class="xera-line">${spEra(hXera, 'home')}</span>` : ''}
           </div>
-          <div class="logo-bubble home-bubble">${teamLogoHTML(g.home_team)}</div>
+          <div class="logo-col">
+            <div class="logo-bubble home-bubble">${teamLogoHTML(g.home_team)}</div>
+            ${teamRecordHTML(g.home_record)}
+          </div>
         </div>
         ${hFlags.map(f => `<span class="trend-pill">${f}</span>`).join('')}
       </div>
@@ -723,6 +729,17 @@ function abbrev(team) {
   if (!team) return '';
   const words = team.split(' ');
   return words[words.length - 1];
+}
+
+function teamRecordHTML(rec) {
+  if (!rec) return '';
+  const isWin = rec.streak && rec.streak.startsWith('W');
+  return `
+<div class="team-record-stack">
+  <span class="rec-overall">${rec.wins}-${rec.losses}</span>
+  ${rec.l10_w != null ? `<span class="rec-l10">${rec.l10_w}-${rec.l10_l} L10</span>` : ''}
+  ${rec.streak ? `<span class="rec-streak ${isWin ? 'rec-win' : 'rec-loss'}">${rec.streak}</span>` : ''}
+</div>`;
 }
 
 function teamLogoHTML(teamName) {
