@@ -74,10 +74,37 @@ header {
 }
 
 .logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+}
+
+.logo-icon {
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 6px rgba(34,197,94,.45));
+}
+
+.logo-wordmark {
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
   font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: var(--blue-light);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+.logo-mlb {
+  color: var(--text);
+  opacity: .90;
+}
+
+.logo-edge {
+  background: linear-gradient(125deg, #16a34a 0%, #22c55e 50%, #4ade80 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .nav-tabs {
@@ -98,7 +125,7 @@ header {
 }
 
 .nav-btn:hover { color: var(--text); background: rgba(255,255,255,.04); }
-.nav-btn.active { color: var(--blue-light); background: var(--blue-dim); }
+.nav-btn.active { color: var(--green-light); background: var(--green-dim); }
 
 /* ── Main layout ─────────────────────────────────────────────────────────── */
 #app {

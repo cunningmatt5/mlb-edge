@@ -13,7 +13,19 @@
 <body>
   <header>
     <div class="header-inner">
-      <div class="logo">MLB Edge</div>
+      <div class="logo" aria-label="MLB Edge">
+        <svg class="logo-icon" viewBox="0 0 22 22" width="22" height="22" fill="none" aria-hidden="true">
+          <path d="M11 1 L21 11 L11 21 L1 11 Z" stroke="rgba(34,197,94,.70)" stroke-width="1.4" stroke-linejoin="round" fill="rgba(34,197,94,.07)"/>
+          <circle cx="11" cy="19.6" r="1.5" fill="rgba(255,255,255,.88)"/>
+          <circle cx="19.6" cy="11"  r="1.5" fill="rgba(255,255,255,.88)"/>
+          <circle cx="11"   cy="2.4" r="1.5" fill="rgba(255,255,255,.88)"/>
+          <circle cx="2.4"  cy="11"  r="1.5" fill="rgba(255,255,255,.88)"/>
+          <circle cx="11"   cy="11"  r="1.8" fill="rgba(34,197,94,.80)"/>
+        </svg>
+        <div class="logo-wordmark">
+          <span class="logo-mlb">MLB</span><span class="logo-edge">EDGE</span>
+        </div>
+      </div>
       <nav class="nav-tabs">
         <button class="nav-btn active" data-view="games">Games</button>
         <button class="nav-btn" data-view="record">Record</button>
