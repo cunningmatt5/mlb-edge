@@ -1,8 +1,9 @@
 'use strict';
 
 // ── Data sources ─────────────────────────────────────────────────────────────
-const GAMES_URL   = './games.json';
-const HISTORY_URL = './history.json';
+const GAMES_URL    = './games.json';
+const HISTORY_URL  = './history.json';
+const BACKTEST_URL = './backtest.json';
 
 // ── Team logo map (ESPN CDN abbreviations) ────────────────────────────────────
 const TEAM_LOGO = {
@@ -25,10 +26,11 @@ const TEAM_LOGO = {
 };
 
 // ── App state ─────────────────────────────────────────────────────────────────
-let gamesData   = null;
-let historyData = [];
-let expandedPk  = null;
-let currentView = 'games';
+let gamesData    = null;
+let historyData  = [];
+let backtestData = null;
+let expandedPk   = null;
+let currentView  = 'games';
 let lastCheckedAt = null;
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -46,9 +48,11 @@ function setupNav() {
     btn.addEventListener('click', () => {
       currentView = btn.dataset.view;
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b === btn));
-      document.getElementById('games-view').hidden  = currentView !== 'games';
-      document.getElementById('record-view').hidden = currentView !== 'record';
+      document.getElementById('games-view').hidden    = currentView !== 'games';
+      document.getElementById('record-view').hidden   = currentView !== 'record';
+      document.getElementById('backtest-view').hidden = currentView !== 'backtest';
       if (currentView === 'record') renderRecordView();
+      if (currentView === 'backtest') { loadBacktest().then(renderBacktestView); }
     });
   });
 }
@@ -69,6 +73,16 @@ async function loadHistory() {
     if (r.ok) historyData = await r.json();
   } catch {
     historyData = [];
+  }
+}
+
+async function loadBacktest() {
+  if (backtestData) return;
+  try {
+    const r = await fetch(BACKTEST_URL + '?v=' + Date.now());
+    if (r.ok) backtestData = await r.json();
+  } catch {
+    backtestData = null;
   }
 }
 
@@ -762,6 +776,148 @@ function shortName(name) {
   // Fallback for "First Last" format
   const parts = name.split(' ');
   return parts.length >= 2 ? `${parts[parts.length - 1]}, ${parts[0][0]}.` : name;
+}
+
+// ── Backtest view ─────────────────────────────────────────────────────────────
+
+function renderBacktestView() {
+  const el = document.getElementById('backtest-view');
+
+  if (!backtestData) {
+    el.innerHTML = `<div class="empty-state"><p>Backtest data not available yet. Run the pipeline to generate it.</p></div>`;
+    return;
+  }
+
+  const { stats, games = [], total_games, season } = backtestData;
+  if (!stats) {
+    el.innerHTML = `<div class="empty-state"><p>No backtest stats found in data.</p></div>`;
+    return;
+  }
+
+  const pct = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
+  const num = (v, d=2) => v != null ? v.toFixed(d) : '—';
+  const signedNum = v => v != null ? (v >= 0 ? '+' : '') + v.toFixed(2) : '—';
+
+  // ── Summary bar ──────────────────────────────────────────────────────────
+  const overallPct  = pct(stats.win_pct_overall);
+  const totalDecided = stats.total_decided || 0;
+  const totalMAE    = num(stats.total_mae);
+  const totalBias   = signedNum(stats.total_bias);
+  const biasClass   = (stats.total_bias || 0) > 0 ? 'bias-high' : 'bias-low';
+
+  // ── Confidence bars ───────────────────────────────────────────────────────
+  const tierLabels = { '50_55': '50–55%', '55_60': '55–60%', '60_65': '60–65%', '65_plus': '65%+' };
+  const confGrid = Object.entries(stats.win_pct_by_confidence || {}).map(([key, t]) => {
+    const barPct = t.pct != null ? Math.round(t.pct * 100) : 0;
+    const barClass = barPct >= 55 ? 'conf-bar-good' : barPct >= 50 ? 'conf-bar-ok' : 'conf-bar-bad';
+    return `
+      <div class="conf-bar-row">
+        <span class="conf-label">${tierLabels[key] || key}</span>
+        <div class="conf-bar-track">
+          <div class="conf-bar-fill ${barClass}" style="width:${Math.min(100,barPct*1.4)}%"></div>
+        </div>
+        <span class="conf-stat">${pct(t.pct)}</span>
+        <span class="conf-count">(${t.total ?? 0} games)</span>
+      </div>`;
+  }).join('');
+
+  // ── Signal accuracy ───────────────────────────────────────────────────────
+  const sigAcc = stats.signal_accuracy || {};
+  const pit = sigAcc.pitcher || {};
+  const cmp = sigAcc.comps   || {};
+
+  // ── Game log ─────────────────────────────────────────────────────────────
+  const rows = games.slice(0, 200).map(g => {
+    const winnerTeam = g.predicted_winner === 'home' ? g.home_team : g.away_team;
+    const actualTeam = g.actual_winner === 'home' ? g.home_team : g.away_team;
+    const conf = Math.round(Math.max(g.home_win_pct, g.away_win_pct) * 100);
+    const rowClass = g.correct ? 'row-hit' : g.actual_winner === 'tie' ? '' : 'row-miss';
+    const icon = g.actual_winner === 'tie' ? '—' : (g.correct ? '✓' : '✗');
+    const dateFmt = g.date ? g.date.slice(5).replace('-', '/') : '—';
+    const predTotal = g.predicted_total != null ? g.predicted_total.toFixed(1) : '—';
+    return `<tr class="${rowClass}">
+      <td class="bt-date">${dateFmt}</td>
+      <td class="bt-matchup">${abbrev(g.away_team)} @ ${abbrev(g.home_team)}</td>
+      <td class="bt-pred">${abbrev(winnerTeam)} <span class="bt-conf">${conf}%</span></td>
+      <td class="bt-actual">${abbrev(actualTeam)} <span class="bt-score">${g.away_score}–${g.home_score}</span></td>
+      <td class="bt-total">${predTotal} / ${g.actual_total ?? '—'}</td>
+      <td class="bt-icon ${g.correct ? 'icon-correct' : (g.actual_winner === 'tie' ? '' : 'icon-wrong')}">${icon}</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="backtest-wrap">
+
+      <div class="backtest-summary">
+        <div class="bt-summary-stat">
+          <span class="bt-big">${overallPct}</span>
+          <span class="bt-label">Win Accuracy</span>
+        </div>
+        <div class="bt-summary-divider"></div>
+        <div class="bt-summary-stat">
+          <span class="bt-big">${totalDecided}</span>
+          <span class="bt-label">${season} Games</span>
+        </div>
+        <div class="bt-summary-divider"></div>
+        <div class="bt-summary-stat">
+          <span class="bt-big">${totalMAE}</span>
+          <span class="bt-label">Total MAE</span>
+        </div>
+        <div class="bt-summary-divider"></div>
+        <div class="bt-summary-stat">
+          <span class="bt-big ${biasClass}">${totalBias}</span>
+          <span class="bt-label">Pred Bias</span>
+        </div>
+      </div>
+
+      <div class="bt-section-title">Win % by Confidence Tier</div>
+      <div class="confidence-grid">${confGrid}</div>
+
+      <div class="bt-section-title">Signal Accuracy</div>
+      <div class="signal-accuracy-grid">
+        <div class="sig-acc-card">
+          <span class="sig-acc-label">Pitcher Edge</span>
+          <span class="sig-acc-pct">${pct(pit.pct)}</span>
+          <span class="sig-acc-sub">${pit.correct ?? 0}/${pit.total ?? 0} games</span>
+        </div>
+        <div class="sig-acc-card">
+          <span class="sig-acc-label">Comps Match</span>
+          <span class="sig-acc-pct">${pct(cmp.pct)}</span>
+          <span class="sig-acc-sub">${cmp.correct ?? 0}/${cmp.total ?? 0} games</span>
+        </div>
+      </div>
+
+      <div class="bt-section-title">Game Log <span class="bt-count">(${games.length} games, most recent first)</span></div>
+      <div class="bt-table-wrap">
+        <table class="bt-table">
+          <thead>
+            <tr>
+              <th>Date</th><th>Matchup</th><th>Predicted</th><th>Actual</th><th>Total P/A</th><th></th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+
+    </div>`;
+}
+
+function abbrev(teamName) {
+  if (!teamName) return '?';
+  const map = {
+    'Arizona Diamondbacks': 'ARI', 'Atlanta Braves': 'ATL', 'Baltimore Orioles': 'BAL',
+    'Boston Red Sox': 'BOS', 'Chicago Cubs': 'CHC', 'Chicago White Sox': 'CWS',
+    'Cincinnati Reds': 'CIN', 'Cleveland Guardians': 'CLE', 'Colorado Rockies': 'COL',
+    'Detroit Tigers': 'DET', 'Houston Astros': 'HOU', 'Kansas City Royals': 'KC',
+    'Los Angeles Angels': 'LAA', 'Los Angeles Dodgers': 'LAD', 'Miami Marlins': 'MIA',
+    'Milwaukee Brewers': 'MIL', 'Minnesota Twins': 'MIN', 'New York Mets': 'NYM',
+    'New York Yankees': 'NYY', 'Athletics': 'OAK', 'Oakland Athletics': 'OAK',
+    'Philadelphia Phillies': 'PHI', 'Pittsburgh Pirates': 'PIT', 'San Diego Padres': 'SD',
+    'San Francisco Giants': 'SF', 'Seattle Mariners': 'SEA', 'St. Louis Cardinals': 'STL',
+    'Tampa Bay Rays': 'TB', 'Texas Rangers': 'TEX', 'Toronto Blue Jays': 'TOR',
+    'Washington Nationals': 'WSH',
+  };
+  return map[teamName] || teamName.split(' ').pop().slice(0, 3).toUpperCase();
 }
 
 function escapeHtml(str) {

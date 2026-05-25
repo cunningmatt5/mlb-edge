@@ -12,8 +12,10 @@ from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean
 
 log = logging.getLogger(__name__)
 
-LEAGUE_AVG_RUNS = 4.5   # 2026 MLB league average runs per team per game
-HOME_ADVANTAGE  = 0.54  # baseline home win probability before stats adjustment
+LEAGUE_AVG_RUNS  = 4.1   # calibrated from 7,303-game comps DB (was 4.5 → bias +1.7 runs)
+HOME_ADVANTAGE   = 0.54  # baseline home win probability before stats adjustment
+_PITCHER_WEIGHT  = 0.85  # run-suppression weight (calibrated; was 0.6)
+_LINEUP_WEIGHT   = 0.55  # run-production weight (calibrated; was 0.6)
 
 # Pitcher strength weights: (weight, invert, (lo, hi))
 # invert=True means lower value = better pitcher
@@ -139,13 +141,13 @@ def _predicted_runs(
     park_mult    = park_run_factor / 100.0
     weather_mult = 1.0 + weather_modifier * 0.05
 
-    home_off_edge  = home_lineup_score  - 0.5
+    home_off_edge   = home_lineup_score  - 0.5
     away_pitch_edge = away_pitcher_score - 0.5
-    away_off_edge  = away_lineup_score  - 0.5
+    away_off_edge   = away_lineup_score  - 0.5
     home_pitch_edge = home_pitcher_score - 0.5
 
-    home_runs = LEAGUE_AVG_RUNS * (1.0 + home_off_edge * 0.6 - away_pitch_edge * 0.6) * park_mult * weather_mult
-    away_runs = LEAGUE_AVG_RUNS * (1.0 + away_off_edge * 0.6 - home_pitch_edge * 0.6) * park_mult * weather_mult
+    home_runs = LEAGUE_AVG_RUNS * (1.0 + home_off_edge * _LINEUP_WEIGHT - away_pitch_edge * _PITCHER_WEIGHT) * park_mult * weather_mult
+    away_runs = LEAGUE_AVG_RUNS * (1.0 + away_off_edge * _LINEUP_WEIGHT - home_pitch_edge * _PITCHER_WEIGHT) * park_mult * weather_mult
 
     home_runs = round(max(1.0, min(12.0, home_runs)), 1)
     away_runs = round(max(1.0, min(12.0, away_runs)), 1)
@@ -458,6 +460,19 @@ def build_game(
         park_run_factor, weather_mod,
     )
 
+    odds_out = _extract_odds(odds, home_team, away_team)
+
+    # Vegas anchor: blend 70% model / 30% Pinnacle, capped at ±1.5 runs from Vegas line.
+    # Applied after the model formula so it acts as a guard, not the primary signal.
+    if odds_out and odds_out.get("total"):
+        vegas_total = odds_out["total"]
+        model_total_raw = pred_home + pred_away
+        blended = 0.70 * model_total_raw + 0.30 * vegas_total
+        blended = max(vegas_total - 1.5, min(vegas_total + 1.5, blended))
+        ratio = blended / model_total_raw if model_total_raw > 0 else 1.0
+        pred_home = round(pred_home * ratio, 1)
+        pred_away = round(pred_away * ratio, 1)
+
     narrative = _generate_narrative(
         home_team, away_team,
         home_sp_name, away_sp_name,
@@ -466,8 +481,6 @@ def build_game(
         home_xwoba, away_xwoba,
         park_run_factor, weather,
     )
-
-    odds_out = _extract_odds(odds, home_team, away_team)
 
     return {
         "gamePk":          gamePk,

@@ -1,0 +1,355 @@
+"""Score all 2026 finished MLB games with the current model and write docs/backtest.json.
+
+Accepts small lookahead bias (May 2026 Savant stats used for March games) — acceptable
+for signal-quality measurement, not production betting.
+
+Usage:
+    python -m pipeline.backtest
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from datetime import date, timedelta
+from pathlib import Path
+from typing import Optional
+
+import requests
+
+from pipeline.comps import load_comps_db, build_game_profile
+from pipeline.predictor import _pitcher_score, _predicted_runs, _win_probability, LEAGUE_AVG_RUNS
+
+log = logging.getLogger(__name__)
+
+MLB_API = "https://statsapi.mlb.com/api/v1"
+TIMEOUT = 30
+SEASON  = 2026
+START_DATE = "03/01/2026"
+
+DOCS_DIR    = Path(__file__).parent.parent / "docs"
+OUTPUT_PATH = DOCS_DIR / "backtest.json"
+
+
+# ---------------------------------------------------------------------------
+# Schedule fetch
+# ---------------------------------------------------------------------------
+
+def fetch_season_finished_games(season: int = SEASON) -> list[dict]:
+    """Fetch all finished games for the season up through yesterday."""
+    yesterday = (date.today() - timedelta(days=1)).strftime("%m/%d/%Y")
+    url = f"{MLB_API}/schedule"
+    params = {
+        "sportId": 1,
+        "startDate": START_DATE,
+        "endDate": yesterday,
+        "hydrate": "probablePitcher,linescore",
+        "gameType": "R",   # Regular season only
+    }
+    try:
+        resp = requests.get(url, params=params, timeout=TIMEOUT)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        log.error("Season schedule fetch failed: %s", exc)
+        return []
+
+    games: list[dict] = []
+    for day in data.get("dates", []):
+        for raw in day.get("games", []):
+            parsed = _parse_finished_game(raw)
+            if parsed:
+                games.append(parsed)
+
+    log.info("Fetched %d finished games for %d season", len(games), season)
+    return games
+
+
+def _parse_finished_game(raw: dict) -> Optional[dict]:
+    status = raw.get("status", {})
+    if status.get("abstractGameState") != "Final":
+        return None
+
+    home = raw.get("teams", {}).get("home", {})
+    away = raw.get("teams", {}).get("away", {})
+    home_sp = home.get("probablePitcher")
+    away_sp = away.get("probablePitcher")
+    if not home_sp or not away_sp:
+        return None
+
+    ls = raw.get("linescore", {})
+    ls_teams = ls.get("teams", {})
+    home_score = ls_teams.get("home", {}).get("runs")
+    away_score = ls_teams.get("away", {}).get("runs")
+    if home_score is None or away_score is None:
+        return None
+
+    game_date = raw.get("gameDate", "")[:10]
+
+    return {
+        "gamePk":       raw["gamePk"],
+        "date":         game_date,
+        "home_team":    home.get("team", {}).get("name", "Unknown"),
+        "away_team":    away.get("team", {}).get("name", "Unknown"),
+        "venue":        raw.get("venue", {}).get("name", "Unknown"),
+        "home_sp_id":   home_sp["id"],
+        "home_sp_name": home_sp.get("fullName", ""),
+        "away_sp_id":   away_sp["id"],
+        "away_sp_name": away_sp.get("fullName", ""),
+        "home_score":   int(home_score),
+        "away_score":   int(away_score),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Pitcher cache
+# ---------------------------------------------------------------------------
+
+def build_pitcher_cache(sp_ids: set[int], season: int = SEASON) -> dict[int, dict]:
+    """Build a pitcher-only cache using current-season Savant data."""
+    from pipeline.statcast import (
+        _fetch_savant_pitcher_stats,
+        _fetch_savant_pitcher_leaderboard,
+        _merge_savant_pitcher,
+        _merge_savant_pitcher_leaderboard,
+    )
+
+    log.info("Fetching Savant pitcher data for %d unique starters...", len(sp_ids))
+    sav_pitch = _fetch_savant_pitcher_stats(season)
+    sav_lead  = _fetch_savant_pitcher_leaderboard(season)
+
+    cache: dict[int, dict] = {}
+    for mlbam_id in sp_ids:
+        entry: dict = {"mlbam_id": mlbam_id, "role": "pitcher"}
+        _merge_savant_pitcher(entry, sav_pitch, mlbam_id)
+        _merge_savant_pitcher_leaderboard(entry, sav_lead, mlbam_id)
+        cache[mlbam_id] = entry
+
+    found = sum(1 for e in cache.values() if e.get("xera") or e.get("xfip"))
+    log.info("Pitcher cache: %d/%d pitchers have xERA/xFIP", found, len(sp_ids))
+    return cache
+
+
+# ---------------------------------------------------------------------------
+# Game scoring
+# ---------------------------------------------------------------------------
+
+def score_game(
+    game: dict,
+    pitcher_cache: dict[int, dict],
+    comps_db: list[dict],
+) -> dict:
+    """Score a historical finished game and return a graded result dict."""
+    from pipeline.park_factors import get_run_factor
+
+    home_sp = pitcher_cache.get(game["home_sp_id"], {})
+    away_sp = pitcher_cache.get(game["away_sp_id"], {})
+
+    home_pitcher_score = _pitcher_score(home_sp)
+    away_pitcher_score = _pitcher_score(away_sp)
+
+    # Use neutral lineup score (0.5) — no historical lineup data in V1
+    home_lineup_score = 0.5
+    away_lineup_score = 0.5
+
+    try:
+        park_run_factor = float(get_run_factor(game.get("venue", "")))
+    except Exception:
+        park_run_factor = 100.0
+
+    # Comps-based win rate
+    comps_home_win_rate: Optional[float] = None
+    if comps_db:
+        fake_game = {
+            "home_sp_id": game["home_sp_id"],
+            "away_sp_id": game["away_sp_id"],
+            "home_lineup": [],
+            "away_lineup": [],
+            "venue": game.get("venue", ""),
+        }
+        profile = build_game_profile(fake_game, pitcher_cache)
+        if profile:
+            from pipeline.comps import find_similar_games
+            similar = find_similar_games(profile, comps_db, n=30)
+            if similar:
+                comps_home_win_rate = round(
+                    sum(1 for g in similar if g["home_won"]) / len(similar), 4
+                )
+
+    park_mod = (park_run_factor - 100) / 1000
+    home_win_pct, away_win_pct = _win_probability(
+        home_pitcher_score, away_pitcher_score,
+        home_lineup_score, away_lineup_score,
+        comps_home_win_rate, park_mod, 0.0,
+    )
+    pred_home, pred_away = _predicted_runs(
+        home_lineup_score, away_lineup_score,
+        home_pitcher_score, away_pitcher_score,
+        park_run_factor, 0.0,
+    )
+
+    actual_home = game["home_score"]
+    actual_away = game["away_score"]
+    actual_winner = "home" if actual_home > actual_away else "away" if actual_away > actual_home else "tie"
+    predicted_winner = "home" if home_win_pct > away_win_pct else "away"
+    correct = predicted_winner == actual_winner and actual_winner != "tie"
+
+    return {
+        "date":              game["date"],
+        "gamePk":            game["gamePk"],
+        "home_team":         game["home_team"],
+        "away_team":         game["away_team"],
+        "home_win_pct":      home_win_pct,
+        "away_win_pct":      away_win_pct,
+        "predicted_winner":  predicted_winner,
+        "actual_winner":     actual_winner,
+        "home_score":        actual_home,
+        "away_score":        actual_away,
+        "predicted_total":   round(pred_home + pred_away, 1),
+        "actual_total":      actual_home + actual_away,
+        "pitcher_score_home": round(home_pitcher_score, 3),
+        "pitcher_score_away": round(away_pitcher_score, 3),
+        "comps_home_win_rate": comps_home_win_rate,
+        "correct":           correct,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Aggregated stats
+# ---------------------------------------------------------------------------
+
+def compute_stats(results: list[dict]) -> dict:
+    decided = [r for r in results if r["actual_winner"] != "tie"]
+    n = len(decided)
+    if n == 0:
+        return {}
+
+    correct = sum(1 for r in decided if r["correct"])
+    win_pct = round(correct / n, 4)
+
+    # Win% by confidence tier (based on predicted winner's probability)
+    tiers = {
+        "50_55": (0.50, 0.55),
+        "55_60": (0.55, 0.60),
+        "60_65": (0.60, 0.65),
+        "65_plus": (0.65, 1.00),
+    }
+    win_pct_by_confidence = {}
+    for tier, (lo, hi) in tiers.items():
+        bucket = [
+            r for r in decided
+            if lo <= max(r["home_win_pct"], r["away_win_pct"]) < hi
+        ]
+        if hi == 1.00:
+            bucket = [r for r in decided if max(r["home_win_pct"], r["away_win_pct"]) >= lo]
+        bn = len(bucket)
+        bc = sum(1 for r in bucket if r["correct"])
+        win_pct_by_confidence[tier] = {
+            "total":   bn,
+            "correct": bc,
+            "pct":     round(bc / bn, 4) if bn > 0 else None,
+        }
+
+    # Run total accuracy
+    totals_valid = [r for r in results if r.get("predicted_total") and r.get("actual_total") is not None]
+    total_mae  = round(sum(abs(r["predicted_total"] - r["actual_total"]) for r in totals_valid) / len(totals_valid), 3) if totals_valid else None
+    total_bias = round(sum(r["predicted_total"] - r["actual_total"] for r in totals_valid) / len(totals_valid), 3) if totals_valid else None
+
+    # Signal accuracy: pitcher edge (when pitcher score diff >= 0.08)
+    pitcher_signal = [
+        r for r in decided
+        if abs(r["pitcher_score_home"] - r["pitcher_score_away"]) >= 0.08
+    ]
+    pn = len(pitcher_signal)
+    pc = sum(1 for r in pitcher_signal if r["correct"])
+    pitcher_acc = {"total": pn, "correct": pc, "pct": round(pc / pn, 4) if pn > 0 else None}
+
+    # Signal accuracy: comps (when comps_home_win_rate present and matches predicted winner)
+    comps_signal = [r for r in decided if r.get("comps_home_win_rate") is not None]
+    cn = len(comps_signal)
+    cc = sum(1 for r in comps_signal if r["correct"])
+    comps_acc = {"total": cn, "correct": cc, "pct": round(cc / cn, 4) if cn > 0 else None}
+
+    return {
+        "win_pct_overall":        win_pct,
+        "total_correct":          correct,
+        "total_decided":          n,
+        "win_pct_by_confidence":  win_pct_by_confidence,
+        "total_mae":              total_mae,
+        "total_bias":             total_bias,
+        "signal_accuracy": {
+            "pitcher": pitcher_acc,
+            "comps":   comps_acc,
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Main entry point
+# ---------------------------------------------------------------------------
+
+def run_backtest() -> None:
+    from datetime import datetime, timezone
+
+    log.info("Starting 2026 backtest run...")
+
+    games = fetch_season_finished_games(SEASON)
+    if not games:
+        log.error("No finished games fetched — aborting")
+        return
+
+    sp_ids = set()
+    for g in games:
+        sp_ids.add(g["home_sp_id"])
+        sp_ids.add(g["away_sp_id"])
+
+    pitcher_cache = build_pitcher_cache(sp_ids, SEASON)
+    comps_db = load_comps_db()
+    log.info("Comps DB: %d records loaded", len(comps_db))
+
+    results: list[dict] = []
+    for i, g in enumerate(games, 1):
+        try:
+            result = score_game(g, pitcher_cache, comps_db)
+            results.append(result)
+        except Exception as exc:
+            log.warning("Failed to score game %s (%s @ %s): %s",
+                        g.get("gamePk"), g.get("away_team"), g.get("home_team"), exc)
+
+        if i % 100 == 0:
+            log.info("Scored %d / %d games...", i, len(games))
+
+    # Sort most recent first for the game log display
+    results.sort(key=lambda r: r["date"], reverse=True)
+
+    stats = compute_stats(results)
+    output = {
+        "season":       SEASON,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "total_games":  len(results),
+        "stats":        stats,
+        "games":        results,
+    }
+
+    DOCS_DIR.mkdir(parents=True, exist_ok=True)
+    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+        json.dump(output, f, separators=(",", ":"))
+
+    correct = stats.get("total_correct", 0)
+    n = stats.get("total_decided", 0)
+    log.info(
+        "Backtest complete: %d games, %d/%d correct (%.1f%%), MAE=%.2f, bias=%+.2f",
+        len(results), correct, n,
+        stats.get("win_pct_overall", 0) * 100,
+        stats.get("total_mae") or 0,
+        stats.get("total_bias") or 0,
+    )
+
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s  %(levelname)-7s  %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    run_backtest()
