@@ -267,12 +267,19 @@ function statusStrip(g) {
   const awayPct = 100 - homePct;
   const favTeam = abbrev(homePct >= awayPct ? g.home_team : g.away_team);
   const favPct  = Math.max(homePct, awayPct);
+  const scoreCenter = pred.predicted_away_runs != null ? `
+  <span class="pred-score-est">
+    <span class="pse-team">${abbrev(g.away_team)}</span>
+    <strong class="pse-num pse-away">${pred.predicted_away_runs}</strong>
+    <span class="pse-dash">–</span>
+    <strong class="pse-num pse-home">${pred.predicted_home_runs}</strong>
+    <span class="pse-team">${abbrev(g.home_team)}</span>
+    <small class="pse-label">est</small>
+  </span>` : '<span></span>';
   return `
 <div class="pred-strip">
   <span class="pred-fav">${favTeam} ${favPct}%</span>
-  ${pred.predicted_away_runs != null
-    ? `<span class="pred-score">${pred.predicted_away_runs} – ${pred.predicted_home_runs} est.</span>`
-    : ''}
+  ${scoreCenter}
   <span class="expand-arrow">▼</span>
 </div>`;
 }
