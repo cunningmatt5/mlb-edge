@@ -111,7 +111,11 @@ def resolve_yesterday(history: list[dict]) -> list[dict]:
             continue
         record["home_score"]    = home_score
         record["away_score"]    = away_score
-        record["actual_winner"] = "home" if home_score > away_score else "away"
+        record["actual_winner"] = (
+            "home" if home_score > away_score
+            else "away" if away_score > home_score
+            else "tie"
+        )
         resolved += 1
 
     log.info("Resolved %d/%d records", resolved, len(pending))

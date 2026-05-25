@@ -5,6 +5,7 @@ Values are indexed by venue name as returned by the MLB Stats API.
 """
 
 # Run-scoring park factors
+# Aliases: keep legacy names AND 2026 renamed venues so both match correctly.
 PARK_RUN_FACTORS: dict[str, int] = {
     "Coors Field": 118,
     "Great American Ball Park": 108,
@@ -13,12 +14,14 @@ PARK_RUN_FACTORS: dict[str, int] = {
     "Truist Park": 103,
     "Fenway Park": 103,
     "Chase Field": 103,
-    "Guaranteed Rate Field": 102,
+    "Guaranteed Rate Field": 102,   # legacy name
+    "Rate Field": 102,              # 2026: White Sox renamed from Guaranteed Rate Field
     "Citizens Bank Park": 102,
     "American Family Field": 101,
     "Target Field": 101,
     "Comerica Park": 100,
     "Wrigley Field": 100,
+    "Sutter Health Park": 100,      # 2025+: Athletics' Sacramento venue (no 3-yr data yet)
     "Angel Stadium": 99,
     "Nationals Park": 99,
     "loanDepot park": 98,
@@ -27,12 +30,13 @@ PARK_RUN_FACTORS: dict[str, int] = {
     "Rogers Centre": 98,
     "Oriole Park at Camden Yards": 97,
     "Minute Maid Park": 97,
-    "Dodger Stadium": 97,
+    "Dodger Stadium": 97,           # legacy name
+    "UNIQLO Field at Dodger Stadium": 97,  # 2026: Dodger Stadium naming rights rename
     "PNC Park": 96,
     "Busch Stadium": 96,
     "Citi Field": 95,
     "T-Mobile Park": 95,
-    "Oakland Coliseum": 94,
+    "Oakland Coliseum": 94,         # legacy (A's moved to Sacramento 2025)
     "Tropicana Field": 94,
     "Petco Park": 92,
     "Oracle Park": 93,
@@ -45,7 +49,8 @@ PARK_HR_FACTORS: dict[str, int] = {
     "Great American Ball Park": 112,
     "Globe Life Field": 109,
     "Citizens Bank Park": 107,
-    "Guaranteed Rate Field": 106,
+    "Guaranteed Rate Field": 106,   # legacy name
+    "Rate Field": 106,              # 2026 rename
     "American Family Field": 105,
     "Truist Park": 104,
     "Chase Field": 103,
@@ -61,7 +66,9 @@ PARK_HR_FACTORS: dict[str, int] = {
     "Rogers Centre": 96,
     "Kauffman Stadium": 95,
     "Minute Maid Park": 95,
-    "Dodger Stadium": 95,
+    "Dodger Stadium": 95,           # legacy name
+    "UNIQLO Field at Dodger Stadium": 95,  # 2026 rename
+    "Sutter Health Park": 97,       # Athletics Sacramento (stadium dimensions favor HRs)
     "PNC Park": 94,
     "Busch Stadium": 94,
     "Citi Field": 93,

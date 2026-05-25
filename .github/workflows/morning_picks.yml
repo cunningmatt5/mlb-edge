@@ -72,14 +72,14 @@ jobs:
         run: python -m pipeline.history --resolve || true
 
       - name: Refresh backtest (Sundays or manual trigger)
-        if: |
-          steps.check.outputs.stale == 'true' &&
-          (github.event_name == 'workflow_dispatch' ||
-           (github.event_name == 'schedule' && startsWith(github.run_id, '') && true))
+        if: steps.check.outputs.stale == 'true'
         run: |
           DOW=$(date -u +%u)
           if [ "$DOW" = "7" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            python -m pipeline.backtest || true
+            echo "Running backtest refresh..."
+            python -m pipeline.backtest || echo "Backtest failed (non-fatal)"
+          else
+            echo "Not Sunday and not manual trigger — skipping backtest"
           fi
 
       - name: Commit output files

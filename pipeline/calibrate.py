@@ -36,27 +36,33 @@ _PARK_HI = 118.0
 
 
 def _model_total(params: list[float], features: list[float]) -> float:
-    """Mirror of predictor._predicted_runs using comps feature indices.
+    """Mirror of predictor._predicted_runs() mapped onto comps feature indices.
 
-    Feature sign convention:
-      - features[2] (away SP): higher = worse pitcher → allows more home runs (+)
-      - features[0] (home SP): higher = worse pitcher → allows more away runs (+)
-      - features[4] (home xwOBA): higher = better offense → more home runs (+)
-      - features[5] (away xwOBA): higher = better offense → more away runs (+)
+    Sign convention (important — features are NOT the same scale as predictor scores):
+      comps features[0/2] = xFIP normalized (0=elite/low xFIP, 1=terrible/high xFIP)
+      predictor away_pitcher_score = inverted (0=terrible, 1=elite)
+
+      Equivalence:
+        predictor: home_runs ∝ 1 − (away_pitcher_score − 0.5) * w_pit
+                             = 1 − ((1 − features[2]) − 0.5) * w_pit
+                             = 1 + (features[2] − 0.5) * w_pit   ← uses +, not −
+
+      So + sign for pitcher terms here is CORRECT even though predictor.py uses −.
+      A bad away pitcher (features[2]=0.8) adds +0.3*w_pit → more home runs ✓
     """
     baseline, w_pit, w_lin = params
     park_mult = (_PARK_LO + features[6] * (_PARK_HI - _PARK_LO)) / 100.0
 
     home_runs = baseline * (
         1.0
-        + (features[4] - 0.5) * w_lin   # home offense edge
-        + (features[2] - 0.5) * w_pit   # away pitcher "badness" edge
+        + (features[4] - 0.5) * w_lin   # home offense edge (higher xwOBA = more runs)
+        + (features[2] - 0.5) * w_pit   # away pitcher "badness" (higher xFIP = more runs)
     ) * park_mult
 
     away_runs = baseline * (
         1.0
         + (features[5] - 0.5) * w_lin   # away offense edge
-        + (features[0] - 0.5) * w_pit   # home pitcher "badness" edge
+        + (features[0] - 0.5) * w_pit   # home pitcher "badness"
     ) * park_mult
 
     return home_runs + away_runs

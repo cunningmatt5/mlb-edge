@@ -264,10 +264,14 @@ def compute_stats(results: list[dict]) -> dict:
     pc = sum(1 for r in pitcher_signal if r["correct"])
     pitcher_acc = {"total": pn, "correct": pc, "pct": round(pc / pn, 4) if pn > 0 else None}
 
-    # Signal accuracy: comps (when comps_home_win_rate present and matches predicted winner)
-    comps_signal = [r for r in decided if r.get("comps_home_win_rate") is not None]
-    cn = len(comps_signal)
-    cc = sum(1 for r in comps_signal if r["correct"])
+    # Signal accuracy: comps (games where comps agreed with predicted winner direction)
+    comps_agreed = [
+        r for r in decided
+        if r.get("comps_home_win_rate") is not None
+        and ((r["comps_home_win_rate"] >= 0.5) == (r["predicted_winner"] == "home"))
+    ]
+    cn = len(comps_agreed)
+    cc = sum(1 for r in comps_agreed if r["correct"])
     comps_acc = {"total": cn, "correct": cc, "pct": round(cc / cn, 4) if cn > 0 else None}
 
     return {
