@@ -83,6 +83,13 @@ def _parse_game(raw: dict) -> dict | None:
     else:
         inning_state = None
 
+    # Lineups are returned at the game level under raw["lineups"]["homePlayers"] /
+    # ["awayPlayers"] — NOT nested inside teams.home.  The team-level "lineup" /
+    # "battingOrder" keys do not exist in the schedule API response.
+    game_lineups = raw.get("lineups", {})
+    home_lineup_ids = [p["id"] for p in game_lineups.get("homePlayers", []) if "id" in p]
+    away_lineup_ids = [p["id"] for p in game_lineups.get("awayPlayers", []) if "id" in p]
+
     return {
         "gamePk":          raw["gamePk"],
         "gameTime":        raw.get("gameDate", ""),
@@ -95,8 +102,8 @@ def _parse_game(raw: dict) -> dict | None:
         "home_sp_name":    home_sp.get("fullName", ""),
         "away_sp_id":      away_sp["id"],
         "away_sp_name":    away_sp.get("fullName", ""),
-        "home_lineup":     _extract_lineup(home),
-        "away_lineup":     _extract_lineup(away),
+        "home_lineup":     home_lineup_ids,
+        "away_lineup":     away_lineup_ids,
         "umpire":          _extract_hp_umpire(raw),
         "game_status":     abstract_state.lower(),
         "home_score":      ls_teams.get("home", {}).get("runs"),
@@ -115,23 +122,3 @@ def _extract_hp_umpire(raw: dict) -> str:
     return ""
 
 
-def _extract_lineup(team_data: dict) -> list[int]:
-    """Extract posted batting order MLBAM IDs, or return empty list.
-
-    The schedule API with hydrate=lineups returns lineup as a list of player
-    dicts under the key 'lineup'.  The game-feed boxscore uses 'battingOrder'
-    (a flat list of integer IDs) — try both so we work in either context.
-    """
-    batters = team_data.get("lineup") or team_data.get("battingOrder") or []
-    ids = []
-    for b in batters:
-        if isinstance(b, dict):
-            pid = b.get("id") or b.get("person", {}).get("id")
-            if pid:
-                ids.append(int(pid))
-        elif isinstance(b, (int, str)):
-            try:
-                ids.append(int(b))
-            except ValueError:
-                pass
-    return ids
