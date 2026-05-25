@@ -486,14 +486,6 @@ header {
   margin: 0 2px;
 }
 
-.pse-label {
-  font-size: 9px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  align-self: flex-end;
-  padding-bottom: 2px;
-}
 
 .expand-arrow {
   font-size: 11px;

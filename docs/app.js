@@ -274,7 +274,6 @@ function statusStrip(g) {
     <span class="pse-dash">–</span>
     <strong class="pse-num pse-home">${pred.predicted_home_runs}</strong>
     <span class="pse-team">${abbrev(g.home_team)}</span>
-    <small class="pse-label">est</small>
   </span>` : '<span></span>';
   return `
 <div class="pred-strip">
