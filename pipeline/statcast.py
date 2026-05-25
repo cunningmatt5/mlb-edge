@@ -199,7 +199,7 @@ def _fetch_savant_csv(url: str, label: str) -> pd.DataFrame:
 def _fetch_savant_pitcher_stats(season: int) -> pd.DataFrame:
     url = (
         f"{SAVANT_BASE}/expected_statistics"
-        f"?type=pitcher&year={season}&position=&team=&min=q&csv=true"
+        f"?type=pitcher&year={season}&position=&team=&min=10&csv=true"
     )
     return _fetch_savant_csv(url, "pitcher-expected")
 
@@ -234,10 +234,11 @@ def _fetch_savant_pitcher_leaderboard(season: int) -> pd.DataFrame:
     Used as a FanGraphs fallback when FG returns 403. Key columns:
       player_id, p_era, xera, k_percent, bb_percent, whiff_percent, stuff_plus
     All percentage columns are whole numbers (25.0 = 25%) — divide by 100 on merge.
+    min=10 includes spot starters / call-ups with ~half a start of data.
     """
     url = (
         f"{SAVANT_BASE}/leaderboard/statcast"
-        f"?type=pitcher&year={season}&position=&team=&min=q&csv=true"
+        f"?type=pitcher&year={season}&position=&team=&min=10&csv=true"
     )
     return _fetch_savant_csv(url, "pitcher-leaderboard")
 
