@@ -1,18 +1,23 @@
-"""Download and parse SBRO historical MLB closing lines, join to games.parquet.
+"""Download historical MLB closing lines, join to games.parquet.
 
-Sports Book Reviews Online (SBRO) provides free Excel archives of historical
-MLB closing moneylines and totals. This module downloads those files, parses
-the two-rows-per-game format (visitor row + home row), and joins to the
-games.parquet produced by historical.py, outputting closing_lines.parquet.
+Two data sources:
+  - SBRO (Sports Book Reviews Online): free Excel archives, 2019–2021
+  - The Odds API: professional plan required, 2022–present
 
 Usage:
-    python -m pipeline.odds_historical --seasons 2019,2020,2021,2022,2023,2024
+    # SBRO (free, 2019-2021)
+    python -m pipeline.odds_historical --seasons 2019,2020,2021
+
+    # The Odds API (requires Professional plan key, 2022-2024)
+    python -m pipeline.odds_historical --seasons 2022,2023,2024 --source odds_api --api-key YOUR_KEY
 """
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import re
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -21,9 +26,13 @@ import requests
 
 log = logging.getLogger(__name__)
 
-SBRO_BASE   = "https://www.sportsbookreviewsonline.com/scoresoddsarchives/mlb"
-TIMEOUT     = 45
-SEASONS_DIR = Path(__file__).parent.parent / "data" / "seasons"
+SBRO_BASE      = "https://www.sportsbookreviewsonline.com/scoresoddsarchives/mlb"
+ODDS_API_BASE  = "https://api.the-odds-api.com/v4"
+TIMEOUT        = 45
+SEASONS_DIR    = Path(__file__).parent.parent / "data" / "seasons"
+
+# Bookmaker preference order for The Odds API (Pinnacle = sharpest closing line)
+_PREFERRED_BOOKS = ["pinnacle", "draftkings", "fanduel", "betmgm", "williamhill_us"]
 
 _HEADERS = {
     "User-Agent": (
@@ -408,8 +417,25 @@ def _norm_team(name: str) -> str:
     return re.sub(r"[^a-z0-9]", "", str(name).lower())
 
 
-def build_season_closing_lines(season: int, seasons_dir: Optional[Path] = None) -> None:
-    """Download SBRO data for one season, join to games.parquet, save closing_lines.parquet."""
+def build_season_closing_lines(
+    season: int,
+    seasons_dir: Optional[Path] = None,
+    source: str = "sbro",
+    api_key: Optional[str] = None,
+) -> None:
+    """Build closing_lines.parquet for one season.
+
+    source="sbro"     — download from SBRO Excel archives (free, 2019–2021)
+    source="odds_api" — fetch from The Odds API (requires Professional plan, 2022+)
+    """
+    if source == "odds_api":
+        if not api_key:
+            log.error("Odds API %d: --api-key / ODDS_API_KEY required for source=odds_api", season)
+            return
+        fetch_odds_api_historical_season(season, api_key, seasons_dir)
+        return
+
+    # --- SBRO path ---
     if seasons_dir is None:
         seasons_dir = SEASONS_DIR
     output_dir = seasons_dir / str(season)
@@ -420,7 +446,6 @@ def build_season_closing_lines(season: int, seasons_dir: Optional[Path] = None) 
         log.info("SBRO %d: closing_lines.parquet exists — skipping", season)
         return
 
-    # Need games.parquet first
     games_path = output_dir / "games.parquet"
     if not games_path.exists():
         log.error("SBRO %d: games.parquet not found — run historical.py first", season)
@@ -437,40 +462,210 @@ def build_season_closing_lines(season: int, seasons_dir: Optional[Path] = None) 
         return
 
     games_df = pd.read_parquet(games_path)
+    _save_closing_lines_from_df(sbro_df, games_df, season, out_path, source="SBRO")
 
-    # Normalize for join
-    from pipeline.odds import no_vig_prob
 
-    games_df["_dn"]  = games_df["date"].astype(str)
-    games_df["_hn"]  = games_df["home_team"].apply(_norm_team)
-    games_df["_an"]  = games_df["away_team"].apply(_norm_team)
+# ---------------------------------------------------------------------------
+# The Odds API historical fetch (2022+)
+# ---------------------------------------------------------------------------
 
-    sbro_df["_dn"]   = sbro_df["date"].astype(str)
-    sbro_df["_hn"]   = sbro_df["home_team"].apply(_norm_team)
-    sbro_df["_an"]   = sbro_df["away_team"].apply(_norm_team)
+def _parse_odds_api_event(event: dict, date: str) -> Optional[dict]:
+    """Parse one Odds API event dict → closing lines record."""
+    home_team = event.get("home_team", "")
+    away_team = event.get("away_team", "")
 
-    # Primary join: date + teams
-    merged = games_df.merge(
-        sbro_df[[
-            "_dn", "_hn", "_an",
-            "home_ml", "away_ml", "closing_total",
-            "home_score", "away_score",
-        ]].rename(columns={
-            "home_score": "_sbro_home",
-            "away_score": "_sbro_away",
-        }),
-        on=["_dn", "_hn", "_an"],
-        how="left",
+    bookmakers = event.get("bookmakers", [])
+    bm_by_key  = {bm["key"]: bm for bm in bookmakers}
+
+    bm = None
+    for key in _PREFERRED_BOOKS:
+        if key in bm_by_key:
+            bm = bm_by_key[key]
+            break
+    if bm is None and bookmakers:
+        bm = bookmakers[0]
+    if bm is None:
+        return None
+
+    markets = {m["key"]: m for m in bm.get("markets", [])}
+
+    home_ml = away_ml = None
+    if "h2h" in markets:
+        hn = _norm_team(home_team)
+        an = _norm_team(away_team)
+        for outcome in markets["h2h"].get("outcomes", []):
+            on = _norm_team(outcome.get("name", ""))
+            if on == hn:
+                home_ml = outcome.get("price")
+            elif on == an:
+                away_ml = outcome.get("price")
+
+    closing_total = over_price = under_price = None
+    if "totals" in markets:
+        for outcome in markets["totals"].get("outcomes", []):
+            nm = outcome.get("name", "").lower()
+            if nm == "over":
+                closing_total = outcome.get("point")
+                over_price    = outcome.get("price")
+            elif nm == "under":
+                under_price = outcome.get("price")
+
+    return {
+        "date":          date,
+        "home_team":     home_team,
+        "away_team":     away_team,
+        "home_ml":       home_ml,
+        "away_ml":       away_ml,
+        "closing_total": closing_total,
+        "over_price":    over_price  if over_price  else -110,
+        "under_price":   under_price if under_price else -110,
+    }
+
+
+def fetch_odds_api_historical_season(
+    season: int,
+    api_key: str,
+    seasons_dir: Optional[Path] = None,
+) -> None:
+    """Fetch one season of closing lines from The Odds API historical endpoint.
+
+    Queries once per unique game date at {date}T22:00:00Z (6 PM ET snapshot,
+    covers pre-game closing lines for ~90% of games).
+
+    Progress is cached to odds_api_cache.json so interrupted runs resume
+    without re-fetching already-completed dates.
+
+    Requires The Odds API Professional plan ($29/month).
+    Each season costs ~170 API calls (one per game date).
+    """
+    if seasons_dir is None:
+        seasons_dir = SEASONS_DIR
+    output_dir = seasons_dir / str(season)
+
+    games_path = output_dir / "games.parquet"
+    if not games_path.exists():
+        log.error("Odds API %d: games.parquet not found — run historical.py first", season)
+        return
+
+    out_path = output_dir / "closing_lines.parquet"
+    if out_path.exists():
+        log.info("Odds API %d: closing_lines.parquet exists — skipping", season)
+        return
+
+    cache_path = output_dir / "odds_api_cache.json"
+    if cache_path.exists():
+        with open(cache_path) as f:
+            cache: dict = json.load(f)
+        log.info("Odds API %d: loaded cache — %d dates already fetched", season, len(cache))
+    else:
+        cache = {}
+
+    games_df = pd.read_parquet(games_path)
+    all_dates = sorted(games_df["date"].astype(str).unique())
+    remaining = [d for d in all_dates if d not in cache]
+    log.info(
+        "Odds API %d: %d game dates total, %d cached, %d to fetch",
+        season, len(all_dates), len(all_dates) - len(remaining), len(remaining),
     )
 
-    # Deduplicate doubleheaders: when multiple SBRO rows matched the same game,
-    # prefer the row whose score matches the MLB API score
+    url = f"{ODDS_API_BASE}/sports/baseball_mlb/odds-history/"
+
+    for i, date in enumerate(remaining):
+        params = {
+            "apiKey":      api_key,
+            "regions":     "us",
+            "markets":     "h2h,totals",
+            "oddsFormat":  "american",
+            "date":        f"{date}T22:00:00Z",
+        }
+        try:
+            r = requests.get(url, params=params, timeout=TIMEOUT)
+            quota_left = r.headers.get("x-requests-remaining", "?")
+
+            if r.status_code == 401:
+                log.error(
+                    "Odds API %d: 401 Unauthorized — verify ODDS_API_KEY and "
+                    "that account is on Professional plan or higher", season,
+                )
+                break
+            if r.status_code == 429:
+                log.error("Odds API %d: 429 quota exhausted — %d dates remain unfetched", season, len(remaining) - i)
+                break
+            if r.status_code == 422:
+                log.warning("Odds API %d: 422 for %s — date out of plan's history window", season, date)
+                cache[date] = []
+            elif r.status_code != 200:
+                log.warning("Odds API %d: HTTP %d for %s — caching empty", season, r.status_code, date)
+                cache[date] = []
+            else:
+                body   = r.json()
+                events = body.get("data", []) if isinstance(body, dict) else body
+                cache[date] = events if isinstance(events, list) else []
+                log.info(
+                    "Odds API %d: %s → %d events  (quota remaining: %s)",
+                    season, date, len(cache[date]), quota_left,
+                )
+        except Exception as exc:
+            log.warning("Odds API %d: request error for %s: %s", season, date, exc)
+            cache[date] = []
+
+        # Save progress after every date — allows resuming if interrupted
+        with open(cache_path, "w") as f:
+            json.dump(cache, f)
+
+        if i < len(remaining) - 1:
+            time.sleep(0.3)  # ~3 requests/sec — polite and well within rate limits
+
+    # Build records DataFrame from cache
+    records = []
+    for date, events in cache.items():
+        for event in (events or []):
+            rec = _parse_odds_api_event(event, date)
+            if rec:
+                records.append(rec)
+
+    if not records:
+        log.error("Odds API %d: no records in cache — closing_lines.parquet not saved", season)
+        return
+
+    _save_closing_lines_from_df(pd.DataFrame(records), games_df, season, out_path, source="Odds API")
+
+
+def _save_closing_lines_from_df(
+    odds_df: pd.DataFrame,
+    games_df: pd.DataFrame,
+    season: int,
+    out_path: Path,
+    source: str = "SBRO",
+) -> None:
+    """Join an odds DataFrame to games_df and save closing_lines.parquet."""
+    from pipeline.odds import no_vig_prob
+
+    odds_df["_dn"] = odds_df["date"].astype(str)
+    odds_df["_hn"] = odds_df["home_team"].apply(_norm_team)
+    odds_df["_an"] = odds_df["away_team"].apply(_norm_team)
+
+    games_df = games_df.copy()
+    games_df["_dn"] = games_df["date"].astype(str)
+    games_df["_hn"] = games_df["home_team"].apply(_norm_team)
+    games_df["_an"] = games_df["away_team"].apply(_norm_team)
+
+    odds_cols = ["_dn", "_hn", "_an", "home_ml", "away_ml", "closing_total",
+                 "over_price", "under_price"]
+    score_cols = [c for c in ["home_score", "away_score"] if c in odds_df.columns]
+    rename_map = {c: f"_src_{c}" for c in score_cols}
+    odds_sel   = odds_df[odds_cols + score_cols].rename(columns=rename_map)
+
+    merged = games_df.merge(odds_sel, on=["_dn", "_hn", "_an"], how="left")
+
+    # Doubleheader disambiguation: prefer the row whose score matches MLB API
     if merged.duplicated(subset=["game_pk"]).any():
-        score_match = (
-            (merged["home_score"] == merged["_sbro_home"]) &
-            (merged["away_score"] == merged["_sbro_away"])
-        )
-        # Keep score-matching rows; for non-duplicates keep as-is
+        score_match = pd.Series(False, index=merged.index)
+        if "_src_home_score" in merged.columns:
+            score_match = (
+                (merged["home_score"] == merged["_src_home_score"]) &
+                (merged["away_score"] == merged["_src_away_score"])
+            )
         dupes = merged.duplicated(subset=["game_pk"], keep=False)
         merged = pd.concat([
             merged[~dupes],
@@ -478,10 +673,9 @@ def build_season_closing_lines(season: int, seasons_dir: Optional[Path] = None) 
             merged[dupes & ~score_match].drop_duplicates(subset=["game_pk"], keep="first"),
         ]).drop_duplicates(subset=["game_pk"], keep="first")
 
-    # Compute no-vig implied probabilities
+    # No-vig implied probabilities
     def _implied(row):
-        hml = row["home_ml"]
-        aml = row["away_ml"]
+        hml, aml = row.get("home_ml"), row.get("away_ml")
         if pd.notna(hml) and pd.notna(aml):
             try:
                 hp, ap = no_vig_prob(int(hml), int(aml))
@@ -490,39 +684,35 @@ def build_season_closing_lines(season: int, seasons_dir: Optional[Path] = None) 
                 pass
         return None, None
 
-    probs = merged.apply(lambda r: pd.Series(_implied(r), index=["home_implied_prob", "away_implied_prob"]), axis=1)
+    probs  = merged.apply(
+        lambda r: pd.Series(_implied(r), index=["home_implied_prob", "away_implied_prob"]), axis=1
+    )
     merged = pd.concat([merged, probs], axis=1)
+    merged["over_price"]  = merged.get("over_price",  pd.Series(-110, index=merged.index)).fillna(-110)
+    merged["under_price"] = merged.get("under_price", pd.Series(-110, index=merged.index)).fillna(-110)
 
-    # Default over/under price to -110 (SBRO doesn't always include)
-    merged["over_price"]  = -110
-    merged["under_price"] = -110
-
-    keep = [
-        "game_pk", "date", "home_team", "away_team",
-        "home_score", "away_score",
-        "home_ml", "away_ml", "closing_total",
-        "over_price", "under_price",
-        "home_implied_prob", "away_implied_prob",
-    ]
-    out_df = merged[[c for c in keep if c in merged.columns]].copy()
-    out_df = out_df.drop_duplicates(subset=["game_pk"])
+    keep   = ["game_pk", "date", "home_team", "away_team",
+              "home_score", "away_score",
+              "home_ml", "away_ml", "closing_total",
+              "over_price", "under_price",
+              "home_implied_prob", "away_implied_prob"]
+    out_df = merged[[c for c in keep if c in merged.columns]].drop_duplicates(subset=["game_pk"])
 
     n_matched = out_df["home_ml"].notna().sum()
     match_pct = n_matched / max(len(out_df), 1) * 100
     log.info(
-        "SBRO %d: %d games total, %d matched closing lines (%.1f%%)",
-        season, len(out_df), n_matched, match_pct,
+        "%s %d: %d games, %d matched (%.1f%%)",
+        source, season, len(out_df), n_matched, match_pct,
     )
     if match_pct < 50:
         log.warning(
-            "SBRO %d: low match rate — team name mapping may need adjustment. "
-            "Sample unmatched home teams: %s",
-            season,
+            "%s %d: low match rate — sample unmatched home teams: %s",
+            source, season,
             list(merged.loc[merged["home_ml"].isna(), "home_team"].unique()[:5]),
         )
 
     out_df.to_parquet(out_path, index=False)
-    log.info("SBRO %d: saved closing_lines.parquet (%d rows)", season, len(out_df))
+    log.info("%s %d: saved closing_lines.parquet (%d rows)", source, season, len(out_df))
 
 
 # ---------------------------------------------------------------------------
@@ -530,21 +720,34 @@ def build_season_closing_lines(season: int, seasons_dir: Optional[Path] = None) 
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    import os
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s  %(levelname)-7s  %(message)s",
         datefmt="%H:%M:%S",
     )
-    parser = argparse.ArgumentParser(description="Build historical closing lines from SBRO")
+    parser = argparse.ArgumentParser(description="Build historical closing lines")
     parser.add_argument(
         "--seasons",
-        default="2019,2020,2021,2022,2023,2024",
-        help="Comma-separated years (e.g. 2019,2020,2021,2022,2023,2024)",
+        default="2019,2020,2021",
+        help="Comma-separated years (e.g. 2019,2020,2021)",
+    )
+    parser.add_argument(
+        "--source",
+        choices=["sbro", "odds_api"],
+        default="sbro",
+        help="Data source: sbro (free, 2019-2021) or odds_api (Professional plan, 2022+)",
+    )
+    parser.add_argument(
+        "--api-key",
+        default=os.environ.get("ODDS_API_KEY", ""),
+        help="The Odds API key (or set ODDS_API_KEY env var)",
     )
     args = parser.parse_args()
 
     base = Path(__file__).parent.parent / "data" / "seasons"
     for s in args.seasons.split(","):
         season = int(s.strip())
-        log.info("=== Building closing lines for %d ===", season)
-        build_season_closing_lines(season, base)
+        log.info("=== Building closing lines for %d [source=%s] ===", season, args.source)
+        build_season_closing_lines(season, base, source=args.source, api_key=args.api_key or None)

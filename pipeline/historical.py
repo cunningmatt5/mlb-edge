@@ -32,7 +32,13 @@ log = logging.getLogger(__name__)
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def pull_season_data(season: int, output_dir: Path, with_odds: bool = False) -> None:
+def pull_season_data(
+    season: int,
+    output_dir: Path,
+    with_odds: bool = False,
+    odds_source: str = "sbro",
+    odds_api_key: Optional[str] = None,
+) -> None:
     """Pull and persist all data for one season. Idempotent — skips existing files."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -74,7 +80,9 @@ def pull_season_data(season: int, output_dir: Path, with_odds: bool = False) -> 
 
     if with_odds:
         from pipeline.odds_historical import build_season_closing_lines
-        build_season_closing_lines(season, output_dir.parent)
+        build_season_closing_lines(
+            season, output_dir.parent, source=odds_source, api_key=odds_api_key
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -285,14 +293,25 @@ if __name__ == "__main__":
         format="%(asctime)s  %(levelname)-7s  %(message)s",
         datefmt="%H:%M:%S",
     )
+    import os
+
     parser = argparse.ArgumentParser(description="Pull historical MLB season data")
     parser.add_argument("--seasons", default="2023,2024", help="Comma-separated years, e.g. 2023,2024")
     parser.add_argument("--with-odds", action="store_true",
-                        help="Also download and join SBRO closing lines after game data")
+                        help="Also build closing_lines.parquet after game data pull")
+    parser.add_argument("--odds-source", choices=["sbro", "odds_api"], default="sbro",
+                        help="Odds source: sbro (free, 2019-2021) or odds_api (2022+, requires key)")
+    parser.add_argument("--api-key", default=os.environ.get("ODDS_API_KEY", ""),
+                        help="The Odds API key (or set ODDS_API_KEY env var)")
     args = parser.parse_args()
 
     base = Path(__file__).parent.parent / "data" / "seasons"
     for s in args.seasons.split(","):
         season = int(s.strip())
         log.info("=== Pulling season %d ===", season)
-        pull_season_data(season, base / str(season), with_odds=args.with_odds)
+        pull_season_data(
+            season, base / str(season),
+            with_odds=args.with_odds,
+            odds_source=args.odds_source,
+            odds_api_key=args.api_key or None,
+        )

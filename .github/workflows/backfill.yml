@@ -11,6 +11,10 @@ on:
         description: 'Prior seasons needed for lookahead-safe pitcher caches (e.g. 2018,2022,2023)'
         required: false
         default: '2022,2023'
+      odds_source:
+        description: 'Odds data source: sbro (free, 2019-2021) or odds_api (Professional plan, 2022+)'
+        required: false
+        default: 'sbro'
 
 permissions:
   contents: write
@@ -41,8 +45,13 @@ jobs:
         if: "${{ github.event.inputs.prior_seasons != '' }}"
         run: python -m pipeline.historical --seasons "${{ github.event.inputs.prior_seasons }}"
 
-      - name: Pull historical season data + SBRO closing lines
-        run: python -m pipeline.historical --seasons "${{ github.event.inputs.seasons }}" --with-odds
+      - name: Pull historical season data + closing lines
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          python -m pipeline.historical --seasons "${{ github.event.inputs.seasons }}" \
+            --with-odds \
+            --odds-source "${{ github.event.inputs.odds_source }}"
 
       - name: Run backtest with EV stats
         run: python -m pipeline.backtest --seasons "${{ github.event.inputs.seasons }}"
