@@ -24,6 +24,13 @@ _PROP_MARKET_MAP = {
 }
 
 
+def _next_day(date_str: str) -> str:
+    """Return the ISO date string for the day after date_str (YYYY-MM-DD)."""
+    from datetime import date as _date, timedelta as _td
+    d = _date.fromisoformat(date_str)
+    return (d + _td(days=1)).isoformat()
+
+
 def fetch_mlb_game_lines(api_key: str, date_str: str) -> dict:
     """Return game-level odds keyed by normalized '{away}@{home}' matchup string.
 
@@ -46,7 +53,8 @@ def fetch_mlb_game_lines(api_key: str, date_str: str) -> dict:
             "oddsFormat": "american",
             "dateFormat": "iso",
             "commenceTimeFrom": f"{date_str}T00:00:00Z",
-            "commenceTimeTo":   f"{date_str}T23:59:59Z",
+            # End at 06:00 UTC next day — covers night games past midnight UTC (8 PM ET+)
+            "commenceTimeTo":   f"{_next_day(date_str)}T06:00:00Z",
         }
         r = requests.get(
             f"{ODDS_API_BASE}/sports/baseball_mlb/odds/",
