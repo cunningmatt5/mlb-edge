@@ -11,7 +11,7 @@ Enhancement: weather modifier and subject_side for track record grading.
 from __future__ import annotations
 
 from pipeline.park_factors import get_run_factor
-from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean
+from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean, bullpen_score
 from pipeline.umpire import compute_umpire_modifier
 from pipeline.weather import compute_weather_modifier
 
@@ -33,6 +33,13 @@ def score_team_totals(game: dict, cache: dict) -> list[dict]:
         xfip_s  = 1.0 - normalize(opp_sp.get("xfip"),  lo=2.50, hi=5.50)
         siera_s = 1.0 - normalize(opp_sp.get("siera"), lo=2.50, hi=5.50)
         sp_suppress = weighted_avg([(xfip_s, 0.50), (siera_s, 0.50)])
+
+        # Blend starter (60%) + bullpen (40%) for full-game suppression
+        sp_team_name = game.get(f"{sp_side}Team", "")
+        bp_data = cache.get(f"bullpen:{sp_team_name}", {})
+        if bp_data:
+            bp = bullpen_score(bp_data)
+            sp_suppress = sp_suppress * 0.60 + bp * 0.40
 
         lineup = [cache[b] for b in game.get(f"{offense_side}_lineup", []) if b in cache]
         lineup_xwoba = lineup_weighted_mean(lineup, "xwoba", sp_throws=sp_throws) or 0.320
@@ -72,6 +79,7 @@ def score_team_totals(game: dict, cache: dict) -> list[dict]:
                         "lineup_xwoba":    round(lineup_xwoba, 3),
                         "sp_xfip":         opp_sp.get("xfip"),
                         "sp_siera":        opp_sp.get("siera"),
+                        "bullpen_xera":    bp_data.get("xera") if bp_data else None,
                         "park_run_factor":  get_run_factor(venue),
                         "sp_suppress":     round(sp_suppress, 3),
                         "offense_score":   round(offense_s, 3),

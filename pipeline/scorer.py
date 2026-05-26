@@ -64,6 +64,28 @@ def batter_edge_score(b: dict, sp_throws: str | None = None) -> float | None:
     return round(sum(v * w for v, w in valid) / total_w * 100, 1)
 
 
+def bullpen_score(bp: dict) -> float:
+    """Composite bullpen run-suppression strength on [0, 1]; 1 = elite, 0 = poor.
+
+    Weighted by: xERA (45%), K% (30%), BB% (15%), whiff% (10%).
+    Returns 0.5 (neutral) when no data is available.
+    """
+    pairs: list[tuple[float, float]] = []
+    xera = bp.get("xera")
+    k_pct = bp.get("k_pct")
+    bb_pct = bp.get("bb_pct")
+    whiff = bp.get("whiff_pct")
+    if xera is not None:
+        pairs.append((1.0 - normalize(xera, lo=2.80, hi=5.50), 0.45))
+    if k_pct is not None:
+        pairs.append((normalize(k_pct, lo=0.18, hi=0.34), 0.30))
+    if bb_pct is not None:
+        pairs.append((1.0 - normalize(bb_pct, lo=0.06, hi=0.14), 0.15))
+    if whiff is not None:
+        pairs.append((normalize(whiff, lo=0.18, hi=0.34), 0.10))
+    return weighted_avg(pairs) if pairs else 0.5
+
+
 def lineup_weighted_mean(
     players: list[dict], stat: str, sp_throws: str | None = None
 ) -> float | None:

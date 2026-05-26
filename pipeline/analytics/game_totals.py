@@ -10,7 +10,7 @@ Enhancement: wind and temperature apply a weather modifier.
 from __future__ import annotations
 
 from pipeline.park_factors import get_run_factor
-from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean
+from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean, bullpen_score
 from pipeline.umpire import compute_umpire_modifier
 from pipeline.weather import compute_weather_modifier
 
@@ -33,8 +33,17 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
         siera_s = 1.0 - normalize(sp.get("siera"), lo=2.50, hi=5.50)
         return weighted_avg([(xfip_s, 0.50), (siera_s, 0.50)])
 
-    home_supp      = sp_suppress(home_sp)
-    away_supp      = sp_suppress(away_sp)
+    home_bp = cache.get(f"bullpen:{game.get('homeTeam', '')}", {})
+    away_bp = cache.get(f"bullpen:{game.get('awayTeam', '')}", {})
+
+    def effective_suppress(sp: dict, bp: dict) -> float:
+        sp_s = sp_suppress(sp)
+        if bp:
+            return sp_s * 0.60 + bullpen_score(bp) * 0.40
+        return sp_s
+
+    home_supp      = effective_suppress(home_sp, home_bp)
+    away_supp      = effective_suppress(away_sp, away_bp)
     avg_suppression = (home_supp + away_supp) / 2.0
 
     home_sp_throws = home_sp.get("throws") or game.get("home_sp_throws")
@@ -81,6 +90,8 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
                     "away_sp_xfip":       away_sp.get("xfip"),
                     "home_sp_siera":      home_sp.get("siera"),
                     "away_sp_siera":      away_sp.get("siera"),
+                    "home_bullpen_xera":  home_bp.get("xera") if home_bp else None,
+                    "away_bullpen_xera":  away_bp.get("xera") if away_bp else None,
                     "avg_lineup_xwoba":   round(avg_xwoba, 3),
                     "park_run_factor":    park_run,
                     "avg_suppression":    round(avg_suppression, 3),

@@ -21,6 +21,47 @@ import requests
 log = logging.getLogger(__name__)
 
 SAVANT_BASE = "https://baseballsavant.mlb.com"
+
+# Full team name → Savant abbreviation
+_TEAM_ABBREVS: dict[str, str] = {
+    "Arizona Diamondbacks":  "ARI",
+    "Atlanta Braves":        "ATL",
+    "Baltimore Orioles":     "BAL",
+    "Boston Red Sox":        "BOS",
+    "Chicago Cubs":          "CHC",
+    "Chicago White Sox":     "CWS",
+    "Cincinnati Reds":       "CIN",
+    "Cleveland Guardians":   "CLE",
+    "Colorado Rockies":      "COL",
+    "Detroit Tigers":        "DET",
+    "Houston Astros":        "HOU",
+    "Kansas City Royals":    "KC",
+    "Los Angeles Angels":    "LAA",
+    "Los Angeles Dodgers":   "LAD",
+    "Miami Marlins":         "MIA",
+    "Milwaukee Brewers":     "MIL",
+    "Minnesota Twins":       "MIN",
+    "New York Mets":         "NYM",
+    "New York Yankees":      "NYY",
+    "Athletics":             "OAK",   # Sacramento Athletics (2025+)
+    "Oakland Athletics":     "OAK",
+    "Philadelphia Phillies": "PHI",
+    "Pittsburgh Pirates":    "PIT",
+    "San Diego Padres":      "SD",
+    "San Francisco Giants":  "SF",
+    "Seattle Mariners":      "SEA",
+    "St. Louis Cardinals":   "STL",
+    "Tampa Bay Rays":        "TB",
+    "Texas Rangers":         "TEX",
+    "Toronto Blue Jays":     "TOR",
+    "Washington Nationals":  "WSH",
+}
+_ABBREV_TO_FULL: dict[str, str] = {v: k for k, v in _TEAM_ABBREVS.items()}
+
+
+def team_abbrev(full_name: str) -> str:
+    """Map a full MLB team name to its Savant abbreviation, e.g. 'New York Yankees' → 'NYY'."""
+    return _TEAM_ABBREVS.get(full_name, "")
 _HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -109,7 +150,13 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
     for mlbam_id in batter_ids:
         _merge_batter_game_log(cache[mlbam_id], mlbam_id, season)
 
-    log.info("Player cache built: %d entries", len(cache))
+    # --- Team bullpen aggregates (stored under "bullpen:{full_team_name}" keys) ---
+    bullpen_by_team = _build_team_bullpen_cache(season)
+    for full_name, bp_stats in bullpen_by_team.items():
+        cache[f"bullpen:{full_name}"] = bp_stats
+
+    log.info("Player cache built: %d player entries + %d bullpen team entries",
+             len(cache) - len(bullpen_by_team), len(bullpen_by_team))
     return cache
 
 
@@ -258,6 +305,15 @@ def _fetch_savant_batter_splits(season: int, split: str) -> pd.DataFrame:
         f"?type=batter&year={season}&position=&team=&min=30&splits={split}&csv=true"
     )
     return _fetch_savant_csv(url, f"batter-{split}")
+
+
+def _fetch_savant_rp_leaderboard(season: int) -> pd.DataFrame:
+    """Savant statcast RP leaderboard: same columns as SP leaderboard but position=RP."""
+    url = (
+        f"{SAVANT_BASE}/leaderboard/statcast"
+        f"?type=pitcher&year={season}&position=RP&team=&min=5&csv=true"
+    )
+    return _fetch_savant_csv(url, "rp-leaderboard")
 
 
 def _fetch_savant_pitcher_leaderboard(season: int) -> pd.DataFrame:
@@ -516,6 +572,76 @@ def _merge_batter_split(entry: dict, df: pd.DataFrame, mlbam_id: int, split: str
     bb_pct = g("bb_percent")
     if bb_pct is not None:
         entry[f"bb_pct{suffix}"] = round(bb_pct / 100.0, 4)
+
+
+# ---------------------------------------------------------------------------
+# Team bullpen aggregation
+# ---------------------------------------------------------------------------
+
+def _build_team_bullpen_cache(season: int) -> dict[str, dict]:
+    """Fetch RP leaderboard and return IP-weighted xERA/K%/BB%/whiff% keyed by full team name.
+
+    Relievers are identified via position=RP on the Savant endpoint (min 5 IP).
+    Each team's bullpen is aggregated by weighting each pitcher's metrics by their IP.
+    Cache keys use full team names so callers don't need a separate lookup.
+    """
+    df = _fetch_savant_rp_leaderboard(season)
+    if df.empty:
+        return {}
+
+    team_col = next(
+        (c for c in ("team_name_alt", "team", "team_abbrev", "player_team") if c in df.columns),
+        None,
+    )
+    if not team_col:
+        log.warning("RP leaderboard: no team column found among %s", list(df.columns))
+        return {}
+
+    def _safe_float(v):
+        try:
+            f = float(v)
+            return f if str(v) not in ("", "nan") else None
+        except (TypeError, ValueError):
+            return None
+
+    result: dict[str, dict] = {}
+    for abbrev_raw, grp in df.groupby(team_col):
+        abbrev = str(abbrev_raw).strip()
+        full_name = _ABBREV_TO_FULL.get(abbrev, abbrev)
+
+        ips = pd.Series([_safe_float(v) or 0.0 for v in (grp["ip"] if "ip" in grp.columns else [1.0] * len(grp))])
+        total_ip = ips.sum()
+        if total_ip <= 0:
+            continue
+
+        def _wavg(col: str, divisor: float = 1.0):
+            if col not in grp.columns:
+                return None
+            vals = pd.Series([_safe_float(v) for v in grp[col]])
+            mask = vals.notna()
+            if not mask.any():
+                return None
+            w = ips[mask]
+            v = vals[mask]
+            tot_w = w.sum()
+            return float((v * w).sum() / tot_w) / divisor if tot_w > 0 else None
+
+        xera     = _wavg("xera")
+        k_pct    = _wavg("k_percent",     divisor=100.0)
+        bb_pct   = _wavg("bb_percent",    divisor=100.0)
+        whiff    = _wavg("whiff_percent", divisor=100.0)
+
+        result[full_name] = {
+            "xera":      round(xera, 4)  if xera  is not None else None,
+            "k_pct":     round(k_pct, 4) if k_pct is not None else None,
+            "bb_pct":    round(bb_pct,4) if bb_pct is not None else None,
+            "whiff_pct": round(whiff, 4) if whiff  is not None else None,
+            "ip":        round(total_ip, 1),
+            "n_pitchers": int(len(grp)),
+        }
+
+    log.info("Bullpen cache: %d teams (IP-weighted xERA/K%%/BB%%)", len(result))
+    return result
 
 
 # ---------------------------------------------------------------------------

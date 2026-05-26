@@ -8,7 +8,7 @@ from typing import Optional
 
 from pipeline.comps import build_game_profile, find_similar_games
 from pipeline.park_factors import get_run_factor
-from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean
+from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean, bullpen_score
 
 log = logging.getLogger(__name__)
 
@@ -43,15 +43,15 @@ _L_WEIGHTS: dict[str, tuple[float, bool, tuple[float, float]]] = {
 # Strength scores
 # ---------------------------------------------------------------------------
 
-def _pitcher_score(sp: dict) -> float:
-    """Composite pitcher strength on [0, 1]; 1 = elite, 0 = poor."""
+def _sp_quality_score(sp: dict) -> float:
+    """Raw starter-only composite strength on [0, 1]."""
     pairs: list[tuple[float, float]] = []
     for key, (w, invert, (lo, hi)) in _P_WEIGHTS.items():
         season_val = sp.get(key)
 
         # 60/40 season/recent blend where recent data exists
         recent_key_map = {
-            "whiff_pct":   "whiff_pct",     # rolling already IS the recent value
+            "whiff_pct":   "whiff_pct",
             "o_swing_pct": "o_swing_pct",
             "k_pct":       "recent_k_pct",
             "bb_pct":      "recent_bb_pct",
@@ -69,6 +69,15 @@ def _pitcher_score(sp: dict) -> float:
         pairs.append((normed, w))
 
     return weighted_avg(pairs)
+
+
+def _pitcher_score(sp: dict, bullpen: dict | None = None) -> float:
+    """Composite pitcher strength on [0, 1]; blends SP (60%) + bullpen (40%) when available."""
+    sp_score = _sp_quality_score(sp)
+    if bullpen:
+        bp = bullpen_score(bullpen)
+        return round(sp_score * 0.60 + bp * 0.40, 4)
+    return sp_score
 
 
 def _lineup_score(players: list[dict]) -> float:
@@ -428,8 +437,10 @@ def build_game(
     home_lineup_out = [_format_batter(home_lineup_players[i], i + 1) for i in range(len(home_lineup_players))]
     away_lineup_out = [_format_batter(away_lineup_players[i], i + 1) for i in range(len(away_lineup_players))]
 
-    home_pitcher_score = _pitcher_score(home_sp)
-    away_pitcher_score = _pitcher_score(away_sp)
+    home_bullpen = cache.get(f"bullpen:{home_team}")
+    away_bullpen = cache.get(f"bullpen:{away_team}")
+    home_pitcher_score = _pitcher_score(home_sp, home_bullpen)
+    away_pitcher_score = _pitcher_score(away_sp, away_bullpen)
     home_lineup_score  = _lineup_score(home_lineup_players)
     away_lineup_score  = _lineup_score(away_lineup_players)
 
@@ -519,6 +530,8 @@ def build_game(
                 "comps_count":        comps_count,
                 "park_modifier":      round(park_mod, 4),
                 "weather_modifier":   round(weather_mod, 3),
+                "bullpen_xera_home":  home_bullpen.get("xera") if home_bullpen else None,
+                "bullpen_xera_away":  away_bullpen.get("xera") if away_bullpen else None,
             },
         },
     }
