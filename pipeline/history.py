@@ -78,65 +78,73 @@ def append_today(history: list[dict], games: list[dict], today_str: str) -> list
 
 
 def resolve_yesterday(history: list[dict]) -> list[dict]:
-    """Fetch yesterday's final scores and fill in actual_winner on pending records."""
-    yesterday   = (date.today() - timedelta(days=1)).isoformat()
-    pending     = [r for r in history if r["actual_winner"] is None and r["date"] == yesterday]
+    """Fetch final scores for all pending (unresolved) past-game records.
+
+    Groups pending records by date and makes one schedule API call per date,
+    so missed games from multiple days ago are caught up automatically.
+    """
+    today_str = date.today().isoformat()
+    pending   = [r for r in history if r["actual_winner"] is None and r["date"] < today_str]
     if not pending:
-        log.info("No pending records to resolve for %s", yesterday)
+        log.info("No pending records to resolve")
         return history
 
-    log.info("Resolving %d records for %s...", len(pending), yesterday)
+    dates_pending: dict[str, list[dict]] = {}
+    for r in pending:
+        dates_pending.setdefault(r["date"], []).append(r)
 
-    yesterday_date = date.today() - timedelta(days=1)
-    try:
-        url    = f"{MLB_API}/schedule"
-        params = {
-            "sportId": 1,
-            "date":    yesterday_date.strftime("%m/%d/%Y"),
-            "hydrate": "linescore",
-        }
-        resp   = requests.get(url, params=params, timeout=TIMEOUT)
-        resp.raise_for_status()
-        data   = resp.json()
-        scores = _parse_scores(data)
-    except Exception as exc:
-        log.warning("Could not fetch scores for %s: %s", yesterday, exc)
-        return history
+    log.info("Resolving %d records across %d date(s): %s",
+             len(pending), len(dates_pending), sorted(dates_pending))
 
-    by_pk = {r["gamePk"]: r for r in pending}
-    resolved = 0
-    for pk, record in by_pk.items():
-        score = scores.get(pk)
-        if not score:
+    total_resolved = 0
+    for date_str in sorted(dates_pending):
+        try:
+            d = date.fromisoformat(date_str)
+            url    = f"{MLB_API}/schedule"
+            params = {"sportId": 1, "date": d.strftime("%m/%d/%Y"), "hydrate": "linescore"}
+            resp   = requests.get(url, params=params, timeout=TIMEOUT)
+            resp.raise_for_status()
+            scores = _parse_scores(resp.json())
+        except Exception as exc:
+            log.warning("Could not fetch scores for %s: %s", date_str, exc)
             continue
-        home_score = score["home_score"]
-        away_score = score["away_score"]
-        if home_score is None or away_score is None:
-            continue
-        if home_score == 0 and away_score == 0:
-            continue  # suspended/postponed — do not resolve
-        record["home_score"]    = home_score
-        record["away_score"]    = away_score
-        record["actual_winner"] = (
-            "home" if home_score > away_score
-            else "away" if away_score > home_score
-            else "tie"
-        )
-        record["actual_total"] = home_score + away_score
-        # Verify actual starters vs. predicted starters
-        starters = _get_actual_starters(pk)
-        if starters:
-            pred_home_sp = record.get("predicted_home_sp_id")
-            pred_away_sp = record.get("predicted_away_sp_id")
-            scratched = False
-            if pred_home_sp and starters.get("home_sp_id") and pred_home_sp != starters["home_sp_id"]:
-                scratched = True
-            if pred_away_sp and starters.get("away_sp_id") and pred_away_sp != starters["away_sp_id"]:
-                scratched = True
-            record["sp_scratched"] = scratched
-        resolved += 1
 
-    log.info("Resolved %d/%d records", resolved, len(pending))
+        by_pk = {r["gamePk"]: r for r in dates_pending[date_str]}
+        resolved = 0
+        for pk, record in by_pk.items():
+            score = scores.get(pk)
+            if not score:
+                continue
+            home_score = score["home_score"]
+            away_score = score["away_score"]
+            if home_score is None or away_score is None:
+                continue
+            if home_score == 0 and away_score == 0:
+                continue  # suspended/postponed — do not resolve
+            record["home_score"]    = home_score
+            record["away_score"]    = away_score
+            record["actual_winner"] = (
+                "home" if home_score > away_score
+                else "away" if away_score > home_score
+                else "tie"
+            )
+            record["actual_total"] = home_score + away_score
+            starters = _get_actual_starters(pk)
+            if starters:
+                pred_home_sp = record.get("predicted_home_sp_id")
+                pred_away_sp = record.get("predicted_away_sp_id")
+                scratched = False
+                if pred_home_sp and starters.get("home_sp_id") and pred_home_sp != starters["home_sp_id"]:
+                    scratched = True
+                if pred_away_sp and starters.get("away_sp_id") and pred_away_sp != starters["away_sp_id"]:
+                    scratched = True
+                record["sp_scratched"] = scratched
+            resolved += 1
+
+        log.info("Resolved %d/%d records for %s", resolved, len(by_pk), date_str)
+        total_resolved += resolved
+
+    log.info("Total resolved: %d/%d records", total_resolved, len(pending))
     return history
 
 

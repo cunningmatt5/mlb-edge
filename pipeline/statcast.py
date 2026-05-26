@@ -43,8 +43,8 @@ _TEAM_ABBREVS: dict[str, str] = {
     "Minnesota Twins":       "MIN",
     "New York Mets":         "NYM",
     "New York Yankees":      "NYY",
-    "Athletics":             "OAK",   # Sacramento Athletics (2025+)
     "Oakland Athletics":     "OAK",
+    "Athletics":             "OAK",   # Sacramento Athletics (2025+) — canonical for reverse map
     "Philadelphia Phillies": "PHI",
     "Pittsburgh Pirates":    "PIT",
     "San Diego Padres":      "SD",

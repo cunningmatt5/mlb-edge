@@ -760,9 +760,13 @@ function calcSignalAccuracy(decided) {
       if (favouredHomeWin === homeWon) m.pitcher.correct++;
     }
 
-    if (r.comps_home_win_rate != null && r.comps_home_win_rate >= 0.55) {
-      m.comps.total++;
-      if (homeWon) m.comps.correct++;
+    if (r.comps_home_win_rate != null) {
+      const compsHome = r.comps_home_win_rate >= 0.55;
+      const compsAway = r.comps_home_win_rate <= 0.45;
+      if (compsHome || compsAway) {
+        m.comps.total++;
+        if ((compsHome && homeWon) || (compsAway && !homeWon)) m.comps.correct++;
+      }
     }
 
     if (conf >= 0.60) { m.conf60.total++; if (hit) m.conf60.correct++; }
@@ -856,11 +860,6 @@ function dash() {
   return '<span class="dash">—</span>';
 }
 
-function abbrev(team) {
-  if (!team) return '';
-  const words = team.split(' ');
-  return words[words.length - 1];
-}
 
 function teamRecordHTML(rec) {
   if (!rec) return '';
@@ -1042,13 +1041,6 @@ function abbrev(teamName) {
   return map[teamName] || teamName.split(' ').pop().slice(0, 3).toUpperCase();
 }
 
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 // ── Props tab ─────────────────────────────────────────────────────────────────
 

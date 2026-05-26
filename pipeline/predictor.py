@@ -499,6 +499,8 @@ def build_game(
         "game_time_et":    game_time_et,
         "home_team":       home_team,
         "away_team":       away_team,
+        "home_sp_id":      home_sp_id,
+        "away_sp_id":      away_sp_id,
         "venue":           venue,
         "park_run_factor": park_run_factor,
         "weather":         _format_weather_display(weather),
