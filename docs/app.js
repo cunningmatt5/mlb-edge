@@ -808,7 +808,8 @@ function renderBacktestView() {
     return;
   }
 
-  const { stats, games = [], total_games, season } = backtestData;
+  const { stats, games = [], total_games, season, seasons } = backtestData;
+  const seasonLabel = seasons ? seasons.join('–') : (season || '');
   if (!stats) {
     el.innerHTML = `<div class="empty-state"><p>No backtest stats found in data.</p></div>`;
     return;
@@ -877,7 +878,7 @@ function renderBacktestView() {
         <div class="bt-summary-divider"></div>
         <div class="bt-summary-stat">
           <span class="bt-big">${totalDecided}</span>
-          <span class="bt-label">${season} Games</span>
+          <span class="bt-label">${seasonLabel} Games</span>
         </div>
         <div class="bt-summary-divider"></div>
         <div class="bt-summary-stat">

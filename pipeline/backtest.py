@@ -1,7 +1,8 @@
-"""Score all 2026 finished MLB games with the current model and write docs/backtest.json.
+"""Score all finished MLB games across multiple seasons and write docs/backtest.json.
 
-Accepts small lookahead bias (May 2026 Savant stats used for March games) — acceptable
-for signal-quality measurement, not production betting.
+Accepts small lookahead bias (current-season Savant stats used for earlier games within
+that season) — acceptable for signal-quality measurement, not production betting.
+Each season's games are scored with that season's Savant pitcher stats.
 
 Usage:
     python -m pipeline.backtest
@@ -24,8 +25,7 @@ log = logging.getLogger(__name__)
 
 MLB_API = "https://statsapi.mlb.com/api/v1"
 TIMEOUT = 30
-SEASON  = 2026
-START_DATE = "03/01/2026"
+SEASONS = [2025, 2026]
 
 DOCS_DIR    = Path(__file__).parent.parent / "docs"
 OUTPUT_PATH = DOCS_DIR / "backtest.json"
@@ -35,14 +35,21 @@ OUTPUT_PATH = DOCS_DIR / "backtest.json"
 # Schedule fetch
 # ---------------------------------------------------------------------------
 
-def fetch_season_finished_games(season: int = SEASON) -> list[dict]:
-    """Fetch all finished games for the season up through yesterday."""
-    yesterday = (date.today() - timedelta(days=1)).strftime("%m/%d/%Y")
+def fetch_season_finished_games(season: int) -> list[dict]:
+    """Fetch all finished regular-season games for the given season."""
+    start = f"03/01/{season}"
+    # For past seasons use end of October; for current season use yesterday
+    current_year = date.today().year
+    if season < current_year:
+        end = f"10/31/{season}"
+    else:
+        end = (date.today() - timedelta(days=1)).strftime("%m/%d/%Y")
+
     url = f"{MLB_API}/schedule"
     params = {
         "sportId": 1,
-        "startDate": START_DATE,
-        "endDate": yesterday,
+        "startDate": start,
+        "endDate":   end,
         "hydrate": "probablePitcher,linescore",
         "gameType": "R",   # Regular season only
     }
@@ -105,7 +112,7 @@ def _parse_finished_game(raw: dict) -> Optional[dict]:
 # Pitcher cache
 # ---------------------------------------------------------------------------
 
-def build_pitcher_cache(sp_ids: set[int], season: int = SEASON) -> dict[int, dict]:
+def build_pitcher_cache(sp_ids: set[int], season: int) -> dict[int, dict]:
     """Build a pitcher-only cache using current-season Savant data."""
     from pipeline.statcast import (
         _fetch_savant_pitcher_stats,
@@ -313,44 +320,49 @@ def compute_stats(results: list[dict]) -> dict:
 def run_backtest() -> None:
     from datetime import datetime, timezone
 
-    log.info("Starting 2026 backtest run...")
+    log.info("Starting multi-season backtest: %s", SEASONS)
 
-    games = fetch_season_finished_games(SEASON)
-    if not games:
-        log.error("No finished games fetched — aborting")
-        return
-
-    sp_ids = set()
-    for g in games:
-        sp_ids.add(g["home_sp_id"])
-        sp_ids.add(g["away_sp_id"])
-
-    pitcher_cache = build_pitcher_cache(sp_ids, SEASON)
     comps_db = load_comps_db()
     log.info("Comps DB: %d records loaded", len(comps_db))
 
-    results: list[dict] = []
-    for i, g in enumerate(games, 1):
-        try:
-            result = score_game(g, pitcher_cache, comps_db)
-            results.append(result)
-        except Exception as exc:
-            log.warning("Failed to score game %s (%s @ %s): %s",
-                        g.get("gamePk"), g.get("away_team"), g.get("home_team"), exc)
+    all_results: list[dict] = []
 
-        if i % 100 == 0:
-            log.info("Scored %d / %d games...", i, len(games))
+    for season in SEASONS:
+        log.info("--- Season %d ---", season)
+        games = fetch_season_finished_games(season)
+        if not games:
+            log.warning("No finished games for %d — skipping", season)
+            continue
+
+        sp_ids = {g["home_sp_id"] for g in games} | {g["away_sp_id"] for g in games}
+        pitcher_cache = build_pitcher_cache(sp_ids, season)
+
+        season_results: list[dict] = []
+        for i, g in enumerate(games, 1):
+            try:
+                result = score_game(g, pitcher_cache, comps_db)
+                result["season"] = season
+                season_results.append(result)
+            except Exception as exc:
+                log.warning("Failed to score game %s (%s @ %s): %s",
+                            g.get("gamePk"), g.get("away_team"), g.get("home_team"), exc)
+
+            if i % 200 == 0:
+                log.info("  Scored %d / %d games...", i, len(games))
+
+        log.info("Season %d: scored %d games", season, len(season_results))
+        all_results.extend(season_results)
 
     # Sort most recent first for the game log display
-    results.sort(key=lambda r: r["date"], reverse=True)
+    all_results.sort(key=lambda r: r["date"], reverse=True)
 
-    stats = compute_stats(results)
+    stats = compute_stats(all_results)
     output = {
-        "season":       SEASON,
+        "seasons":      SEASONS,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "total_games":  len(results),
+        "total_games":  len(all_results),
         "stats":        stats,
-        "games":        results,
+        "games":        all_results,
     }
 
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
@@ -360,12 +372,13 @@ def run_backtest() -> None:
     correct = stats.get("total_correct", 0)
     n = stats.get("total_decided", 0)
     log.info(
-        "Backtest complete: %d games, %d/%d correct (%.1f%%), MAE=%.2f, bias=%+.2f",
-        len(results), correct, n,
+        "Backtest complete: %d games across %s, %d/%d correct (%.1f%%), MAE=%.2f, bias=%+.2f",
+        len(all_results), SEASONS, correct, n,
         stats.get("win_pct_overall", 0) * 100,
         stats.get("total_mae") or 0,
         stats.get("total_bias") or 0,
     )
+
 
 
 if __name__ == "__main__":
