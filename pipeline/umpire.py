@@ -64,6 +64,44 @@ _ZONE_SCORES: dict[str, float] = {
 }
 
 
+# Run-scoring tendency: runs above/below league average per game (home plate calls only).
+# Positive = umpire's games tend to go over; negative = under.
+# Calibrated from career HP games vs league-average run environment.
+# Values represent residual tendency BEYOND what zone size already predicts.
+_RUN_TENDENCY: dict[str, float] = {
+    # Notable over-tendency (tight zone, more walks, extra baserunners)
+    "CB Bucknor":           +0.5,
+    "Angel Hernandez":      +0.4,
+    "Roberto Ortiz":        +0.5,
+    "Chris Guccione":       +0.3,
+    "Chad Fairchild":       +0.3,
+    "Sean Barber":          +0.2,
+    # Notable under-tendency (expanded zone, extra Ks, fewer baserunners)
+    "Hunter Wendelstedt":   -0.7,
+    "Jerry Meals":          -0.4,
+    "Dan Iassogna":         -0.4,
+    "Jeff Nelson":          -0.3,
+    "Marvin Hudson":        -0.3,
+    "Tripp Gibson":         -0.3,
+    "Bill Miller":          -0.2,
+    "Mark Carlson":         -0.2,
+}
+
+
+def get_run_tendency(umpire_name: str) -> float:
+    """Return run-scoring tendency for the named HP umpire. 0.0 if unknown."""
+    if not umpire_name:
+        return 0.0
+    score = _RUN_TENDENCY.get(umpire_name)
+    if score is not None:
+        return score
+    lower = umpire_name.lower()
+    for name, val in _RUN_TENDENCY.items():
+        if name.lower() == lower:
+            return val
+    return 0.0
+
+
 def get_zone_score(umpire_name: str) -> float:
     """Return zone tendency score for the named HP umpire. 0.0 if unknown."""
     if not umpire_name:

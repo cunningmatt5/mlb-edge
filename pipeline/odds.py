@@ -170,7 +170,7 @@ def _load_calibration_params() -> tuple[float, float]:
         p = d["logistic_params"]
         midpoint = float(p["midpoint"])
         slope    = float(p["slope"])
-        if midpoint >= 10.5 or slope < 0.15:
+        if midpoint >= 9.0 or slope < 0.15:
             log.debug(
                 "Calibration params degenerate (midpoint=%.2f slope=%.4f) — using defaults",
                 midpoint, slope,

@@ -15,7 +15,10 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from pipeline.comps import load_comps_db
-from pipeline.odds import fetch_mlb_game_lines, get_game_event
+from pipeline.odds import (
+    fetch_mlb_game_lines, fetch_mlb_props, get_game_event,
+    match_game_line, match_prop_line, compute_ev,
+)
 from pipeline.predictor import build_game
 from pipeline.schedule import fetch_schedule
 from pipeline.standings import fetch_team_records
@@ -125,6 +128,8 @@ def main(dry_run: bool = False) -> None:
             from pipeline.analytics.game_totals     import score_game_total
             from pipeline.analytics.moneyline_f5    import score_moneyline_f5
 
+            _GAME_LEVEL_TYPES = {"TOTAL", "TEAM_TOTAL", "ML_F5"}
+
             pick_games: list[dict] = []
             for game in games:  # original schedule dicts have SP IDs + lineup ID lists
                 all_picks: list[dict] = []
@@ -136,6 +141,31 @@ def main(dry_run: bool = False) -> None:
                 all_picks += score_game_total(game, cache)
                 all_picks += score_moneyline_f5(game, cache)
                 all_picks.sort(key=lambda p: p["signal"], reverse=True)
+
+                # Attach EV calculations where Pinnacle lines are available
+                if game_lines:
+                    game_event = get_game_event(game, game_lines)
+                    prop_lines = fetch_mlb_props(ODDS_API_KEY, game_event.get("event_id")) if game_event else {}
+                    for pick in all_picks:
+                        try:
+                            if pick["bet_type"] in _GAME_LEVEL_TYPES:
+                                matched = match_game_line(pick, game, game_lines)
+                            else:
+                                matched = match_prop_line(pick, prop_lines)
+                            if matched:
+                                ev = compute_ev(pick, matched)
+                                pick["odds"] = {
+                                    "has_line":     True,
+                                    "line":         ev.get("line"),
+                                    "over_price":   ev["over_price"],
+                                    "under_price":  ev["under_price"],
+                                    "edge_pct":     ev["edge_pct"],
+                                    "model_prob":   ev["model_prob"],
+                                    "implied_prob": ev["implied_prob"],
+                                }
+                        except Exception:
+                            pass
+
                 if all_picks:
                     pick_games.append({
                         "game_time": game.get("gameTime", ""),

@@ -1191,6 +1191,28 @@ header {
 .icon-correct { color: var(--green-light); }
 .icon-wrong   { color: var(--red-light); }
 
+/* ── ROI grid (Backtest tab) ─────────────────────────────────────────────── */
+.roi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.roi-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.roi-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.roi-val   { font-size: 24px; font-weight: 700; line-height: 1; }
+.roi-val.roi-pos { color: var(--green-light); }
+.roi-val.roi-neg { color: var(--red-light); }
+.roi-sub   { font-size: 11px; color: var(--text-dim); }
+
 /* ── Mobile ──────────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .matchup-grid { grid-template-columns: 1fr auto 1fr; gap: 4px; }

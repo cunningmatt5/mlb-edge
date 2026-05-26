@@ -164,6 +164,26 @@ def _predicted_runs(
 
 
 # ---------------------------------------------------------------------------
+# Rest & fatigue
+# ---------------------------------------------------------------------------
+
+def _rest_modifier(rest_days: int | None) -> float:
+    """Return a logit adjustment for rest/fatigue.
+
+    0 days (B2B): -0.04 penalty
+    1 day (normal): no adjustment
+    2+ days: +0.02 bonus
+    """
+    if rest_days is None:
+        return 0.0
+    if rest_days == 0:
+        return -0.04
+    if rest_days >= 2:
+        return 0.02
+    return 0.0
+
+
+# ---------------------------------------------------------------------------
 # Trend flags
 # ---------------------------------------------------------------------------
 
@@ -460,10 +480,35 @@ def build_game(
     weather_mod = _weather_score_modifier(weather)
     park_mod    = (park_run_factor - 100) / 1000
 
+    # Rest/fatigue modifier: net logit advantage for home team
+    home_rest = game.get("home_rest_days")
+    away_rest = game.get("away_rest_days")
+    rest_mod  = _rest_modifier(home_rest) - _rest_modifier(away_rest)
+
+    # B2B bullpen fatigue: reduce bullpen score by 5% for back-to-back teams
+    if home_rest == 0 and home_bullpen:
+        home_bullpen = {**home_bullpen}
+        for k in ("xera", "k_pct", "bb_pct", "whiff_pct"):
+            if home_bullpen.get(k) is not None:
+                if k in ("xera",):
+                    home_bullpen[k] = home_bullpen[k] * 1.05
+                else:
+                    home_bullpen[k] = home_bullpen[k] * 0.95
+        home_pitcher_score = _pitcher_score(home_sp, home_bullpen)
+    if away_rest == 0 and away_bullpen:
+        away_bullpen = {**away_bullpen}
+        for k in ("xera", "k_pct", "bb_pct", "whiff_pct"):
+            if away_bullpen.get(k) is not None:
+                if k in ("xera",):
+                    away_bullpen[k] = away_bullpen[k] * 1.05
+                else:
+                    away_bullpen[k] = away_bullpen[k] * 0.95
+        away_pitcher_score = _pitcher_score(away_sp, away_bullpen)
+
     home_win_pct, away_win_pct = _win_probability(
         home_pitcher_score, away_pitcher_score,
         home_lineup_score, away_lineup_score,
-        comps_home_win_rate, park_mod, weather_mod,
+        comps_home_win_rate, park_mod + rest_mod, weather_mod,
     )
     pred_home, pred_away = _predicted_runs(
         home_lineup_score, away_lineup_score,
@@ -532,6 +577,9 @@ def build_game(
                 "comps_count":        comps_count,
                 "park_modifier":      round(park_mod, 4),
                 "weather_modifier":   round(weather_mod, 3),
+                "rest_modifier":      round(rest_mod, 4),
+                "home_rest_days":     home_rest,
+                "away_rest_days":     away_rest,
                 "bullpen_xera_home":  home_bullpen.get("xera") if home_bullpen else None,
                 "bullpen_xera_away":  away_bullpen.get("xera") if away_bullpen else None,
             },

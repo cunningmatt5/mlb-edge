@@ -1022,6 +1022,28 @@ function renderBacktestView() {
         </div>
       </div>
 
+      ${(() => {
+        const roi = backtestData.roi_stats;
+        if (!roi || (!roi.ml_bets && !roi.total_bets)) return '';
+        const fmtRoi = v => v != null ? (v >= 0 ? '+' : '') + v.toFixed(2) + '%' : '—';
+        const fmtUnits = v => v != null ? (v >= 0 ? '+' : '') + v.toFixed(2) : '—';
+        const roiCls = v => v == null ? '' : v >= 0 ? 'roi-pos' : 'roi-neg';
+        return `
+      <div class="bt-section-title">ROI — Live Lines <span class="bt-count">(from records with Pinnacle lines stored)</span></div>
+      <div class="roi-grid">
+        <div class="roi-card">
+          <span class="roi-label">Moneyline ROI</span>
+          <span class="roi-val ${roiCls(roi.ml_roi_pct)}">${fmtRoi(roi.ml_roi_pct)}</span>
+          <span class="roi-sub">${fmtUnits(roi.ml_units_won)} units · ${roi.ml_bets ?? 0} bets</span>
+        </div>
+        <div class="roi-card">
+          <span class="roi-label">Totals ROI</span>
+          <span class="roi-val ${roiCls(roi.total_roi_pct)}">${fmtRoi(roi.total_roi_pct)}</span>
+          <span class="roi-sub">${fmtUnits(roi.total_units_won)} units · ${roi.total_bets ?? 0} bets</span>
+        </div>
+      </div>`;
+      })()}
+
       <div class="bt-section-title">Game Log <span class="bt-count">(${games.length} games, most recent first)</span></div>
       <div class="bt-table-wrap">
         <table class="bt-table">

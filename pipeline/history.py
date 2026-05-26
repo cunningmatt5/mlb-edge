@@ -44,6 +44,7 @@ def save_history(records: list[dict]) -> None:
 
 def append_today(history: list[dict], games: list[dict], today_str: str) -> list[dict]:
     """Add today's prediction records (unresolved) to history."""
+    from pipeline.odds import no_vig_prob
     existing_pks = {r["gamePk"] for r in history}
     added = 0
     for g in games:
@@ -52,6 +53,19 @@ def append_today(history: list[dict], games: list[dict], today_str: str) -> list
             continue
         pred    = g.get("prediction", {})
         signals = pred.get("model_signals", {})
+        odds    = g.get("odds") or {}
+
+        # Compute model edge vs Pinnacle no-vig ML probability
+        home_ml = odds.get("home_ml")
+        away_ml = odds.get("away_ml")
+        model_edge_ml = None
+        if home_ml is not None and away_ml is not None:
+            try:
+                pinnacle_home_prob, _ = no_vig_prob(int(home_ml), int(away_ml))
+                model_edge_ml = round((pred.get("home_win_pct") or 0.5) - pinnacle_home_prob, 4)
+            except Exception:
+                pass
+
         history.append({
             "date":                    today_str,
             "gamePk":                  pk,
@@ -67,6 +81,13 @@ def append_today(history: list[dict], games: list[dict], today_str: str) -> list
             "lineup_score_home":       signals.get("lineup_score_home"),
             "lineup_score_away":       signals.get("lineup_score_away"),
             "comps_home_win_rate":     signals.get("comps_home_win_rate"),
+            # Vegas lines — stored for forward-looking ROI tracking
+            "vegas_total":             odds.get("total"),
+            "over_price":              odds.get("over_price"),
+            "under_price":             odds.get("under_price"),
+            "home_ml":                 home_ml,
+            "away_ml":                 away_ml,
+            "model_edge_ml":           model_edge_ml,
             "actual_winner":           None,
             "home_score":              None,
             "away_score":              None,
@@ -128,7 +149,10 @@ def resolve_yesterday(history: list[dict]) -> list[dict]:
                 else "away" if away_score > home_score
                 else "tie"
             )
-            record["actual_total"] = home_score + away_score
+            actual_total = home_score + away_score
+            record["actual_total"] = actual_total
+            if record.get("vegas_total") is not None:
+                record["total_went_over"] = actual_total > record["vegas_total"]
             starters = _get_actual_starters(pk)
             if starters:
                 pred_home_sp = record.get("predicted_home_sp_id")

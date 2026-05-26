@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from pipeline.park_factors import get_run_factor
 from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean, bullpen_score
-from pipeline.umpire import compute_umpire_modifier
+from pipeline.umpire import compute_umpire_modifier, get_run_tendency
 from pipeline.weather import compute_weather_modifier
 
 
@@ -68,15 +68,28 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
     away_name = game.get("awayTeam", "Away")
     matchup   = f"{away_name} @ {home_name}"
 
+    run_tend = get_run_tendency(umpire)
+    run_tend_reason = None
+    if abs(run_tend) >= 0.3:
+        tend_dir = "over" if run_tend > 0 else "under"
+        run_tend_reason = (
+            f"HP umpire {umpire} games average {abs(run_tend):.1f} runs "
+            f"{'above' if run_tend > 0 else 'below'} expected — {tend_dir} lean"
+        )
+
     for direction, base_signal in [("OVER", over_signal), ("UNDER", under_signal)]:
         ump_mod, ump_reason = compute_umpire_modifier(umpire, "TOTAL", direction)
-        signal = max(0.0, min(10.0, round(base_signal + ump_mod, 1)))
+        # run tendency: positive trend boosts OVER, suppresses UNDER
+        tend_mod = run_tend if direction == "OVER" else -run_tend
+        signal = max(0.0, min(10.0, round(base_signal + ump_mod + tend_mod, 1)))
         if signal >= 5.0:
             reasons = _build_reasons(direction, home_sp, away_sp, avg_xwoba, park_run, venue)
             if weather_reason:
                 reasons = (reasons + [weather_reason])[:4]
             if ump_reason:
                 reasons = (reasons + [ump_reason])[:4]
+            if run_tend_reason and direction == ("OVER" if run_tend > 0 else "UNDER"):
+                reasons = (reasons + [run_tend_reason])[:4]
 
             picks.append({
                 "bet_type":  "TOTAL",
@@ -99,6 +112,7 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
                     "lineup_data":        (home_xwoba != 0.320 and bool(home_lineup)) or (away_xwoba != 0.320 and bool(away_lineup)),
                     "weather_modifier":   round(weather_mod, 2) if weather_mod else None,
                     "umpire_modifier":    round(ump_mod, 2) if ump_mod else None,
+                    "run_tendency":       round(run_tend, 2) if run_tend else None,
                     "umpire":             umpire or None,
                 },
             })

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pipeline.park_factors import get_run_factor
 from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean, bullpen_score
-from pipeline.umpire import compute_umpire_modifier
+from pipeline.umpire import compute_umpire_modifier, get_run_tendency
 from pipeline.weather import compute_weather_modifier
 
 
@@ -24,6 +24,15 @@ def score_team_totals(game: dict, cache: dict) -> list[dict]:
     park_s  = normalize(get_run_factor(venue), lo=88, hi=118)
 
     weather_mod, weather_reason = compute_weather_modifier(weather, "TEAM_TOTAL")
+
+    run_tend = get_run_tendency(umpire)
+    run_tend_reason = None
+    if abs(run_tend) >= 0.3:
+        tend_dir = "over" if run_tend > 0 else "under"
+        run_tend_reason = (
+            f"HP umpire {umpire} games average {abs(run_tend):.1f} runs "
+            f"{'above' if run_tend > 0 else 'below'} expected — {tend_dir} lean"
+        )
 
     for offense_side, sp_side in [("home", "away"), ("away", "home")]:
         opp_sp_id = game.get(f"{sp_side}_sp_id")
@@ -56,7 +65,8 @@ def score_team_totals(game: dict, cache: dict) -> list[dict]:
 
         for direction, base_signal in [("OVER", over_signal), ("UNDER", under_signal)]:
             ump_mod, ump_reason = compute_umpire_modifier(umpire, "TEAM_TOTAL", direction)
-            signal = max(0.0, min(10.0, round(base_signal + ump_mod, 1)))
+            tend_mod = run_tend if direction == "OVER" else -run_tend
+            signal = max(0.0, min(10.0, round(base_signal + ump_mod + tend_mod, 1)))
             if signal >= 5.0:
                 reasons = _build_reasons(
                     direction, offense_team, sp_name, opp_sp,
@@ -66,6 +76,8 @@ def score_team_totals(game: dict, cache: dict) -> list[dict]:
                     reasons = (reasons + [weather_reason])[:4]
                 if ump_reason:
                     reasons = (reasons + [ump_reason])[:4]
+                if run_tend_reason and direction == ("OVER" if run_tend > 0 else "UNDER"):
+                    reasons = (reasons + [run_tend_reason])[:4]
 
                 picks.append({
                     "bet_type":      "TEAM_TOTAL",
@@ -85,6 +97,7 @@ def score_team_totals(game: dict, cache: dict) -> list[dict]:
                         "offense_score":   round(offense_s, 3),
                         "lineup_data":     lineup_xwoba != 0.320 and bool(lineup),
                         "umpire_modifier": round(ump_mod, 2) if ump_mod else None,
+                        "run_tendency":    round(run_tend, 2) if run_tend else None,
                         "umpire":          umpire or None,
                     },
                 })

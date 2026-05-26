@@ -19,6 +19,7 @@ from typing import Optional
 import requests
 
 from pipeline.comps import load_comps_db, build_game_profile
+from pipeline.odds import american_to_decimal
 from pipeline.predictor import _pitcher_score, _predicted_runs, _win_probability, LEAGUE_AVG_RUNS
 
 log = logging.getLogger(__name__)
@@ -314,6 +315,90 @@ def compute_stats(results: list[dict]) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# ROI tracking from live history records
+# ---------------------------------------------------------------------------
+
+def compute_roi_from_history() -> dict:
+    """Compute ML and totals ROI from resolved history records that have Vegas lines stored.
+
+    Only records with both a vegas_total/ML price AND actual results are included.
+    1 unit risked per bet; payout = decimal_odds - 1 on win, -1 on loss.
+    """
+    from pathlib import Path as _Path
+    import json as _json
+    history_path = _Path(__file__).parent.parent / "docs" / "history.json"
+    try:
+        history = _json.loads(history_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+    ml_bets = 0
+    ml_units = 0.0
+    total_bets = 0
+    total_units = 0.0
+
+    for r in history:
+        if r.get("actual_winner") in (None, "tie"):
+            continue
+        if r.get("sp_scratched"):
+            continue
+
+        home_won = r["actual_winner"] == "home"
+        predicted_home = r.get("predicted_winner") == "home"
+
+        # Moneyline ROI
+        home_ml = r.get("home_ml")
+        away_ml = r.get("away_ml")
+        if home_ml is not None and away_ml is not None:
+            try:
+                if predicted_home:
+                    price = int(home_ml)
+                    won   = home_won
+                else:
+                    price = int(away_ml)
+                    won   = not home_won
+                payout = american_to_decimal(price) - 1.0
+                ml_units += payout if won else -1.0
+                ml_bets  += 1
+            except Exception:
+                pass
+
+        # Totals ROI
+        vegas_total = r.get("vegas_total")
+        pred_total  = r.get("predicted_total")
+        over_price  = r.get("over_price")
+        under_price = r.get("under_price")
+        total_went_over = r.get("total_went_over")
+        if (vegas_total is not None and pred_total is not None
+                and over_price is not None and under_price is not None
+                and total_went_over is not None):
+            try:
+                if pred_total > vegas_total:
+                    price = int(over_price)
+                    won   = total_went_over
+                else:
+                    price = int(under_price)
+                    won   = not total_went_over
+                payout = american_to_decimal(price) - 1.0
+                total_units += payout if won else -1.0
+                total_bets  += 1
+            except Exception:
+                pass
+
+    def _roi(units, bets):
+        return round(units / bets * 100, 2) if bets > 0 else None
+
+    return {
+        "ml_bets":     ml_bets,
+        "ml_units_won": round(ml_units, 3),
+        "ml_roi_pct":  _roi(ml_units, ml_bets),
+        "total_bets":  total_bets,
+        "total_units_won": round(total_units, 3),
+        "total_roi_pct": _roi(total_units, total_bets),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -356,12 +441,14 @@ def run_backtest() -> None:
     # Sort most recent first for the game log display
     all_results.sort(key=lambda r: r["date"], reverse=True)
 
-    stats = compute_stats(all_results)
+    stats    = compute_stats(all_results)
+    roi_stats = compute_roi_from_history()
     output = {
         "seasons":      SEASONS,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "total_games":  len(all_results),
         "stats":        stats,
+        "roi_stats":    roi_stats,
         "games":        all_results,
     }
 

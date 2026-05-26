@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, timedelta
 
 import requests
 
@@ -11,6 +11,44 @@ MLB_API = "https://statsapi.mlb.com/api/v1"
 TIMEOUT = 20
 
 log = logging.getLogger(__name__)
+
+
+def get_team_rest_days(game_date: date) -> dict[str, int]:
+    """Return {team_name: rest_days} for all teams playing on game_date.
+
+    rest_days = days since last game. 0 = back-to-back, 1 = normal, 2+ = extra rest.
+    Teams not found in the recent schedule default to 1 (normal rest).
+    Looks back up to 5 days to catch teams returning from off-days.
+    """
+    rest_map: dict[str, date] = {}
+    for delta in range(1, 6):
+        check = game_date - timedelta(days=delta)
+        url = f"{MLB_API}/schedule"
+        params = {
+            "sportId": 1,
+            "date": check.strftime("%m/%d/%Y"),
+        }
+        try:
+            resp = requests.get(url, params=params, timeout=TIMEOUT)
+            resp.raise_for_status()
+            data = resp.json()
+            for day in data.get("dates", []):
+                for raw in day.get("games", []):
+                    status = raw.get("status", {})
+                    if status.get("abstractGameState") not in ("Final", "Live"):
+                        continue
+                    home = raw.get("teams", {}).get("home", {}).get("team", {}).get("name", "")
+                    away = raw.get("teams", {}).get("away", {}).get("team", {}).get("name", "")
+                    for team in (home, away):
+                        if team and team not in rest_map:
+                            rest_map[team] = check
+        except Exception:
+            pass
+
+    result: dict[str, int] = {}
+    for team, last_played in rest_map.items():
+        result[team] = (game_date - last_played).days - 1
+    return result
 
 
 def fetch_schedule(game_date: date) -> list[dict]:
@@ -45,6 +83,18 @@ def fetch_schedule(game_date: date) -> list[dict]:
         parsed = _parse_game(raw)
         if parsed:
             games.append(parsed)
+
+    # Attach rest days for each team
+    try:
+        rest_map = get_team_rest_days(game_date)
+        for g in games:
+            g["home_rest_days"] = rest_map.get(g["homeTeam"], 1)
+            g["away_rest_days"] = rest_map.get(g["awayTeam"], 1)
+    except Exception as exc:
+        log.debug("Rest days lookup failed: %s", exc)
+        for g in games:
+            g.setdefault("home_rest_days", 1)
+            g.setdefault("away_rest_days", 1)
 
     total_batters = sum(len(g.get("home_lineup", [])) + len(g.get("away_lineup", [])) for g in games)
     log.info("Schedule: %d games with probable starters for %s (%d batter IDs collected)",
