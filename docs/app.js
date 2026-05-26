@@ -266,6 +266,13 @@ function gameCardHTML(g) {
 </div>`;
 }
 
+function gameTier(homeWinPct) {
+  const conf = Math.max(homeWinPct || 0.5, 1 - (homeWinPct || 0.5));
+  if (conf >= 0.70) return 'elite';
+  if (conf >= 0.65) return 'great';
+  return null;
+}
+
 function statusStrip(g) {
   const status = g.game_status || 'preview';
 
@@ -299,6 +306,8 @@ function statusStrip(g) {
   const awayPct = 100 - homePct;
   const favTeam = abbrev(homePct >= awayPct ? g.home_team : g.away_team);
   const favPct  = Math.max(homePct, awayPct);
+  const tier    = gameTier(pred.home_win_pct);
+  const tierBadge = tier ? `<span class="tier-badge tier-${tier}">${tier === 'elite' ? 'ELITE' : 'GREAT'}</span>` : '';
   const scoreCenter = pred.predicted_away_runs != null ? `
   <span class="pred-score-est">
     <span class="pse-team">${abbrev(g.away_team)}</span>
@@ -309,7 +318,10 @@ function statusStrip(g) {
   </span>` : '<span></span>';
   return `
 <div class="pred-strip">
-  <span class="pred-fav">${favTeam} ${favPct}%</span>
+  <div class="pred-left">
+    <span class="pred-fav">${favTeam} ${favPct}%</span>
+    ${tierBadge}
+  </div>
   ${scoreCenter}
   <span class="expand-arrow">▼</span>
 </div>`;
