@@ -104,29 +104,68 @@ def _sbro_to_mlb(abbr: str, year: int) -> str:
 # Download
 # ---------------------------------------------------------------------------
 
+_XLSX_MAGIC = b"PK\x03\x04"  # ZIP/XLSX files always start with these 4 bytes
+
+
+def _is_valid_excel(content: bytes) -> bool:
+    return len(content) > 4 and content[:4] == _XLSX_MAGIC
+
+
 def download_sbro_season(year: int, output_dir: Path) -> Optional[Path]:
-    """Download SBRO MLB odds Excel for one season. Idempotent."""
+    """Download SBRO MLB odds Excel for one season. Idempotent.
+
+    SBRO may return an HTML redirect for direct URL requests; validates the
+    response is actually an Excel file before saving.
+
+    Manual fallback: if automated download fails, place the Excel file at
+        data/seasons/{year}/sbro_raw.xlsx
+    and re-run — the function skips existing valid files automatically.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
     out_path = output_dir / "sbro_raw.xlsx"
-    if out_path.exists() and out_path.stat().st_size > 5_000:
-        log.info("SBRO %d: sbro_raw.xlsx already downloaded — skipping", year)
-        return out_path
 
-    # SBRO URL pattern — try both .xlsx and .xlsm
-    for ext in (".xlsx", ".xlsm"):
-        url = f"{SBRO_BASE}/mlb%20odds%20{year}{ext}"
+    # Skip if a valid Excel file already exists
+    if out_path.exists() and out_path.stat().st_size > 10_000:
+        if _is_valid_excel(out_path.read_bytes()):
+            log.info("SBRO %d: valid sbro_raw.xlsx exists — skipping download", year)
+            return out_path
+        log.warning("SBRO %d: existing file is not a valid Excel — re-downloading", year)
+
+    # Try multiple URL patterns (SBRO occasionally changes naming)
+    url_patterns = [
+        f"{SBRO_BASE}/mlb%20odds%20{year}.xlsx",
+        f"{SBRO_BASE}/mlb odds {year}.xlsx",
+        f"{SBRO_BASE}/mlb%20odds%20{year}.xlsm",
+    ]
+
+    # Touch the archive index first to obtain any required cookies/session
+    sess = requests.Session()
+    try:
+        sess.get(f"{SBRO_BASE}/mlboddsarchives.htm", headers=_HEADERS, timeout=TIMEOUT)
+    except Exception:
+        pass
+
+    for url in url_patterns:
         try:
             log.info("SBRO %d: trying %s", year, url)
-            r = requests.get(url, headers=_HEADERS, timeout=TIMEOUT)
-            if r.status_code == 200 and len(r.content) > 10_000:
+            r = sess.get(url, headers=_HEADERS, timeout=TIMEOUT)
+            if r.status_code == 200 and _is_valid_excel(r.content):
                 out_path.write_bytes(r.content)
                 log.info("SBRO %d: saved %d bytes → %s", year, len(r.content), out_path)
                 return out_path
-            log.debug("SBRO %d: HTTP %d for %s", year, r.status_code, url)
+            log.debug(
+                "SBRO %d: HTTP %d, Content-Type=%s, size=%d for %s — not a valid Excel",
+                year, r.status_code, r.headers.get("Content-Type", "?"), len(r.content), url,
+            )
         except Exception as exc:
-            log.warning("SBRO %d: download error for %s: %s", year, url, exc)
+            log.warning("SBRO %d: request error for %s: %s", year, url, exc)
 
-    log.error("SBRO %d: could not download from SBRO — check URL or site availability", year)
+    log.error(
+        "SBRO %d: automated download failed. Manually download the Excel from "
+        "https://www.sportsbookreviewsonline.com/scoresoddsarchives/mlb/ "
+        "and place it at data/seasons/%d/sbro_raw.xlsx, then re-run.",
+        year, year,
+    )
     return None
 
 
