@@ -4,6 +4,7 @@
 const GAMES_URL    = './games.json';
 const HISTORY_URL  = './history.json';
 const BACKTEST_URL = './backtest.json';
+const PICKS_URL    = './picks.json';
 
 // ── Team logo map (ESPN CDN abbreviations) ────────────────────────────────────
 const TEAM_LOGO = {
@@ -29,6 +30,7 @@ const TEAM_LOGO = {
 let gamesData    = null;
 let historyData  = [];
 let backtestData = null;
+let picksData    = null;
 let expandedPk   = null;
 let currentView  = 'games';
 let lastCheckedAt = null;
@@ -49,10 +51,12 @@ function setupNav() {
       currentView = btn.dataset.view;
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b === btn));
       document.getElementById('games-view').hidden    = currentView !== 'games';
+      document.getElementById('props-view').hidden    = currentView !== 'props';
       document.getElementById('record-view').hidden   = currentView !== 'record';
       document.getElementById('backtest-view').hidden = currentView !== 'backtest';
-      if (currentView === 'record') renderRecordView();
-      if (currentView === 'backtest') { loadBacktest().then(renderBacktestView); }
+      if (currentView === 'record')   renderRecordView();
+      if (currentView === 'backtest') loadBacktest().then(renderBacktestView);
+      if (currentView === 'props')    loadPicks().then(renderPropsView);
     });
   });
 }
@@ -83,6 +87,15 @@ async function loadBacktest() {
     if (r.ok) backtestData = await r.json();
   } catch {
     backtestData = null;
+  }
+}
+
+async function loadPicks() {
+  try {
+    const r = await fetch(PICKS_URL + '?v=' + Date.now());
+    if (r.ok) picksData = await r.json();
+  } catch {
+    picksData = null;
   }
 }
 
@@ -926,4 +939,206 @@ function escapeHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+// ── Props tab ─────────────────────────────────────────────────────────────────
+
+const BET_META = {
+  K_PROP:     { label: 'K',     color: '#7c3aed' },
+  HR_PROP:    { label: 'HR',    color: '#e11d48' },
+  HIT_PROP:   { label: 'HIT',   color: '#0284c7' },
+  TB_PROP:    { label: 'TB',    color: '#0891b2' },
+  TOTAL:      { label: 'TOT',   color: '#059669' },
+  TEAM_TOTAL: { label: 'T-TOT', color: '#047857' },
+  MONEYLINE:  { label: 'ML',    color: '#b45309' },
+  ML_F5:      { label: 'F5',    color: '#92400e' },
+};
+
+function renderPropsView() {
+  const view = document.getElementById('props-view');
+  if (!picksData || !picksData.games || !picksData.games.length) {
+    view.innerHTML = `
+<div class="view-header">
+  <h1>Props</h1>
+  <span class="sub-label">Player & game props — signal-driven picks</span>
+</div>
+<div class="empty-state">No props available — pipeline generates picks after each run.</div>`;
+    return;
+  }
+
+  const ts = picksData.generated_at
+    ? `Updated ${formatGeneratedAt(picksData.generated_at)}`
+    : '';
+
+  view.innerHTML = `
+<div class="view-header">
+  <h1>Props</h1>
+  <span class="sub-label">${ts}</span>
+</div>
+<div class="picks-list">
+  ${picksData.games.map(g => renderPickGameCard(g)).join('')}
+</div>`;
+}
+
+function renderPickGameCard(g) {
+  const timeStr = g.game_time ? formatTimeET(g.game_time) : '';
+  const matchup = `${abbrev(g.away_team)} @ ${abbrev(g.home_team)}`;
+
+  // Group picks by type
+  const typeOrder = ['K_PROP','HR_PROP','HIT_PROP','TB_PROP','TOTAL','TEAM_TOTAL','MONEYLINE','ML_F5'];
+  const grouped = {};
+  for (const p of g.picks) {
+    (grouped[p.bet_type] = grouped[p.bet_type] || []).push(p);
+  }
+
+  const sections = typeOrder
+    .filter(t => grouped[t])
+    .map(t => {
+      const meta = BET_META[t] || { label: t, color: '#6b7280' };
+      const count = grouped[t].length;
+      return `
+<div class="prop-type-group">
+  <div class="prop-type-header">
+    <span class="bet-badge" style="--bet-color:${meta.color}">${meta.label}</span>
+    <span class="prop-type-label">${betTypeLabel(t)}</span>
+    <span class="prop-group-count">${count} pick${count !== 1 ? 's' : ''}</span>
+  </div>
+  ${grouped[t].map(p => renderPick(p)).join('')}
+</div>`;
+    }).join('');
+
+  return `
+<div class="pick-game-card">
+  <div class="pick-game-header">
+    <span class="pick-matchup">${matchup}</span>
+    <span class="pick-time">${timeStr}</span>
+    <span class="pick-venue">${g.venue || ''}</span>
+  </div>
+  ${sections}
+</div>`;
+}
+
+function betTypeLabel(t) {
+  const labels = {
+    K_PROP: 'Strikeouts', HR_PROP: 'Home Runs', HIT_PROP: 'Hits',
+    TB_PROP: 'Total Bases', TOTAL: 'Game Total', TEAM_TOTAL: 'Team Totals',
+    MONEYLINE: 'Moneyline', ML_F5: 'First 5 Innings',
+  };
+  return labels[t] || t;
+}
+
+function renderPick(p) {
+  const meta    = BET_META[p.bet_type] || { label: '?', color: '#6b7280' };
+  const signal  = p.signal ?? 0;
+  const sigW    = Math.round((signal / 10) * 100);
+  const sigCls  = signal >= 7.5 ? 'sig-hi' : signal >= 6.0 ? 'sig-mid' : 'sig-lo';
+  const dirCls  = p.direction === 'OVER' ? 'dir-over' : 'dir-under';
+
+  const reasonsHtml = (p.reasons || []).map(r =>
+    `<li class="pick-reason">${escapeHtml(r)}</li>`
+  ).join('');
+
+  const statsHtml  = renderPickStatsRow(p);
+  const last5Html  = renderLast5Row(p);
+  const oddsHtml   = renderPickOdds(p);
+
+  return `
+<div class="pick-card" style="--bet-color:${meta.color}">
+  <div class="pick-card-top">
+    <div class="pick-subject-row">
+      <span class="bet-badge" style="--bet-color:${meta.color}">${meta.label}</span>
+      <span class="pick-subject">${escapeHtml(p.subject)}</span>
+      <span class="pick-dir ${dirCls}">${p.direction}</span>
+    </div>
+    <div class="pick-headline">${escapeHtml(p.headline)}</div>
+    <div class="signal-bar-wrap">
+      <div class="signal-bar-track">
+        <div class="signal-bar-fill ${sigCls}" style="width:${sigW}%"></div>
+      </div>
+      <span class="signal-label">Signal ${signal.toFixed(1)}</span>
+    </div>
+  </div>
+  ${oddsHtml}
+  ${statsHtml}
+  ${last5Html}
+  ${reasonsHtml ? `<ul class="pick-reasons">${reasonsHtml}</ul>` : ''}
+</div>`;
+}
+
+function renderPickOdds(p) {
+  const o = p.odds;
+  if (!o || !o.has_line) return '';
+  const edgeCls = (o.edge_pct >= 0.03) ? 'edge-pos' : (o.edge_pct <= -0.03) ? 'edge-neg' : 'edge-neu';
+  const price   = p.direction === 'OVER' ? o.over_price : o.under_price;
+  const edgePct = o.edge_pct != null ? `${(o.edge_pct * 100).toFixed(1)}%` : '—';
+  return `
+<div class="pick-odds-row">
+  <span class="odds-line">Line: ${o.line}</span>
+  <span class="odds-price">${price > 0 ? '+' : ''}${price}</span>
+  <span class="edge-badge ${edgeCls}">Edge ${edgePct}</span>
+</div>`;
+}
+
+function renderPickStatsRow(p) {
+  const rs = p.raw_scores || {};
+  const chips = [];
+
+  if (p.bet_type === 'K_PROP') {
+    if (rs.sp_k_pct    != null) chips.push(['K%',      rs.sp_k_pct]);
+    if (rs.whiff_pct   != null) chips.push(['Whiff',   rs.whiff_pct]);
+    if (rs.stuff_plus  != null) chips.push(['Stuff+',  rs.stuff_plus]);
+    if (rs.o_swing_pct != null) chips.push(['Chase',   rs.o_swing_pct]);
+    if (rs.opp_k_pct   != null) chips.push(['OppK%',   rs.opp_k_pct]);
+  } else if (p.bet_type === 'HR_PROP' || p.bet_type === 'HIT_PROP' || p.bet_type === 'TB_PROP') {
+    if (rs.xwoba       != null) chips.push(['xwOBA',   rs.xwoba]);
+    if (rs.hard_hit_pct!= null) chips.push(['HH%',     rs.hard_hit_pct]);
+    if (rs.barrel_pct  != null) chips.push(['Brl%',    rs.barrel_pct]);
+    if (rs.bb_pct      != null) chips.push(['BB%',     rs.bb_pct]);
+    if (rs.k_pct       != null) chips.push(['K%',      rs.k_pct]);
+    const edge = rs.edge_score;
+    if (edge != null) {
+      const ecls = edge >= 70 ? 'edge-hi' : edge >= 45 ? 'edge-mid' : 'edge-lo';
+      return `<div class="stat-pills-row">${chips.map(([l,v]) => `<span class="stat-pill">${l} ${v}</span>`).join('')}<span class="edge-score-badge ${ecls}">Edge ${edge}</span></div>`;
+    }
+  } else {
+    if (rs.avg_lineup_xwoba   != null) chips.push(['xwOBA', rs.avg_lineup_xwoba]);
+    if (rs.home_sp_xfip        != null) chips.push(['H-xFIP', rs.home_sp_xfip]);
+    if (rs.away_sp_xfip        != null) chips.push(['A-xFIP', rs.away_sp_xfip]);
+    if (rs.park_run_factor     != null) chips.push(['Park', rs.park_run_factor]);
+    if (rs.lineup_xwoba        != null) chips.push(['xwOBA', rs.lineup_xwoba]);
+    if (rs.sp_xfip             != null) chips.push(['xFIP', rs.sp_xfip]);
+  }
+
+  if (!chips.length) return '';
+  return `<div class="stat-pills-row">${chips.map(([l,v]) => `<span class="stat-pill">${l} ${v}</span>`).join('')}</div>`;
+}
+
+function renderLast5Row(p) {
+  const rs = p.raw_scores || {};
+
+  if (p.bet_type === 'HR_PROP' && rs.recent_hr_games) {
+    const cells = rs.recent_hr_games.map(n => {
+      const cls = n >= 2 ? 'hr-multi' : n === 1 ? 'hr-hit' : 'hr-miss';
+      return `<span class="last5-cell ${cls}">${n >= 1 ? n : '○'}</span>`;
+    }).join('');
+    return `<div class="last5-row"><span class="last5-label">Last 5</span>${cells}</div>`;
+  }
+
+  if ((p.bet_type === 'HIT_PROP' || p.bet_type === 'TB_PROP') && rs.recent_h_games) {
+    const cells = rs.recent_h_games.map(n => {
+      const cls = n >= 2 ? 'h-multi' : n === 1 ? 'h-hit' : 'h-miss';
+      return `<span class="last5-cell ${cls}">${n >= 1 ? n : '—'}</span>`;
+    }).join('');
+    return `<div class="last5-row"><span class="last5-label">Last 5</span>${cells}</div>`;
+  }
+
+  if (p.bet_type === 'K_PROP' && rs.recent_k_games) {
+    const cells = rs.recent_k_games.map(n => {
+      const cls = n >= 8 ? 'k-hot' : n >= 5 ? 'k-mid' : 'k-cold';
+      return `<span class="last5-cell ${cls}">${n}K</span>`;
+    }).join('');
+    return `<div class="last5-row"><span class="last5-label">Last ${rs.recent_k_games.length}</span>${cells}</div>`;
+  }
+
+  return '';
 }

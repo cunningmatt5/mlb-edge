@@ -1,13 +1,14 @@
 'use strict';
 
-const CACHE_NAME = 'mlb-edge-v28';
+const CACHE_NAME = 'mlb-edge-v29';
 const STATIC_ASSETS = [
   './',
   './index.html',
   './app.js',
-  './styles.css?v=28',
+  './styles.css?v=29',
   './manifest.json',
   './backtest.json',
+  './picks.json',
 ];
 
 self.addEventListener('install', event => {

@@ -114,6 +114,48 @@ def main(dry_run: bool = False) -> None:
         except Exception as exc:
             log.warning("History update failed: %s", exc)
 
+    # Generate player + game props picks (non-fatal — never breaks game predictions)
+    if not dry_run:
+        try:
+            from pipeline.analytics.hr_props       import score_hr_props
+            from pipeline.analytics.hit_props       import score_hit_props
+            from pipeline.analytics.strikeout_props import score_strikeout_props
+            from pipeline.analytics.total_bases     import score_total_bases
+            from pipeline.analytics.team_totals     import score_team_totals
+            from pipeline.analytics.game_totals     import score_game_total
+            from pipeline.analytics.moneyline_f5    import score_moneyline_f5
+
+            pick_games: list[dict] = []
+            for game in games:  # original schedule dicts have SP IDs + lineup ID lists
+                all_picks: list[dict] = []
+                all_picks += score_hr_props(game, cache)
+                all_picks += score_hit_props(game, cache)
+                all_picks += score_strikeout_props(game, cache)
+                all_picks += score_total_bases(game, cache)
+                all_picks += score_team_totals(game, cache)
+                all_picks += score_game_total(game, cache)
+                all_picks += score_moneyline_f5(game, cache)
+                all_picks.sort(key=lambda p: p["signal"], reverse=True)
+                if all_picks:
+                    pick_games.append({
+                        "game_time": game.get("gameTime", ""),
+                        "away_team": game.get("awayTeam", ""),
+                        "home_team": game.get("homeTeam", ""),
+                        "venue":     game.get("venue", ""),
+                        "picks":     all_picks,
+                    })
+
+            picks_output = {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "games": pick_games,
+            }
+            picks_path = OUTPUT_DIR / "picks.json"
+            picks_path.write_text(json.dumps(picks_output, separators=(",", ":")), encoding="utf-8")
+            log.info("Props: %d game cards, %d picks → picks.json",
+                     len(pick_games), sum(len(g["picks"]) for g in pick_games))
+        except Exception as exc:
+            log.warning("Props analytics failed (non-fatal): %s", exc, exc_info=True)
+
     log.info("=== Done: %d games ===", len(game_objects))
 
 

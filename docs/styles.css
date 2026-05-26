@@ -1121,4 +1121,298 @@ header {
   .signal-accuracy-grid { grid-template-columns: 1fr 1fr; }
   .backtest-summary { gap: 0; padding: 12px; }
   .bt-big { font-size: 18px; }
+
+  /* Props: stack stat pills on narrow screens */
+  .pick-game-header { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .stat-pills-row   { flex-wrap: wrap; }
+}
+
+/* ── Props Tab ─────────────────────────────────────────────────────────────── */
+
+.picks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.pick-game-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.pick-game-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.pick-matchup {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.pick-time {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.pick-venue {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: auto;
+}
+
+/* ── Prop type group ─────────────────────────────────────────────── */
+
+.prop-type-group {
+  border-top: 1px solid var(--border);
+}
+.prop-type-group:first-child { border-top: none; }
+
+.prop-type-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 6px;
+  background: rgba(255,255,255,.02);
+}
+
+.prop-type-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.prop-group-count {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+/* ── Individual pick card ─────────────────────────────────────────── */
+
+.pick-card {
+  border-left: 3px solid var(--bet-color, #6b7280);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.pick-card:last-child { border-bottom: none; }
+
+.pick-card-top {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pick-subject-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.bet-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  background: color-mix(in srgb, var(--bet-color, #6b7280) 18%, transparent);
+  color: var(--bet-color, #6b7280);
+  border: 1px solid color-mix(in srgb, var(--bet-color, #6b7280) 35%, transparent);
+}
+
+.pick-subject {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pick-dir {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+}
+.dir-over  { background: rgba(34,197,94,.15);  color: #4ade80; }
+.dir-under { background: rgba(220,38,38,.15);  color: #f87171; }
+
+.pick-headline {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ── Signal bar ──────────────────────────────────────────────────── */
+
+.signal-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.signal-bar-track {
+  flex: 1;
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.signal-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width .3s ease;
+}
+.sig-hi  { background: #22c55e; }
+.sig-mid { background: #f59e0b; }
+.sig-lo  { background: #94a3b8; }
+
+.signal-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ── Odds row ────────────────────────────────────────────────────── */
+
+.pick-odds-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  padding: 5px 8px;
+  background: rgba(255,255,255,.03);
+  border-radius: var(--radius-sm);
+  flex-wrap: wrap;
+}
+
+.odds-line {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.odds-price {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.edge-badge {
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.edge-pos { background: rgba(34,197,94,.15);  color: #4ade80; }
+.edge-neg { background: rgba(220,38,38,.15);  color: #f87171; }
+.edge-neu { background: rgba(148,163,184,.12); color: #94a3b8; }
+
+/* ── Stat pills ──────────────────────────────────────────────────── */
+
+.stat-pills-row {
+  display: flex;
+  gap: 5px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.stat-pill {
+  padding: 2px 7px;
+  background: var(--bg-table);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.edge-score-badge {
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.edge-hi  { background: rgba(34,197,94,.15);  color: #4ade80; }
+.edge-mid { background: rgba(245,158,11,.15);  color: #fbbf24; }
+.edge-lo  { background: rgba(148,163,184,.10); color: #94a3b8; }
+
+/* ── Last-5 row ──────────────────────────────────────────────────── */
+
+.last5-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.last5-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  min-width: 40px;
+}
+
+.last5-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--bg-table);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+/* HR cells */
+.last5-cell.hr-multi { background: rgba(220,38,38,.20);  border-color: #dc2626; color: #f87171; }
+.last5-cell.hr-hit   { background: rgba(220,38,38,.12);  border-color: rgba(220,38,38,.4); color: #f87171; }
+.last5-cell.hr-miss  { background: var(--bg-table); color: var(--text-dim); }
+
+/* Hit cells */
+.last5-cell.h-multi { background: rgba(37,99,235,.20);  border-color: #2563eb; color: #60a5fa; }
+.last5-cell.h-hit   { background: rgba(37,99,235,.12);  border-color: rgba(37,99,235,.4); color: #60a5fa; }
+.last5-cell.h-miss  { background: var(--bg-table); color: var(--text-dim); }
+
+/* K cells — use pill shape */
+.last5-cell.k-hot  { border-radius: 6px; width: auto; padding: 0 6px; background: rgba(124,58,237,.20); border-color: #7c3aed; color: #a78bfa; }
+.last5-cell.k-mid  { border-radius: 6px; width: auto; padding: 0 6px; background: rgba(245,158,11,.15); border-color: rgba(245,158,11,.4); color: #fbbf24; }
+.last5-cell.k-cold { border-radius: 6px; width: auto; padding: 0 6px; background: var(--bg-table); color: var(--text-dim); }
+
+/* ── Pick reasons list ───────────────────────────────────────────── */
+
+.pick-reasons {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,.02);
+  border-radius: var(--radius-sm);
+  border-left: 2px solid color-mix(in srgb, var(--bet-color, #6b7280) 40%, transparent);
+}
+
+.pick-reason {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.45;
 }
