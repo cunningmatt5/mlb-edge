@@ -858,6 +858,64 @@ header {
   line-height: 1.6;
 }
 
+/* ── Model vs Vegas comparison block ─────────────────────────── */
+.vs-vegas-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vv-section {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.vv-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-dim);
+  margin-bottom: 7px;
+}
+
+.vv-row-head, .vv-row, .vv-edge-row {
+  display: grid;
+  grid-template-columns: 52px 1fr 1fr;
+  gap: 4px;
+  font-size: 12px;
+  padding: 2px 0;
+}
+
+.vv-row-head { font-size: 10px; color: var(--text-dim); font-weight: 600; }
+.vv-row      { color: var(--text-muted); }
+.vv-lbl      { color: var(--text-dim); font-size: 11px; }
+.vv-row-small { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+.vv-edge-row {
+  border-top: 1px solid var(--border);
+  padding-top: 5px;
+  margin-top: 4px;
+  font-weight: 600;
+}
+.vv-edge-strong { color: var(--green-light); }
+.vv-edge-mild   { color: var(--amber); }
+.vv-edge-flat   { color: var(--text-muted); }
+
+.vv-totals-grid {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+.vv-totals-cell  { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.vv-totals-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; }
+.vv-totals-val   { font-size: 20px; font-weight: 700; color: var(--text); line-height: 1.1; }
+.vv-totals-sep   { font-size: 11px; color: var(--text-dim); flex-shrink: 0; padding-top: 10px; }
+.vv-diff         { font-size: 11px; }
+
 .signals-row {
   display: flex;
   flex-wrap: wrap;

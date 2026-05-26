@@ -219,6 +219,109 @@ function gameFav(g) {
   return (pred.home_win_pct ?? 0.5) >= 0.5 ? 'home' : 'away';
 }
 
+function americanToDecimal(odds) {
+  return odds >= 0 ? 1 + odds / 100 : 1 - 100 / odds;
+}
+
+function noVigProb(oddsA, oddsB) {
+  const rawA = 1 / americanToDecimal(oddsA);
+  const rawB = 1 / americanToDecimal(oddsB);
+  const total = rawA + rawB;
+  return [rawA / total, rawB / total];
+}
+
+function vsVegasHTML(g) {
+  const odds = g.odds;
+  const pred = g.prediction || {};
+  if (!odds) return '';
+
+  const sections = [];
+
+  // ── Moneyline edge ─────────────────────────────────────────────────────────
+  if (odds.home_ml != null && odds.away_ml != null) {
+    const [vegasHomePct, vegasAwayPct] = noVigProb(odds.home_ml, odds.away_ml);
+    const modelHomePct = pred.home_win_pct ?? 0.5;
+    const modelAwayPct = 1 - modelHomePct;
+    const homeEdge = modelHomePct - vegasHomePct;
+    const awayEdge = modelAwayPct - vegasAwayPct;
+
+    // Show edge on whichever column has a positive model advantage
+    const edgeSide = homeEdge >= awayEdge ? 'home' : 'away';
+    const edgePct  = Math.abs(edgeSide === 'home' ? homeEdge : awayEdge);
+    const edgeCls  = edgePct >= 0.05 ? 'vv-edge-strong' : edgePct >= 0.02 ? 'vv-edge-mild' : 'vv-edge-flat';
+
+    const homeEdgeStr = homeEdge >= 0 ? `+${(homeEdge*100).toFixed(1)}%` : `${(homeEdge*100).toFixed(1)}%`;
+    const awayEdgeStr = awayEdge >= 0 ? `+${(awayEdge*100).toFixed(1)}%` : `${(awayEdge*100).toFixed(1)}%`;
+
+    sections.push(`
+<div class="vv-section">
+  <div class="vv-title">Moneyline Edge</div>
+  <div class="vv-row vv-row-head">
+    <span></span>
+    <span>${abbrev(g.away_team)}</span>
+    <span>${abbrev(g.home_team)}</span>
+  </div>
+  <div class="vv-row">
+    <span class="vv-lbl">Model</span>
+    <span>${(modelAwayPct*100).toFixed(1)}%</span>
+    <span>${(modelHomePct*100).toFixed(1)}%</span>
+  </div>
+  <div class="vv-row">
+    <span class="vv-lbl">Vegas</span>
+    <span>${(vegasAwayPct*100).toFixed(1)}%</span>
+    <span>${(vegasHomePct*100).toFixed(1)}%</span>
+  </div>
+  <div class="vv-edge-row ${edgeCls}">
+    <span class="vv-lbl">Edge</span>
+    <span>${awayEdgeStr}</span>
+    <span>${homeEdgeStr}</span>
+  </div>
+</div>`);
+  }
+
+  // ── Totals edge ────────────────────────────────────────────────────────────
+  if (odds.total != null && pred.predicted_total != null
+      && odds.over_price != null && odds.under_price != null) {
+    const modelTotal = pred.predicted_total;
+    const vegasLine  = odds.total;
+    const diff       = +(modelTotal - vegasLine).toFixed(1);
+    const direction  = diff > 0 ? 'OVER' : diff < 0 ? 'UNDER' : 'PUSH';
+    const [vegasOverPct, vegasUnderPct] = noVigProb(odds.over_price, odds.under_price);
+    const absDiff  = Math.abs(diff);
+    const diffCls  = absDiff >= 0.5 ? 'vv-edge-strong' : absDiff >= 0.2 ? 'vv-edge-mild' : 'vv-edge-flat';
+    const dirCls   = direction === 'OVER' ? 'dir-over' : direction === 'UNDER' ? 'dir-under' : '';
+
+    sections.push(`
+<div class="vv-section">
+  <div class="vv-title">Totals Edge</div>
+  <div class="vv-totals-grid">
+    <div class="vv-totals-cell">
+      <span class="vv-totals-label">Model Total</span>
+      <span class="vv-totals-val">${modelTotal.toFixed(1)}</span>
+    </div>
+    <div class="vv-totals-sep">vs</div>
+    <div class="vv-totals-cell">
+      <span class="vv-totals-label">Vegas Line</span>
+      <span class="vv-totals-val">O/U ${vegasLine}</span>
+    </div>
+  </div>
+  <div class="vv-edge-row ${diffCls}">
+    <span class="vv-lbl">Direction</span>
+    <span class="pick-dir ${dirCls}">${direction}</span>
+    <span class="vv-diff">${diff >= 0 ? '+' : ''}${diff.toFixed(1)} runs</span>
+  </div>
+  <div class="vv-row vv-row-small">
+    <span class="vv-lbl">Vegas implied</span>
+    <span>OVER ${(vegasOverPct*100).toFixed(1)}%</span>
+    <span>UNDER ${(vegasUnderPct*100).toFixed(1)}%</span>
+  </div>
+</div>`);
+  }
+
+  if (!sections.length) return '';
+  return `<div class="vs-vegas-block">${sections.join('')}</div>`;
+}
+
 function gameCardHTML(g) {
   const hXera = g.home_sp?.season?.xera;
   const aXera = g.away_sp?.season?.xera;
@@ -587,6 +690,8 @@ function predictionHTML(g) {
     <span><strong>${pred.predicted_home_runs}</strong> ${g.home_team}</span>
     <span class="total-label">Total: ${pred.predicted_total}</span>
   </div>` : ''}
+
+  ${vsVegasHTML(g)}
 
   ${pred.narrative ? `<p class="narrative">${pred.narrative}</p>` : ''}
 
