@@ -29,8 +29,8 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
     away_sp = cache.get(game.get("away_sp_id"), {})
 
     def sp_suppress(sp: dict) -> float:
-        xfip_s  = 1.0 - normalize(sp.get("xfip"),  lo=2.80, hi=5.50)
-        siera_s = 1.0 - normalize(sp.get("siera"), lo=2.80, hi=5.50)
+        xfip_s  = 1.0 - normalize(sp.get("xfip"),  lo=2.50, hi=5.50)
+        siera_s = 1.0 - normalize(sp.get("siera"), lo=2.50, hi=5.50)
         return weighted_avg([(xfip_s, 0.50), (siera_s, 0.50)])
 
     home_supp      = sp_suppress(home_sp)
@@ -43,7 +43,7 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
     home_xwoba = lineup_weighted_mean(home_lineup, "xwoba") or 0.320
     away_xwoba = lineup_weighted_mean(away_lineup, "xwoba") or 0.320
     avg_xwoba  = (home_xwoba + away_xwoba) / 2.0
-    offense_s  = normalize(avg_xwoba, lo=0.270, hi=0.370)
+    offense_s  = normalize(avg_xwoba, lo=0.260, hi=0.380)
 
     over_raw  = weighted_avg([(offense_s, 0.40), (park_s, 0.25), (1.0 - avg_suppression, 0.35)])
     under_raw = weighted_avg([(1.0 - offense_s, 0.40), (1.0 - park_s, 0.25), (avg_suppression, 0.35)])
@@ -81,6 +81,7 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
                     "park_run_factor":    park_run,
                     "avg_suppression":    round(avg_suppression, 3),
                     "offense_score":      round(offense_s, 3),
+                    "lineup_data":        (home_xwoba != 0.320 and bool(home_lineup)) or (away_xwoba != 0.320 and bool(away_lineup)),
                     "weather_modifier":   round(weather_mod, 2) if weather_mod else None,
                     "umpire_modifier":    round(ump_mod, 2) if ump_mod else None,
                     "umpire":             umpire or None,

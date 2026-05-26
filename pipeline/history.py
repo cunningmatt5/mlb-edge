@@ -59,6 +59,7 @@ def append_today(history: list[dict], games: list[dict], today_str: str) -> list
             "away_team":          g["away_team"],
             "predicted_winner":   "home" if pred.get("home_win_pct", 0) >= 0.5 else "away",
             "home_win_pct":       pred.get("home_win_pct"),
+            "predicted_total":    pred.get("predicted_total"),
             "pitcher_score_home": signals.get("pitcher_score_home"),
             "pitcher_score_away": signals.get("pitcher_score_away"),
             "lineup_score_home":  signals.get("lineup_score_home"),
@@ -109,6 +110,8 @@ def resolve_yesterday(history: list[dict]) -> list[dict]:
         away_score = score["away_score"]
         if home_score is None or away_score is None:
             continue
+        if home_score == 0 and away_score == 0:
+            continue  # suspended/postponed — do not resolve
         record["home_score"]    = home_score
         record["away_score"]    = away_score
         record["actual_winner"] = (

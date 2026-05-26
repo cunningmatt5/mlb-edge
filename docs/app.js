@@ -840,8 +840,9 @@ function renderBacktestView() {
 
   // ── Signal accuracy ───────────────────────────────────────────────────────
   const sigAcc = stats.signal_accuracy || {};
-  const pit = sigAcc.pitcher || {};
-  const cmp = sigAcc.comps   || {};
+  const pit = sigAcc.pitcher    || {};
+  const cmp = sigAcc.comps      || {};
+  const tot = sigAcc.totals_dir || {};
 
   // ── Game log ─────────────────────────────────────────────────────────────
   const rows = games.slice(0, 200).map(g => {
@@ -901,6 +902,11 @@ function renderBacktestView() {
           <span class="sig-acc-label">Comps Match</span>
           <span class="sig-acc-pct">${pct(cmp.pct)}</span>
           <span class="sig-acc-sub">${cmp.correct ?? 0}/${cmp.total ?? 0} games</span>
+        </div>
+        <div class="sig-acc-card">
+          <span class="sig-acc-label">Totals Direction</span>
+          <span class="sig-acc-pct">${pct(tot.pct)}</span>
+          <span class="sig-acc-sub">${tot.correct ?? 0}/${tot.total ?? 0} games</span>
         </div>
       </div>
 
@@ -1038,6 +1044,9 @@ function renderPick(p) {
   const sigCls  = signal >= 7.5 ? 'sig-hi' : signal >= 6.0 ? 'sig-mid' : 'sig-lo';
   const dirCls  = p.direction === 'OVER' ? 'dir-over' : 'dir-under';
 
+  const isTotal   = p.bet_type === 'TOTAL' || p.bet_type === 'TEAM_TOTAL';
+  const noLineup  = isTotal && p.raw_scores && p.raw_scores.lineup_data === false;
+
   const reasonsHtml = (p.reasons || []).map(r =>
     `<li class="pick-reason">${escapeHtml(r)}</li>`
   ).join('');
@@ -1053,6 +1062,7 @@ function renderPick(p) {
       <span class="bet-badge" style="--bet-color:${meta.color}">${meta.label}</span>
       <span class="pick-subject">${escapeHtml(p.subject)}</span>
       <span class="pick-dir ${dirCls}">${p.direction}</span>
+      ${noLineup ? '<span class="data-quality-badge">Pitcher-only signal</span>' : ''}
     </div>
     <div class="pick-headline">${escapeHtml(p.headline)}</div>
     <div class="signal-bar-wrap">

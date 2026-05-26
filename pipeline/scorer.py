@@ -41,10 +41,10 @@ def batter_edge_score(b: dict) -> float | None:
     Returns None if no qualifying stats are present.
     """
     candidates = [
-        ("xwoba",        normalize(b.get("xwoba"),        lo=0.250, hi=0.400), 0.35),
+        ("xwoba",        normalize(b.get("xwoba"),        lo=0.240, hi=0.420), 0.35),
         ("hard_hit_pct", normalize(b.get("hard_hit_pct"), lo=0.25,  hi=0.55),  0.30),
         ("bb_pct",       normalize(b.get("bb_pct"),       lo=0.04,  hi=0.18),  0.20),
-        ("k_pct",        normalize(b.get("k_pct"),        lo=0.30,  hi=0.12),  0.15),
+        ("k_pct",        normalize(b.get("k_pct"),        lo=0.35,  hi=0.12),  0.15),
     ]
     valid = [(v, w) for key, v, w in candidates if b.get(key) is not None]
     if not valid:

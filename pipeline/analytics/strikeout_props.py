@@ -33,7 +33,8 @@ def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
         # Blend season K% with last-3-starts K% (60/40)
         season_k = sp.get("k_pct")
         recent_k = sp.get("recent_k_pct")
-        if season_k is not None and recent_k is not None:
+        recent_starts_n = sp.get("recent_starts_n", 0)
+        if season_k is not None and recent_k is not None and recent_starts_n >= 3:
             blended_k = 0.60 * season_k + 0.40 * recent_k
         else:
             blended_k = season_k if season_k is not None else recent_k
@@ -57,7 +58,7 @@ def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
         opp_contact_mean = safe_mean(opp_contacts)
 
         opp_k_s       = normalize(opp_k_mean,      lo=0.16, hi=0.30)
-        opp_contact_s = 1.0 - normalize(opp_contact_mean, lo=0.68, hi=0.90)
+        opp_contact_s = normalize(opp_contact_mean, lo=0.90, hi=0.68)
 
         lineup_comp = weighted_avg([
             (opp_k_s,       0.60),

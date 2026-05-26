@@ -1416,3 +1416,16 @@ header {
   color: var(--text-muted);
   line-height: 1.45;
 }
+
+/* ── Data quality badge ──────────────────────────────────────────── */
+
+.data-quality-badge {
+  font-size: 0.68rem;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #78350f22;
+  color: #b45309;
+  border: 1px solid #92400e44;
+  font-weight: 500;
+  white-space: nowrap;
+}

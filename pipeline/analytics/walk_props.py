@@ -29,10 +29,11 @@ def score_walk_props(game: dict, cache: dict) -> list[dict]:
             continue
         sp = cache[sp_id]
 
-        # Blend season BB% with last-3-starts BB% (60/40)
+        # Blend season BB% with last-3-starts BB% (60/40), require ≥3 starts
         season_bb = sp.get("bb_pct")
         recent_bb = sp.get("recent_bb_pct")
-        if season_bb is not None and recent_bb is not None:
+        recent_starts_n = sp.get("recent_starts_n", 0)
+        if season_bb is not None and recent_bb is not None and recent_starts_n >= 3:
             blended_bb = 0.60 * season_bb + 0.40 * recent_bb
         else:
             blended_bb = season_bb if season_bb is not None else recent_bb

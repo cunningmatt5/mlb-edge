@@ -92,8 +92,8 @@ def score_moneyline_f5(game: dict, cache: dict) -> list[dict]:
 
 def _sp_quality(sp: dict) -> float:
     """Return SP quality in [-1, 1] centered at league-average 0."""
-    xfip_s = 1.0 - normalize(sp.get("xfip"), lo=2.80, hi=5.50)
-    siera_s = 1.0 - normalize(sp.get("siera"), lo=2.80, hi=5.50)
+    xfip_s = 1.0 - normalize(sp.get("xfip"), lo=2.50, hi=5.50)
+    siera_s = 1.0 - normalize(sp.get("siera"), lo=2.50, hi=5.50)
     kbb_s = normalize(sp.get("k_minus_bb_pct"), lo=0.00, hi=0.25)
     stuff_s = normalize(sp.get("stuff_plus"), lo=80, hi=130)
 

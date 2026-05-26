@@ -255,6 +255,23 @@ def compute_stats(results: list[dict]) -> dict:
     total_mae  = round(sum(abs(r["predicted_total"] - r["actual_total"]) for r in totals_valid) / len(totals_valid), 3) if totals_valid else None
     total_bias = round(sum(r["predicted_total"] - r["actual_total"] for r in totals_valid) / len(totals_valid), 3) if totals_valid else None
 
+    # Run total directional accuracy (vs. league-average threshold)
+    league_avg_total = LEAGUE_AVG_RUNS * 2
+    totals_dir_valid = [
+        r for r in results
+        if r.get("predicted_total") is not None and r.get("actual_total") is not None
+    ]
+    totals_dir_correct = sum(
+        1 for r in totals_dir_valid
+        if (r["predicted_total"] >= league_avg_total) == (r["actual_total"] >= league_avg_total)
+    )
+    tdn = len(totals_dir_valid)
+    totals_dir_acc = {
+        "total":   tdn,
+        "correct": totals_dir_correct,
+        "pct":     round(totals_dir_correct / tdn, 4) if tdn > 0 else None,
+    }
+
     # Signal accuracy: pitcher edge (when pitcher score diff >= 0.08)
     pitcher_signal = [
         r for r in decided
@@ -282,8 +299,9 @@ def compute_stats(results: list[dict]) -> dict:
         "total_mae":              total_mae,
         "total_bias":             total_bias,
         "signal_accuracy": {
-            "pitcher": pitcher_acc,
-            "comps":   comps_acc,
+            "pitcher":       pitcher_acc,
+            "comps":         comps_acc,
+            "totals_dir":    totals_dir_acc,
         },
     }
 
