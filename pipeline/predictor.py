@@ -13,7 +13,7 @@ from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean, bullp
 log = logging.getLogger(__name__)
 
 LEAGUE_AVG_RUNS  = 4.1   # calibrated from 7,303-game comps DB (was 4.5 → bias +1.7 runs)
-HOME_ADVANTAGE   = 0.54  # baseline home win probability before stats adjustment
+HOME_ADVANTAGE   = 0.525  # baseline home win probability (calibrated: actual 52.7% from 805-game sample)
 _PITCHER_WEIGHT  = 0.85  # run-suppression weight (calibrated; was 0.6)
 _LINEUP_WEIGHT   = 0.55  # run-production weight (calibrated; was 0.6)
 
@@ -124,11 +124,11 @@ def _win_probability(
         (home_lineup_score - away_pitcher_score)
         - (away_lineup_score - home_pitcher_score)
     )
-    logit_stats = _logit(HOME_ADVANTAGE) + raw_edge * 2.0
+    logit_stats = _logit(HOME_ADVANTAGE) + raw_edge * 1.5
 
     if comps_home_win_rate is not None:
         logit_comps = _logit(comps_home_win_rate)
-        logit_blend = logit_stats * 0.7 + logit_comps * 0.3
+        logit_blend = logit_stats * 0.8 + logit_comps * 0.2
     else:
         logit_blend = logit_stats
 
