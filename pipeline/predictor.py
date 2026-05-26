@@ -22,7 +22,7 @@ _LINEUP_WEIGHT   = 0.65  # run-production weight (increased from 0.55 to address
 _P_WEIGHTS: dict[str, tuple[float, bool, tuple[float, float]]] = {
     "xera":               (0.20, True,  (1.5,   6.0)),
     "barrel_pct_against": (0.20, True,  (0.03,  0.15)),  # quality of contact allowed; already fetched, previously unused
-    "stuff_plus":         (0.15, False, (80,    130)),    # pitch quality composite; 0.5 neutral when missing
+    "stuff_plus":         (0.15, False, (80,    120)),    # pitch quality composite; midpoint=100 = league avg
     "whiff_pct":          (0.12, False, (0.10,  0.40)),
     "o_swing_pct":        (0.12, False, (0.20,  0.40)),   # chase%
     "k_pct":              (0.10, False, (0.10,  0.40)),
