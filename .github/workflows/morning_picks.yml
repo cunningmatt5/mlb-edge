@@ -2,7 +2,7 @@ name: MLB Morning Games
 
 on:
   schedule:
-    - cron: '*/30 * * * *'   # every 30 min (GitHub enforces ~30 min minimum in practice)
+    - cron: '*/15 * * * *'   # every 15 min
   workflow_dispatch:
 
 # Prevent two runs from stepping on each other — queue, don't cancel
@@ -26,7 +26,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Skip if games.json is fresh (< 13 min old)
+      - name: Skip if games.json is fresh (< 12 min old)
         id: check
         run: |
           NOW=$(date -u +%s)
@@ -45,7 +45,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "stale=true" >> $GITHUB_OUTPUT
             echo "Manual trigger — bypassing freshness check, regenerating."
-          elif [ "$AGE" -lt 1500 ]; then
+          elif [ "$AGE" -lt 720 ]; then
             echo "stale=false" >> $GITHUB_OUTPUT
             echo "games.json is ${AGE}s old — still fresh, skipping."
           else
