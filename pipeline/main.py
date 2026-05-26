@@ -120,7 +120,7 @@ def main(dry_run: bool = False) -> None:
             from pipeline.analytics.hr_props       import score_hr_props
             from pipeline.analytics.hit_props       import score_hit_props
             from pipeline.analytics.strikeout_props import score_strikeout_props
-            from pipeline.analytics.total_bases     import score_total_bases
+            from pipeline.analytics.total_bases     import score_total_bases_props as score_total_bases
             from pipeline.analytics.team_totals     import score_team_totals
             from pipeline.analytics.game_totals     import score_game_total
             from pipeline.analytics.moneyline_f5    import score_moneyline_f5
