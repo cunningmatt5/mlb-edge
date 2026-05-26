@@ -206,6 +206,19 @@ function toggleCard(pk) {
 }
 
 // ── Game card HTML ─────────────────────────────────────────────────────────────
+
+// Determine which side is "favored" for card coloring.
+// Uses predicted run scores when available so colors always match the displayed
+// score numbers. Falls back to win probability (home-field-adjusted) when run
+// scores are missing or tied.
+function gameFav(g) {
+  const pred = g.prediction || {};
+  const hr = pred.predicted_home_runs;
+  const ar = pred.predicted_away_runs;
+  if (hr != null && ar != null && hr !== ar) return hr > ar ? 'home' : 'away';
+  return (pred.home_win_pct ?? 0.5) >= 0.5 ? 'home' : 'away';
+}
+
 function gameCardHTML(g) {
   const hXera = g.home_sp?.season?.xera;
   const aXera = g.away_sp?.season?.xera;
@@ -217,7 +230,7 @@ function gameCardHTML(g) {
   const hFlags  = (g.home_sp?.trend_flags || []).slice(0, 1);
   const aFlags  = (g.away_sp?.trend_flags || []).slice(0, 1);
   const status  = g.game_status || 'preview';
-  const fav     = (g.prediction?.home_win_pct ?? 0.5) >= 0.5 ? 'home' : 'away';
+  const fav     = gameFav(g);
 
   return `
 <div class="game-card" data-pk="${g.gamePk}" data-status="${status}" data-fav="${fav}">
@@ -305,8 +318,9 @@ function statusStrip(g) {
   const pred    = g.prediction || {};
   const homePct = Math.round((pred.home_win_pct || 0.5) * 100);
   const awayPct = 100 - homePct;
-  const favTeam = abbrev(homePct >= awayPct ? g.home_team : g.away_team);
-  const favPct  = Math.max(homePct, awayPct);
+  const fav     = gameFav(g);
+  const favTeam = abbrev(fav === 'home' ? g.home_team : g.away_team);
+  const favPct  = fav === 'home' ? homePct : awayPct;
   const tier    = gameTier(pred.home_win_pct);
   const tierLabel = tier === 'elite' ? 'ELITE' : tier === 'great' ? 'GREAT' : tier === 'good' ? 'GOOD' : '';
   const tierBadge = tier ? `<span class="tier-badge tier-${tier}">${tierLabel}</span>` : '';
