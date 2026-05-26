@@ -81,6 +81,11 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
         _merge_savant_batter_batted_ball(entry, sav_bat_batted, mlbam_id)
         cache[mlbam_id] = entry
 
+    n_xwoba  = sum(1 for v in cache.values() if v.get("role") == "batter" and v.get("xwoba"))
+    n_barrel = sum(1 for v in cache.values() if v.get("role") == "batter" and v.get("barrel_pct"))
+    n_bat    = sum(1 for v in cache.values() if v.get("role") == "batter")
+    log.info("Batter data coverage: %d/%d have xwoba, %d/%d have barrel%%", n_xwoba, n_bat, n_barrel, n_bat)
+
     # --- 21-day rolling (whiff%, chase rate for SPs) ---
     start = (today - timedelta(days=ROLLING_DAYS)).strftime("%Y-%m-%d")
     end = today.strftime("%Y-%m-%d")
@@ -189,7 +194,7 @@ def _fetch_savant_csv(url: str, label: str) -> pd.DataFrame:
         resp = requests.get(url, headers=_HEADERS, timeout=TIMEOUT)
         resp.raise_for_status()
         df = pd.read_csv(io.StringIO(resp.text))
-        log.info("Savant %s: %d rows | cols: %s", label, len(df), list(df.columns[:10]))
+        log.info("Savant %s: %d rows | cols: %s", label, len(df), list(df.columns))
         return df
     except Exception as exc:
         log.warning("Savant %s fetch failed: %s", label, exc)
