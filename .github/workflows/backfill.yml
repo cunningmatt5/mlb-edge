@@ -4,9 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       seasons:
-        description: 'Comma-separated seasons to backfill (e.g. 2023,2024)'
+        description: 'Seasons to backfill game data + odds (e.g. 2019,2020,2021,2022,2023,2024)'
         required: false
         default: '2023,2024'
+      prior_seasons:
+        description: 'Prior seasons needed for lookahead-safe pitcher caches (e.g. 2018,2022,2023)'
+        required: false
+        default: '2022,2023'
 
 permissions:
   contents: write
@@ -33,14 +37,18 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Pull historical season data
-        run: python -m pipeline.historical --seasons "${{ github.event.inputs.seasons }}"
+      - name: Pull prior-season data (for lookahead-safe pitcher caches)
+        if: "${{ github.event.inputs.prior_seasons != '' }}"
+        run: python -m pipeline.historical --seasons "${{ github.event.inputs.prior_seasons }}"
 
-      - name: Run backtest
+      - name: Pull historical season data + SBRO closing lines
+        run: python -m pipeline.historical --seasons "${{ github.event.inputs.seasons }}" --with-odds
+
+      - name: Run backtest with EV stats
         run: python -m pipeline.backtest --seasons "${{ github.event.inputs.seasons }}"
 
       - name: Compute calibration
-        run: python -m pipeline.calibrate
+        run: python -m pipeline.recalibrate
 
       - name: Build comps database
         run: python -m pipeline.comps --build
@@ -49,6 +57,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/calibration.json data/game_comps.json
+          git add data/calibration.json data/game_comps.json docs/backtest.json
           git diff --staged --quiet || git commit -m "chore: update calibration and comps database [skip ci]"
+          git pull --rebase origin master
           git push

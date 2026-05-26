@@ -32,7 +32,7 @@ log = logging.getLogger(__name__)
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def pull_season_data(season: int, output_dir: Path) -> None:
+def pull_season_data(season: int, output_dir: Path, with_odds: bool = False) -> None:
     """Pull and persist all data for one season. Idempotent — skips existing files."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -71,6 +71,10 @@ def pull_season_data(season: int, output_dir: Path) -> None:
         with open(cache_path, "wb") as f:
             pickle.dump(cache, f)
         log.info("Saved player_cache.pkl: %d entries", len(cache))
+
+    if with_odds:
+        from pipeline.odds_historical import build_season_closing_lines
+        build_season_closing_lines(season, output_dir.parent)
 
 
 # ---------------------------------------------------------------------------
@@ -283,10 +287,12 @@ if __name__ == "__main__":
     )
     parser = argparse.ArgumentParser(description="Pull historical MLB season data")
     parser.add_argument("--seasons", default="2023,2024", help="Comma-separated years, e.g. 2023,2024")
+    parser.add_argument("--with-odds", action="store_true",
+                        help="Also download and join SBRO closing lines after game data")
     args = parser.parse_args()
 
     base = Path(__file__).parent.parent / "data" / "seasons"
     for s in args.seasons.split(","):
         season = int(s.strip())
         log.info("=== Pulling season %d ===", season)
-        pull_season_data(season, base / str(season))
+        pull_season_data(season, base / str(season), with_odds=args.with_odds)
