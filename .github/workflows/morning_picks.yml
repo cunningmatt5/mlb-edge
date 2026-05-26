@@ -74,6 +74,17 @@ jobs:
         if: steps.check.outputs.stale == 'true'
         run: python -m pipeline.history --resolve || true
 
+      - name: Backfill 2026 season history (Sundays or manual trigger)
+        if: steps.check.outputs.stale == 'true'
+        run: |
+          DOW=$(date -u +%u)
+          if [ "$DOW" = "7" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Running history backfill..."
+            python -m pipeline.backfill || echo "Backfill failed (non-fatal)"
+          else
+            echo "Not Sunday and not manual trigger — skipping backfill"
+          fi
+
       - name: Refresh backtest (Sundays or manual trigger)
         if: steps.check.outputs.stale == 'true'
         run: |
