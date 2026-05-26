@@ -41,7 +41,9 @@ def score_team_totals(game: dict, cache: dict) -> list[dict]:
 
         xfip_s  = 1.0 - normalize(opp_sp.get("xfip"),  lo=2.50, hi=5.50)
         siera_s = 1.0 - normalize(opp_sp.get("siera"), lo=2.50, hi=5.50)
-        sp_suppress = weighted_avg([(xfip_s, 0.50), (siera_s, 0.50)])
+        brl_s   = 1.0 - normalize(opp_sp.get("barrel_pct_against"), lo=0.03, hi=0.15)
+        stuff_s = normalize(opp_sp.get("stuff_plus"), lo=80, hi=130)
+        sp_suppress = weighted_avg([(xfip_s, 0.35), (siera_s, 0.35), (brl_s, 0.20), (stuff_s, 0.10)])
 
         # Blend starter (60%) + bullpen (40%) for full-game suppression
         sp_team_name = game.get(f"{sp_side}Team", "")

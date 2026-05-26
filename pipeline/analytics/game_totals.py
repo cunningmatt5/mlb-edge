@@ -31,7 +31,9 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
     def sp_suppress(sp: dict) -> float:
         xfip_s  = 1.0 - normalize(sp.get("xfip"),  lo=2.50, hi=5.50)
         siera_s = 1.0 - normalize(sp.get("siera"), lo=2.50, hi=5.50)
-        return weighted_avg([(xfip_s, 0.50), (siera_s, 0.50)])
+        brl_s   = 1.0 - normalize(sp.get("barrel_pct_against"), lo=0.03, hi=0.15)
+        stuff_s = normalize(sp.get("stuff_plus"), lo=80, hi=130)
+        return weighted_avg([(xfip_s, 0.35), (siera_s, 0.35), (brl_s, 0.20), (stuff_s, 0.10)])
 
     home_bp = cache.get(f"bullpen:{game.get('homeTeam', '')}", {})
     away_bp = cache.get(f"bullpen:{game.get('awayTeam', '')}", {})

@@ -14,28 +14,31 @@ log = logging.getLogger(__name__)
 
 LEAGUE_AVG_RUNS  = 4.1   # calibrated from 7,303-game comps DB (was 4.5 → bias +1.7 runs)
 HOME_ADVANTAGE   = 0.525  # baseline home win probability (calibrated: actual 52.7% from 805-game sample)
-_PITCHER_WEIGHT  = 0.85  # run-suppression weight (calibrated; was 0.6)
-_LINEUP_WEIGHT   = 0.55  # run-production weight (calibrated; was 0.6)
+_PITCHER_WEIGHT  = 0.80  # run-suppression weight (reduced from 0.85 to address -0.275 run bias)
+_LINEUP_WEIGHT   = 0.65  # run-production weight (increased from 0.55 to address -0.275 run bias)
 
 # Pitcher strength weights: (weight, invert, (lo, hi))
 # invert=True means lower value = better pitcher
 _P_WEIGHTS: dict[str, tuple[float, bool, tuple[float, float]]] = {
-    "xera":             (0.25, True,  (1.5,  6.0)),
-    "xba_against":      (0.15, True,  (0.150, 0.310)),
-    "whiff_pct":        (0.15, False, (0.10, 0.40)),
-    "o_swing_pct":      (0.15, False, (0.20, 0.40)),   # chase%
-    "k_pct":            (0.15, False, (0.10, 0.40)),
-    "bb_pct":           (0.10, True,  (0.04, 0.15)),
-    "rv100":            (0.05, False, (-2.0, 3.0)),
+    "xera":               (0.20, True,  (1.5,   6.0)),
+    "barrel_pct_against": (0.20, True,  (0.03,  0.15)),  # quality of contact allowed; already fetched, previously unused
+    "stuff_plus":         (0.15, False, (80,    130)),    # pitch quality composite; 0.5 neutral when missing
+    "whiff_pct":          (0.12, False, (0.10,  0.40)),
+    "o_swing_pct":        (0.12, False, (0.20,  0.40)),   # chase%
+    "k_pct":              (0.10, False, (0.10,  0.40)),
+    "bb_pct":             (0.06, True,  (0.04,  0.15)),
+    "xba_against":        (0.05, True,  (0.150, 0.310)),  # barrel_pct_against captures this signal better
 }
 
 # Lineup strength weights
 _L_WEIGHTS: dict[str, tuple[float, bool, tuple[float, float]]] = {
-    "xwoba":        (0.35, False, (0.260, 0.380)),
-    "avg_ev":       (0.20, False, (84.0,  94.0)),
-    "hard_hit_pct": (0.20, False, (0.25,  0.55)),
-    "k_pct":        (0.15, True,  (0.10,  0.35)),   # inverted: lower K% is better
-    "bb_pct":       (0.10, False, (0.04,  0.15)),
+    "xwoba":        (0.28, False, (0.260, 0.380)),
+    "xslg":         (0.20, False, (0.280, 0.580)),  # power/extra-base production; already fetched, previously unused
+    "barrel_pct":   (0.15, False, (0.03,  0.20)),   # elite contact quality; already fetched, previously unused
+    "hard_hit_pct": (0.15, False, (0.25,  0.55)),
+    "avg_ev":       (0.10, False, (84.0,  94.0)),   # reduced — largely captured by barrel_pct and hard_hit_pct
+    "k_pct":        (0.07, True,  (0.10,  0.35)),   # inverted: lower K% is better
+    "bb_pct":       (0.05, False, (0.04,  0.15)),
 }
 
 
