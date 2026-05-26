@@ -211,7 +211,7 @@ function gameCardHTML(g) {
   const aXera = g.away_sp?.season?.xera;
 
   const timeStr  = g.game_time_et || formatTimeET(g.game_time_utc);
-  const oddsStr  = g.odds ? formatOddsLine(g.odds, g.home_team) : '';
+  const oddsStr  = g.odds ? formatOddsLine(g.odds, g.away_team, g.home_team) : '';
   const wxStr    = formatWeather(g.weather);
 
   const hFlags  = (g.home_sp?.trend_flags || []).slice(0, 1);
@@ -702,8 +702,12 @@ function formatTimeET(utcStr) {
   } catch { return ''; }
 }
 
-function formatOddsLine(odds, homeTeam) {
+function formatOddsLine(odds, awayTeam, homeTeam) {
   const parts = [];
+  if (odds.away_ml != null) {
+    const sign = odds.away_ml > 0 ? '+' : '';
+    parts.push(`${abbrev(awayTeam)} ${sign}${odds.away_ml}`);
+  }
   if (odds.home_ml != null) {
     const sign = odds.home_ml > 0 ? '+' : '';
     parts.push(`${abbrev(homeTeam)} ${sign}${odds.home_ml}`);
