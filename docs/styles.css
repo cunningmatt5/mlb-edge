@@ -613,6 +613,12 @@ header {
   border: 1px solid rgba(59,130,246,.30);
 }
 
+.tier-badge.tier-good {
+  background: rgba(34,197,94,.12);
+  color: var(--green-light);
+  border: 1px solid rgba(34,197,94,.25);
+}
+
 /* Trend pills on collapsed card */
 .trend-pill {
   display: inline-block;
