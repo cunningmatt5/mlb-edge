@@ -40,8 +40,8 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
     home_lineup = [cache[b] for b in game.get("home_lineup", []) if b in cache]
     away_lineup = [cache[b] for b in game.get("away_lineup", []) if b in cache]
 
-    home_xwoba = lineup_weighted_mean(home_lineup, "xwoba") or 0.310
-    away_xwoba = lineup_weighted_mean(away_lineup, "xwoba") or 0.310
+    home_xwoba = lineup_weighted_mean(home_lineup, "xwoba") or 0.320
+    away_xwoba = lineup_weighted_mean(away_lineup, "xwoba") or 0.320
     avg_xwoba  = (home_xwoba + away_xwoba) / 2.0
     offense_s  = normalize(avg_xwoba, lo=0.270, hi=0.370)
 

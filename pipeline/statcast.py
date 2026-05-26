@@ -189,7 +189,7 @@ def _fetch_savant_csv(url: str, label: str) -> pd.DataFrame:
         resp = requests.get(url, headers=_HEADERS, timeout=TIMEOUT)
         resp.raise_for_status()
         df = pd.read_csv(io.StringIO(resp.text))
-        log.info("Savant %s: %d rows", label, len(df))
+        log.info("Savant %s: %d rows | cols: %s", label, len(df), list(df.columns[:10]))
         return df
     except Exception as exc:
         log.warning("Savant %s fetch failed: %s", label, exc)
@@ -250,7 +250,7 @@ def _merge_savant_pitcher(entry: dict, df: pd.DataFrame, mlbam_id: int) -> None:
     id_col = _find_id_col(df)
     if not id_col:
         return
-    row = df[df[id_col] == mlbam_id]
+    row = _lookup_row(df, id_col, mlbam_id)
     if row.empty:
         return
     r = row.iloc[0]
@@ -301,7 +301,7 @@ def _merge_savant_pitcher_leaderboard(entry: dict, df: pd.DataFrame, mlbam_id: i
     id_col = _find_id_col(df)
     if not id_col:
         return
-    row = df[df[id_col] == mlbam_id]
+    row = _lookup_row(df, id_col, mlbam_id)
     if row.empty:
         return
     r = row.iloc[0]
@@ -360,7 +360,7 @@ def _merge_savant_batter_expected(entry: dict, df: pd.DataFrame, mlbam_id: int) 
     id_col = _find_id_col(df)
     if not id_col:
         return
-    row = df[df[id_col] == mlbam_id]
+    row = _lookup_row(df, id_col, mlbam_id)
     if row.empty:
         return
     r = row.iloc[0]
@@ -376,9 +376,9 @@ def _merge_savant_batter_expected(entry: dict, df: pd.DataFrame, mlbam_id: int) 
         entry["name"] = str(r["last_name, first_name"])
 
     entry.update({
-        "xba":   g("est_ba"),
-        "xwoba": g("est_woba"),
-        "xslg":  g("est_slg"),
+        "xba":   g("est_ba")  or g("xba"),
+        "xwoba": g("est_woba") or g("xwoba") or g("expected_woba"),
+        "xslg":  g("est_slg") or g("xslg"),
     })
 
     # FanGraphs fallback: wOBA is also in the Savant expected-stats CSV
@@ -398,7 +398,7 @@ def _merge_savant_batter_batted_ball(entry: dict, df: pd.DataFrame, mlbam_id: in
     id_col = _find_id_col(df)
     if not id_col:
         return
-    row = df[df[id_col] == mlbam_id]
+    row = _lookup_row(df, id_col, mlbam_id)
     if row.empty:
         return
     r = row.iloc[0]
@@ -413,10 +413,10 @@ def _merge_savant_batter_batted_ball(entry: dict, df: pd.DataFrame, mlbam_id: in
     if not entry.get("name") and r.get("last_name, first_name"):
         entry["name"] = str(r["last_name, first_name"])
 
-    brl = g("brl_percent")
-    hh  = g("ev95percent")
-    ev  = g("avg_hit_speed")
-    la  = g("avg_hit_angle")
+    brl = g("brl_percent") or g("barrel_batted_rate") or g("barrel_rate")
+    hh  = g("ev95percent") or g("hard_hit_percent") or g("hard_hit_rate")
+    ev  = g("avg_hit_speed") or g("avg_exit_velocity") or g("launch_speed")
+    la  = g("avg_hit_angle") or g("avg_launch_angle") or g("launch_angle")
 
     if brl is not None:
         entry["barrel_pct"] = brl / 100.0
@@ -595,7 +595,19 @@ def _collect_batter_ids(games: list[dict]) -> list[int]:
 
 
 def _find_id_col(df: pd.DataFrame) -> Optional[str]:
-    for candidate in ("player_id", "mlbam_id", "batter", "pitcher"):
+    for candidate in ("player_id", "mlbam_id", "batter", "pitcher", "IDfg", "id"):
         if candidate in df.columns:
             return candidate
     return None
+
+
+def _lookup_row(df: pd.DataFrame, id_col: str, mlbam_id: int):
+    """Return the first matching row, handling float ID columns robustly."""
+    row = df[df[id_col] == mlbam_id]
+    if row.empty:
+        # Some CSVs store IDs as floats; try float comparison
+        try:
+            row = df[df[id_col] == float(mlbam_id)]
+        except Exception:
+            pass
+    return row

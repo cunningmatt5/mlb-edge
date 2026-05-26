@@ -34,7 +34,7 @@ def score_team_totals(game: dict, cache: dict) -> list[dict]:
         sp_suppress = weighted_avg([(xfip_s, 0.50), (siera_s, 0.50)])
 
         lineup = [cache[b] for b in game.get(f"{offense_side}_lineup", []) if b in cache]
-        lineup_xwoba = lineup_weighted_mean(lineup, "xwoba") or 0.310
+        lineup_xwoba = lineup_weighted_mean(lineup, "xwoba") or 0.320
         offense_s    = normalize(lineup_xwoba, lo=0.270, hi=0.370)
 
         over_raw  = weighted_avg([(offense_s, 0.45), (1.0 - sp_suppress, 0.35), (park_s, 0.20)])
