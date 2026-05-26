@@ -56,6 +56,8 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
     sav_pitch_lead    = _fetch_savant_pitcher_leaderboard(season)    # leaderboard (ERA, xERA, K%)
     sav_bat_expected  = _fetch_savant_batter_expected_stats(season)
     sav_bat_batted    = _fetch_savant_batter_batted_ball_stats(season)
+    sav_bat_vs_lhp    = _fetch_savant_batter_splits(season, "vs_lhp")
+    sav_bat_vs_rhp    = _fetch_savant_batter_splits(season, "vs_rhp")
 
     # --- ID crosswalk: MLBAM → FanGraphs (only needed when FG data is available) ---
     crosswalk = _build_crosswalk(all_ids)
@@ -69,6 +71,15 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
         _merge_fg_pitching(entry, fg_pitch, fg_id)               # FG (may be empty due to 403)
         _merge_savant_pitcher(entry, sav_pitch, mlbam_id)        # xwOBA against
         _merge_savant_pitcher_leaderboard(entry, sav_pitch_lead, mlbam_id)  # ERA, xERA→xfip, K%, BB%
+        # Throws fallback: use schedule data if Savant leaderboard didn't have p_throws
+        if not entry.get("throws"):
+            for g_dict in games:
+                if g_dict.get("home_sp_id") == mlbam_id and g_dict.get("home_sp_throws"):
+                    entry["throws"] = g_dict["home_sp_throws"]
+                    break
+                if g_dict.get("away_sp_id") == mlbam_id and g_dict.get("away_sp_throws"):
+                    entry["throws"] = g_dict["away_sp_throws"]
+                    break
         cache[mlbam_id] = entry
         log.info("Cache SP %d %s: era=%s xfip=%s k_pct=%s",
                  mlbam_id, entry.get("name", "?"), entry.get("era"), entry.get("xfip"), entry.get("k_pct"))
@@ -79,6 +90,8 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
         _merge_fg_batting(entry, fg_bat, fg_id)                  # FG (may be empty due to 403)
         _merge_savant_batter_expected(entry, sav_bat_expected, mlbam_id)  # xwOBA, wOBA, K%
         _merge_savant_batter_batted_ball(entry, sav_bat_batted, mlbam_id)
+        _merge_batter_split(entry, sav_bat_vs_lhp, mlbam_id, "vs_lhp")
+        _merge_batter_split(entry, sav_bat_vs_rhp, mlbam_id, "vs_rhp")
         cache[mlbam_id] = entry
 
     n_xwoba  = sum(1 for v in cache.values() if v.get("role") == "batter" and v.get("xwoba"))
@@ -234,6 +247,19 @@ def _fetch_savant_batter_batted_ball_stats(season: int) -> pd.DataFrame:
     return _fetch_savant_csv(url, "batter-batted-ball")
 
 
+def _fetch_savant_batter_splits(season: int, split: str) -> pd.DataFrame:
+    """Fetch batter expected stats split by pitcher handedness.
+
+    split: 'vs_lhp' or 'vs_rhp'. Min PA lowered to 30 (fewer ABs per split).
+    Returns xBA, xwOBA, xSLG per batter vs. that hand.
+    """
+    url = (
+        f"{SAVANT_BASE}/expected_statistics"
+        f"?type=batter&year={season}&position=&team=&min=30&splits={split}&csv=true"
+    )
+    return _fetch_savant_csv(url, f"batter-{split}")
+
+
 def _fetch_savant_pitcher_leaderboard(season: int) -> pd.DataFrame:
     """Savant statcast pitcher leaderboard: ERA, xERA, K%, BB%, whiff%, stuff_plus.
 
@@ -320,6 +346,12 @@ def _merge_savant_pitcher_leaderboard(entry: dict, df: pd.DataFrame, mlbam_id: i
 
     if not entry.get("name") and r.get("last_name, first_name"):
         entry["name"] = str(r["last_name, first_name"])
+
+    # Pitcher handedness — used by platoon split logic downstream
+    if not entry.get("throws"):
+        throws_val = r.get("p_throws")
+        if throws_val and str(throws_val) not in ("", "nan"):
+            entry["throws"] = str(throws_val).strip()
 
     brl = g("brl_percent")
     hh  = g("ev95percent")
@@ -432,7 +464,58 @@ def _merge_savant_batter_batted_ball(entry: dict, df: pd.DataFrame, mlbam_id: in
     if la is not None:
         entry["avg_launch_angle"] = la
 
+    # K% and BB% from the leaderboard as FanGraphs fallback
+    for savant_col, entry_key in [
+        ("k_percent",  "k_pct"),
+        ("bb_percent", "bb_pct"),
+    ]:
+        val = g(savant_col)
+        if val is not None and not entry.get(entry_key):
+            entry[entry_key] = round(val / 100.0, 4)
+
     # The batter statcast leaderboard has exit-velocity stats only (no wOBA/K%).
+
+
+def _merge_batter_split(entry: dict, df: pd.DataFrame, mlbam_id: int, split: str) -> None:
+    """Merge split-specific xwOBA, xBA, K% into '_vs_l' or '_vs_r' suffixed fields.
+
+    split: 'vs_lhp' or 'vs_rhp'
+    Falls back gracefully — if no data for this batter vs. that hand, nothing is written.
+    """
+    if df.empty:
+        return
+    id_col = _find_id_col(df)
+    if not id_col:
+        return
+    row = _lookup_row(df, id_col, mlbam_id)
+    if row.empty:
+        return
+    r = row.iloc[0]
+
+    suffix = "_vs_l" if split == "vs_lhp" else "_vs_r"
+
+    def g(col, default=None):
+        try:
+            v = r.get(col)
+            return float(v) if v is not None and str(v) not in ("", "nan") else default
+        except Exception:
+            return default
+
+    xwoba = g("est_woba") or g("xwoba") or g("expected_woba")
+    if xwoba is not None:
+        entry[f"xwoba{suffix}"] = round(xwoba, 4)
+
+    xba = g("est_ba") or g("xba")
+    if xba is not None:
+        entry[f"xba{suffix}"] = round(xba, 4)
+
+    k_pct = g("k_percent")
+    if k_pct is not None:
+        entry[f"k_pct{suffix}"] = round(k_pct / 100.0, 4)
+
+    bb_pct = g("bb_percent")
+    if bb_pct is not None:
+        entry[f"bb_pct{suffix}"] = round(bb_pct / 100.0, 4)
 
 
 # ---------------------------------------------------------------------------

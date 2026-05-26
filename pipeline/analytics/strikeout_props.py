@@ -29,6 +29,9 @@ def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
         if not opp_lineup:
             continue
 
+        # Pitcher handedness — use split K% for opposing batters vs. SP hand
+        sp_throws = sp.get("throws") or game.get(f"{sp_side}_sp_throws")
+
         # --- Pitcher quality component ---
         # Blend season K% with last-3-starts K% (60/40)
         season_k = sp.get("k_pct")
@@ -52,7 +55,12 @@ def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
         ])
 
         # --- Opposing lineup K-vulnerability component ---
-        opp_k_pcts    = [b.get("k_pct")      for b in opp_lineup]
+        # Use split K% when pitcher handedness is known
+        k_suffix = "_vs_l" if sp_throws == "L" else "_vs_r" if sp_throws == "R" else ""
+        opp_k_pcts    = [
+            (b.get(f"k_pct{k_suffix}") if k_suffix else None) or b.get("k_pct")
+            for b in opp_lineup
+        ]
         opp_contacts  = [b.get("contact_pct") for b in opp_lineup]
         opp_k_mean    = safe_mean(opp_k_pcts)
         opp_contact_mean = safe_mean(opp_contacts)
@@ -92,9 +100,11 @@ def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
                     "k_pct_season":      _pct(sp.get("k_pct")),
                     "k_pct_recent":      _pct(sp.get("recent_k_pct")),
                     "opp_k_pct":         _pct(opp_k_mean),
+                    "opp_k_split":       f"vs_{'L' if sp_throws == 'L' else 'R' if sp_throws == 'R' else 'season'}",
                     "opp_contact_pct":   _pct(opp_contact_mean),
                     "pitcher_component": round(pitcher_comp, 3),
                     "lineup_component":  round(lineup_comp, 3),
+                    "sp_throws":         sp_throws,
                     "umpire":            umpire or None,
                     "recent_k_games":    sp.get("recent_k_games"),
                     "recent_starts_n":   sp.get("recent_starts_n"),

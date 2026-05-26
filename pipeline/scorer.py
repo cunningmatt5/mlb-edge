@@ -34,31 +34,56 @@ def safe_mean(values: list[float | None]) -> float | None:
 _SLOT_WEIGHTS = [1.3, 1.3, 1.3, 1.3, 1.0, 1.0, 1.0, 0.75, 0.75]
 
 
-def batter_edge_score(b: dict) -> float | None:
+def batter_edge_score(b: dict, sp_throws: str | None = None) -> float | None:
     """Composite 0–100 batter quality index: xwOBA 35% + Hard Hit% 30% + BB% 20% + (1-K%) 15%.
 
-    Inverted K% bounds (lo=0.30, hi=0.12) so lower K% scores higher.
+    When sp_throws is 'L' or 'R', uses split-specific xwOBA and K% if available,
+    falling back to season stats. Lower K% scores higher (inverted bounds).
     Returns None if no qualifying stats are present.
     """
+    suffix = "_vs_l" if sp_throws == "L" else "_vs_r" if sp_throws == "R" else ""
+    xwoba = (b.get(f"xwoba{suffix}") if suffix else None) or b.get("xwoba")
+    k_pct = (b.get(f"k_pct{suffix}") if suffix else None) or b.get("k_pct")
+
+    raw_map = {
+        "xwoba":        xwoba,
+        "hard_hit_pct": b.get("hard_hit_pct"),
+        "bb_pct":       b.get("bb_pct"),
+        "k_pct":        k_pct,
+    }
     candidates = [
-        ("xwoba",        normalize(b.get("xwoba"),        lo=0.240, hi=0.420), 0.35),
-        ("hard_hit_pct", normalize(b.get("hard_hit_pct"), lo=0.25,  hi=0.55),  0.30),
-        ("bb_pct",       normalize(b.get("bb_pct"),       lo=0.04,  hi=0.18),  0.20),
-        ("k_pct",        normalize(b.get("k_pct"),        lo=0.35,  hi=0.12),  0.15),
+        ("xwoba",        normalize(xwoba,                  lo=0.240, hi=0.420), 0.35),
+        ("hard_hit_pct", normalize(b.get("hard_hit_pct"),  lo=0.25,  hi=0.55),  0.30),
+        ("bb_pct",       normalize(b.get("bb_pct"),        lo=0.04,  hi=0.18),  0.20),
+        ("k_pct",        normalize(k_pct,                  lo=0.35,  hi=0.12),  0.15),
     ]
-    valid = [(v, w) for key, v, w in candidates if b.get(key) is not None]
+    valid = [(v, w) for key, v, w in candidates if raw_map.get(key) is not None]
     if not valid:
         return None
     total_w = sum(w for _, w in valid)
     return round(sum(v * w for v, w in valid) / total_w * 100, 1)
 
 
-def lineup_weighted_mean(players: list[dict], stat: str) -> float | None:
-    """Batting-order-weighted mean of `stat` across lineup, skipping missing values."""
+def lineup_weighted_mean(
+    players: list[dict], stat: str, sp_throws: str | None = None
+) -> float | None:
+    """Batting-order-weighted mean of `stat` across lineup, skipping missing values.
+
+    When sp_throws is provided and stat is 'xwoba' or 'k_pct', uses split-specific
+    values ('_vs_l' / '_vs_r') where available, falling back to season stats.
+    """
+    suffix = ""
+    if sp_throws and stat in ("xwoba", "k_pct", "xba", "bb_pct"):
+        suffix = "_vs_l" if sp_throws == "L" else "_vs_r"
+
+    def _get(player: dict, i: int):
+        v = (player.get(f"{stat}{suffix}") if suffix else None) or player.get(stat)
+        return v
+
     pairs = [
-        (players[i].get(stat), _SLOT_WEIGHTS[i] if i < len(_SLOT_WEIGHTS) else 1.0)
+        (_get(players[i], i), _SLOT_WEIGHTS[i] if i < len(_SLOT_WEIGHTS) else 1.0)
         for i in range(len(players))
-        if players[i].get(stat) is not None
+        if _get(players[i], i) is not None
     ]
     if not pairs:
         return None

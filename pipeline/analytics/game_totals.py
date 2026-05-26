@@ -37,11 +37,15 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
     away_supp      = sp_suppress(away_sp)
     avg_suppression = (home_supp + away_supp) / 2.0
 
+    home_sp_throws = home_sp.get("throws") or game.get("home_sp_throws")
+    away_sp_throws = away_sp.get("throws") or game.get("away_sp_throws")
+
     home_lineup = [cache[b] for b in game.get("home_lineup", []) if b in cache]
     away_lineup = [cache[b] for b in game.get("away_lineup", []) if b in cache]
 
-    home_xwoba = lineup_weighted_mean(home_lineup, "xwoba") or 0.320
-    away_xwoba = lineup_weighted_mean(away_lineup, "xwoba") or 0.320
+    # Home batters face the away SP (and vice versa), so use the opposing SP's throws
+    home_xwoba = lineup_weighted_mean(home_lineup, "xwoba", sp_throws=away_sp_throws) or 0.320
+    away_xwoba = lineup_weighted_mean(away_lineup, "xwoba", sp_throws=home_sp_throws) or 0.320
     avg_xwoba  = (home_xwoba + away_xwoba) / 2.0
     offense_s  = normalize(avg_xwoba, lo=0.260, hi=0.380)
 

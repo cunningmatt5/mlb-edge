@@ -53,21 +53,24 @@ def append_today(history: list[dict], games: list[dict], today_str: str) -> list
         pred    = g.get("prediction", {})
         signals = pred.get("model_signals", {})
         history.append({
-            "date":               today_str,
-            "gamePk":             pk,
-            "home_team":          g["home_team"],
-            "away_team":          g["away_team"],
-            "predicted_winner":   "home" if pred.get("home_win_pct", 0) >= 0.5 else "away",
-            "home_win_pct":       pred.get("home_win_pct"),
-            "predicted_total":    pred.get("predicted_total"),
-            "pitcher_score_home": signals.get("pitcher_score_home"),
-            "pitcher_score_away": signals.get("pitcher_score_away"),
-            "lineup_score_home":  signals.get("lineup_score_home"),
-            "lineup_score_away":  signals.get("lineup_score_away"),
-            "comps_home_win_rate": signals.get("comps_home_win_rate"),
-            "actual_winner":      None,
-            "home_score":         None,
-            "away_score":         None,
+            "date":                    today_str,
+            "gamePk":                  pk,
+            "home_team":               g["home_team"],
+            "away_team":               g["away_team"],
+            "predicted_winner":        "home" if pred.get("home_win_pct", 0) >= 0.5 else "away",
+            "home_win_pct":            pred.get("home_win_pct"),
+            "predicted_total":         pred.get("predicted_total"),
+            "predicted_home_sp_id":    g.get("home_sp_id"),
+            "predicted_away_sp_id":    g.get("away_sp_id"),
+            "pitcher_score_home":      signals.get("pitcher_score_home"),
+            "pitcher_score_away":      signals.get("pitcher_score_away"),
+            "lineup_score_home":       signals.get("lineup_score_home"),
+            "lineup_score_away":       signals.get("lineup_score_away"),
+            "comps_home_win_rate":     signals.get("comps_home_win_rate"),
+            "actual_winner":           None,
+            "home_score":              None,
+            "away_score":              None,
+            "sp_scratched":            False,
         })
         added += 1
     log.info("History: appended %d new prediction records", added)
@@ -119,10 +122,44 @@ def resolve_yesterday(history: list[dict]) -> list[dict]:
             else "away" if away_score > home_score
             else "tie"
         )
+        record["actual_total"] = home_score + away_score
+        # Verify actual starters vs. predicted starters
+        starters = _get_actual_starters(pk)
+        if starters:
+            pred_home_sp = record.get("predicted_home_sp_id")
+            pred_away_sp = record.get("predicted_away_sp_id")
+            scratched = False
+            if pred_home_sp and starters.get("home_sp_id") and pred_home_sp != starters["home_sp_id"]:
+                scratched = True
+            if pred_away_sp and starters.get("away_sp_id") and pred_away_sp != starters["away_sp_id"]:
+                scratched = True
+            record["sp_scratched"] = scratched
         resolved += 1
 
     log.info("Resolved %d/%d records", resolved, len(pending))
     return history
+
+
+def _get_actual_starters(gamePk: int) -> dict | None:
+    """Fetch actual starting pitcher IDs from the boxscore after the game is final."""
+    try:
+        url  = f"{MLB_API}/game/{gamePk}/boxscore"
+        resp = requests.get(url, timeout=TIMEOUT)
+        resp.raise_for_status()
+        data = resp.json()
+        teams = data.get("teams", {})
+
+        def _first_pitcher(side: str) -> int | None:
+            pitchers = teams.get(side, {}).get("pitchers", [])
+            return pitchers[0] if pitchers else None
+
+        home_sp = _first_pitcher("home")
+        away_sp = _first_pitcher("away")
+        if home_sp or away_sp:
+            return {"home_sp_id": home_sp, "away_sp_id": away_sp}
+    except Exception as exc:
+        log.debug("Could not fetch boxscore for gamePk %d: %s", gamePk, exc)
+    return None
 
 
 def _parse_scores(schedule_data: dict) -> dict[int, dict]:

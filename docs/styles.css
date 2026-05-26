@@ -906,6 +906,20 @@ header {
 .row-hit .result-icon { color: var(--green); font-weight: 700; }
 .row-miss .result-icon { color: var(--red); }
 .row-hit td { color: var(--text); }
+.row-scratch td { opacity: 0.55; }
+
+.sp-scratch-badge {
+  font-size: 0.65rem;
+  padding: 1px 5px;
+  margin-left: 5px;
+  border-radius: 4px;
+  background: #78350f22;
+  color: #b45309;
+  border: 1px solid #92400e44;
+  font-weight: 600;
+  white-space: nowrap;
+  vertical-align: middle;
+}
 
 /* ── Live / Final status strip ───────────────────────────────────────────── */
 @keyframes pulse-dot {

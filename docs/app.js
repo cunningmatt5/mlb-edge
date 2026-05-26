@@ -614,13 +614,16 @@ function renderRecordView() {
         const score = (r.home_score != null && r.away_score != null)
           ? ` (${r.away_score}–${r.home_score})`
           : '';
+        const spBadge = r.sp_scratched
+          ? ' <span class="sp-scratch-badge" title="Predicted starter did not start">⚠ SP Changed</span>'
+          : '';
         return `
-      <tr class="${hit ? 'row-hit' : 'row-miss'}">
+      <tr class="${r.sp_scratched ? 'row-scratch' : (hit ? 'row-hit' : 'row-miss')}">
         <td>${r.date}</td>
-        <td>${abbrev(r.away_team)} @ ${abbrev(r.home_team)}</td>
+        <td>${abbrev(r.away_team)} @ ${abbrev(r.home_team)}${spBadge}</td>
         <td>${abbrev(pred)} (${Math.round((r.home_win_pct || 0.5) * 100)}%)</td>
         <td>${abbrev(act)}${score}</td>
-        <td class="result-icon">${hit ? '✓' : '✗'}</td>
+        <td class="result-icon">${r.sp_scratched ? '—' : (hit ? '✓' : '✗')}</td>
       </tr>`;
       }).join('')}
     </tbody>

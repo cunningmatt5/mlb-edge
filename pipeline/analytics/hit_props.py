@@ -15,7 +15,11 @@ def score_hit_props(game: dict, cache: dict) -> list[dict]:
 
     for bat_side, sp_side in [("home", "away"), ("away", "home")]:
         opp_sp_id = game.get(f"{sp_side}_sp_id")
-        opp_sp = cache.get(opp_sp_id, {}) if opp_sp_id else {}
+        opp_sp    = cache.get(opp_sp_id, {}) if opp_sp_id else {}
+        sp_throws = (
+            opp_sp.get("throws")
+            or game.get(f"{sp_side}_sp_throws")
+        )
 
         # Pitcher xBA-against: higher value = more hitter-friendly
         sp_xba_s = normalize(opp_sp.get("xba_against"), lo=0.190, hi=0.330)
@@ -25,7 +29,11 @@ def score_hit_props(game: dict, cache: dict) -> list[dict]:
             if not b:
                 continue
 
-            xba_s     = normalize(b.get("xba"),          lo=0.190, hi=0.340)
+            # Use split xBA when available (vs. LHP or vs. RHP)
+            suffix = "_vs_l" if sp_throws == "L" else "_vs_r" if sp_throws == "R" else ""
+            xba_val  = (b.get(f"xba{suffix}") if suffix else None) or b.get("xba")
+
+            xba_s     = normalize(xba_val,               lo=0.190, hi=0.340)
             contact_s = normalize(b.get("contact_pct"),  lo=0.62,  hi=0.90)
             hh_s      = normalize(b.get("hard_hit_pct"), lo=0.25,  hi=0.55)
             bb_s      = normalize(b.get("bb_pct"),       lo=0.04,  hi=0.18)
@@ -49,18 +57,20 @@ def score_hit_props(game: dict, cache: dict) -> list[dict]:
                     "direction":  "OVER",
                     "headline":   f"{batter_name} to Record a Hit",
                     "signal":     signal,
-                    "reasons":    _build_reasons(b, opp_sp),
+                    "reasons":    _build_reasons(b, opp_sp, sp_throws, xba_val),
                     "raw_scores": {
-                        "xba":            b.get("xba"),
+                        "xba":            xba_val,
+                        "xba_split":      f"vs_{'L' if sp_throws == 'L' else 'R' if sp_throws == 'R' else 'season'}",
                         "xwoba":          b.get("xwoba"),
                         "contact_pct":    _pct(b.get("contact_pct")),
                         "hard_hit_pct":   _pct(b.get("hard_hit_pct")),
                         "bb_pct":         _pct(b.get("bb_pct")),
                         "k_pct":          _pct(b.get("k_pct")),
                         "sp_xba_against": opp_sp.get("xba_against"),
+                        "sp_throws":      sp_throws,
                         "batter_component": round(batter_comp, 3),
                         "sp_matchup_score": round(sp_xba_s, 3),
-                        "edge_score":      batter_edge_score(b),
+                        "edge_score":      batter_edge_score(b, sp_throws),
                         "recent_h_games":  b.get("recent_h_games"),
                     },
                 })
@@ -68,10 +78,11 @@ def score_hit_props(game: dict, cache: dict) -> list[dict]:
     return picks
 
 
-def _build_reasons(b: dict, sp: dict) -> list[str]:
+def _build_reasons(b: dict, sp: dict, sp_throws: str | None = None, xba_val: float | None = None) -> list[str]:
     reasons = []
 
-    xba = b.get("xba")
+    xba = xba_val or b.get("xba")
+    split_label = f" vs. {'LHP' if sp_throws == 'L' else 'RHP' if sp_throws == 'R' else 'all pitchers'}"
     if xba is not None:
         if xba >= 0.290:
             tier = "well above average"
@@ -80,7 +91,7 @@ def _build_reasons(b: dict, sp: dict) -> list[str]:
         else:
             tier = "average"
         reasons.append(
-            f"xBA of {xba:.3f} ({tier}) — expected batting average from exit velocity and launch angle"
+            f"xBA of {xba:.3f}{split_label} ({tier}) — expected batting average from exit velocity and launch angle"
         )
 
     hh = b.get("hard_hit_pct")

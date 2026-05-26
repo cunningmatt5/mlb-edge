@@ -26,6 +26,10 @@ def score_hr_props(game: dict, cache: dict) -> list[dict]:
     for bat_side, sp_side in [("home", "away"), ("away", "home")]:
         opp_sp_id = game.get(f"{sp_side}_sp_id")
         opp_sp    = cache.get(opp_sp_id, {}) if opp_sp_id else {}
+        sp_throws = (
+            opp_sp.get("throws")
+            or game.get(f"{sp_side}_sp_throws")
+        )
         sp_hr9_s  = normalize(opp_sp.get("hr9"), lo=0.6, hi=2.0)
 
         context_comp = weighted_avg([
@@ -38,9 +42,13 @@ def score_hr_props(game: dict, cache: dict) -> list[dict]:
             if not b:
                 continue
 
+            # Use split xwOBA where available
+            suffix    = "_vs_l" if sp_throws == "L" else "_vs_r" if sp_throws == "R" else ""
+            xwoba_val = (b.get(f"xwoba{suffix}") if suffix else None) or b.get("xwoba")
+
             barrel_s = normalize(b.get("barrel_pct"),       lo=0.03, hi=0.20)
             hh_s     = normalize(b.get("hard_hit_pct"),     lo=0.25, hi=0.55)
-            xwoba_s  = normalize(b.get("xwoba"),            lo=0.280, hi=0.420)
+            xwoba_s  = normalize(xwoba_val,                 lo=0.280, hi=0.420)
             la_s     = normalize(b.get("avg_launch_angle"), lo=5,    hi=22)
 
             batter_comp = weighted_avg([
@@ -55,7 +63,7 @@ def score_hr_props(game: dict, cache: dict) -> list[dict]:
 
             if signal >= 5.0:
                 batter_name = b.get("name", f"Batter {batter_id}")
-                reasons = _build_reasons(b, opp_sp, venue, hr_park)
+                reasons = _build_reasons(b, opp_sp, venue, hr_park, sp_throws, xwoba_val)
                 if weather_reason:
                     reasons = (reasons + [weather_reason])[:6]
 
@@ -70,15 +78,17 @@ def score_hr_props(game: dict, cache: dict) -> list[dict]:
                     "raw_scores": {
                         "barrel_pct":        _pct(b.get("barrel_pct")),
                         "hard_hit_pct":      _pct(b.get("hard_hit_pct")),
-                        "xwoba":             b.get("xwoba"),
+                        "xwoba":             xwoba_val,
+                        "xwoba_split":       f"vs_{'L' if sp_throws == 'L' else 'R' if sp_throws == 'R' else 'season'}",
                         "bb_pct":            _pct(b.get("bb_pct")),
                         "k_pct":             _pct(b.get("k_pct")),
                         "avg_launch_angle":  b.get("avg_launch_angle"),
                         "sp_hr9":            opp_sp.get("hr9"),
+                        "sp_throws":         sp_throws,
                         "park_hr_factor":    hr_park,
                         "batter_component":  round(batter_comp, 3),
                         "context_component": round(context_comp, 3),
-                        "edge_score":        batter_edge_score(b),
+                        "edge_score":        batter_edge_score(b, sp_throws),
                         "recent_hr_games":   b.get("recent_hr_games"),
                     },
                 })
@@ -86,7 +96,7 @@ def score_hr_props(game: dict, cache: dict) -> list[dict]:
     return picks
 
 
-def _build_reasons(b: dict, sp: dict, venue: str, hr_park: int) -> list[str]:
+def _build_reasons(b: dict, sp: dict, venue: str, hr_park: int, sp_throws: str | None = None, xwoba_val: float | None = None) -> list[str]:
     reasons = []
 
     barrel = b.get("barrel_pct")
@@ -106,7 +116,8 @@ def _build_reasons(b: dict, sp: dict, venue: str, hr_park: int) -> list[str]:
             f"Hard-hit rate {hh:.1%} — exit velocity ≥95 mph (MLB avg ~38%)"
         )
 
-    xwoba = b.get("xwoba")
+    xwoba = xwoba_val or b.get("xwoba")
+    split_label = f" vs. {'LHP' if sp_throws == 'L' else 'RHP' if sp_throws == 'R' else 'all'}"
     if xwoba is not None:
         if xwoba >= 0.380:
             tier = "elite contact quality"
@@ -114,7 +125,7 @@ def _build_reasons(b: dict, sp: dict, venue: str, hr_park: int) -> list[str]:
             tier = "above-average contact quality"
         else:
             tier = "average contact quality"
-        reasons.append(f"xwOBA of {xwoba:.3f} — {tier} based on exit velocity and angle")
+        reasons.append(f"xwOBA of {xwoba:.3f}{split_label} — {tier} based on exit velocity and angle")
 
     sp_name = sp.get("name", "Opposing SP")
     hr9 = sp.get("hr9")

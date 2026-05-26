@@ -28,13 +28,14 @@ def score_team_totals(game: dict, cache: dict) -> list[dict]:
     for offense_side, sp_side in [("home", "away"), ("away", "home")]:
         opp_sp_id = game.get(f"{sp_side}_sp_id")
         opp_sp    = cache.get(opp_sp_id, {}) if opp_sp_id else {}
+        sp_throws = opp_sp.get("throws") or game.get(f"{sp_side}_sp_throws")
 
         xfip_s  = 1.0 - normalize(opp_sp.get("xfip"),  lo=2.50, hi=5.50)
         siera_s = 1.0 - normalize(opp_sp.get("siera"), lo=2.50, hi=5.50)
         sp_suppress = weighted_avg([(xfip_s, 0.50), (siera_s, 0.50)])
 
         lineup = [cache[b] for b in game.get(f"{offense_side}_lineup", []) if b in cache]
-        lineup_xwoba = lineup_weighted_mean(lineup, "xwoba") or 0.320
+        lineup_xwoba = lineup_weighted_mean(lineup, "xwoba", sp_throws=sp_throws) or 0.320
         offense_s    = normalize(lineup_xwoba, lo=0.260, hi=0.380)
 
         over_raw  = weighted_avg([(offense_s, 0.45), (1.0 - sp_suppress, 0.35), (park_s, 0.20)])
