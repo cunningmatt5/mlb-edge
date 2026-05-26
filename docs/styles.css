@@ -888,14 +888,65 @@ header {
 .sig-badge.edge-away { background: var(--red-dim);  color: var(--red-light); }
 
 /* ── Record view ─────────────────────────────────────────────────────────── */
-.signal-section  { margin-bottom: 20px; }
-.history-section { }
+.streak-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.streak-W { background: rgba(34,197,94,.15); color: var(--green-light); }
+.streak-L { background: rgba(220,38,38,.12); color: var(--red-light); }
+
+.record-top-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.record-conf-section,
+.record-signal-section { }
+
+.section-heading {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.conf-tier-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.conf-tier-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.conf-tier-table td { padding: 6px 8px; border-top: 1px solid var(--border); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.conf-record { color: var(--text); font-weight: 600; }
+.conf-pct    { font-weight: 700; }
+.conf-strong { color: var(--green-light); }
+.conf-ok     { color: var(--amber); }
+.conf-weak   { color: var(--red-light); }
 
 .signal-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   gap: 8px;
 }
+.compact-signal-grid { grid-template-columns: 1fr 1fr; }
 
 .sig-card {
   background: var(--bg-card);
@@ -903,42 +954,50 @@ header {
   border-radius: var(--radius);
   padding: 10px 12px;
 }
-
-.sig-card.sig-good   { border-left: 3px solid var(--green-light); background: var(--green-dim); }
-.sig-card.sig-ok     { border-left: 3px solid var(--amber);      background: rgba(217,119,6,.06); }
-.sig-card.sig-weak   { }
-
+.sig-card.sig-good { border-left: 3px solid var(--green-light); background: var(--green-dim); }
+.sig-card.sig-ok   { border-left: 3px solid var(--amber);      background: rgba(217,119,6,.06); }
+.sig-card.sig-weak { }
 .sig-card-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
 .sig-card-rate  { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1; }
 .sig-card-count { font-size: 11px; color: var(--text-dim); margin-top: 3px; }
+
+/* Day-grouped game log */
+.history-section { }
+.day-group { margin-bottom: 20px; }
+.day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+.day-label  { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.day-record { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.day-win  { color: var(--green-light); }
+.day-loss { color: var(--red-light); }
 
 .history-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
 }
+.history-table td { padding: 7px 8px; border-top: 1px solid var(--border); color: var(--text-muted); }
+.hist-matchup { width: 38%; color: var(--text); }
+.hist-pred    { width: 28%; }
+.hist-actual  { width: 24%; }
+.hist-pct     { font-size: 11px; color: var(--text-dim); margin-left: 3px; }
+.hist-score   { font-size: 11px; color: var(--text-dim); margin-left: 4px; }
 
-.history-table th {
-  text-align: left;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-dim);
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--border);
-  text-transform: uppercase;
-  letter-spacing: .06em;
-}
+.res-hit  { color: var(--green); font-weight: 700; }
+.res-miss { color: var(--red-light); }
+.res-scratch { color: var(--text-dim); }
 
-.history-table td {
-  padding: 7px 8px;
-  border-top: 1px solid var(--border);
-  color: var(--text-muted);
-}
-
-.row-hit .result-icon { color: var(--green); font-weight: 700; }
-.row-miss .result-icon { color: var(--red); }
-.row-hit td { color: var(--text); }
+.row-hit td  { color: var(--text); }
+.row-miss td { color: var(--text-muted); }
 .row-scratch td { opacity: 0.55; }
+.result-icon { text-align: right; width: 28px; }
 
 .sp-scratch-badge {
   font-size: 0.65rem;
@@ -1155,9 +1214,8 @@ header {
   .prob-label   { min-width: 0; }
 
   .signal-grid  { grid-template-columns: 1fr 1fr; }
-
-  .history-table th:nth-child(3),
-  .history-table td:nth-child(3) { display: none; }
+  .record-top-grid { grid-template-columns: 1fr; }
+  .compact-signal-grid { grid-template-columns: 1fr 1fr; }
 
   /* Backtest: hide Total column on narrow screens */
   .bt-table th:nth-child(5),

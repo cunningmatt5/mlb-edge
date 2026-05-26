@@ -589,60 +589,144 @@ function predictionHTML(g) {
 
 // ── Record view ───────────────────────────────────────────────────────────────
 function renderRecordView() {
-  const view     = document.getElementById('record-view');
-  const resolved = historyData.filter(r => r.actual_winner != null);
+  const view = document.getElementById('record-view');
+  // Ties (true ties, not postponements) and unresolved games excluded from grading
+  const decided = historyData.filter(r => r.actual_winner === 'home' || r.actual_winner === 'away');
 
-  if (!resolved.length) {
+  if (!decided.length) {
     view.innerHTML = `<div class="empty-state">No resolved predictions yet.<br>Check back after games have been played.</div>`;
     return;
   }
 
-  const signals  = calcSignalAccuracy(resolved);
-  const overall  = signals.overall;
-  const pct      = overall.total > 0 ? Math.round(overall.correct / overall.total * 100) : null;
+  const correct = decided.filter(r => r.predicted_winner === r.actual_winner).length;
+  const pct     = Math.round(correct / decided.length * 100);
+  const streak  = calcStreak(decided);
+  const streakLabel = streak.count > 1
+    ? `<span class="streak-badge streak-${streak.type}">${streak.type === 'W' ? '🔥' : '❄'} ${streak.count}-game ${streak.type === 'W' ? 'win' : 'loss'} streak</span>`
+    : '';
+
+  const confRows  = calcConfidenceTiers(decided);
+  const signals   = calcSignalAccuracy(decided);
+  const byDate    = groupByDate(decided);
 
   view.innerHTML = `
 <div class="view-header">
   <h1>Prediction Record</h1>
-  <span class="sub-label">${resolved.length} resolved games${pct != null ? ' &nbsp;·&nbsp; ' + pct + '% overall' : ''}</span>
+  <span class="sub-label">${correct}–${decided.length - correct} (${pct}%) &nbsp;·&nbsp; ${decided.length} games graded ${streakLabel}</span>
 </div>
 
-<div class="signal-section">
-  <div class="section-heading">Signal Accuracy</div>
-  <div class="signal-grid">
-    ${Object.values(signals).map(s => signalCardHTML(s)).join('')}
+<div class="record-top-grid">
+  <div class="record-conf-section">
+    <div class="section-heading">Record by Confidence</div>
+    <table class="conf-tier-table">
+      <thead><tr><th>Confidence</th><th>Record</th><th>Win%</th></tr></thead>
+      <tbody>${confRows.map(t => `
+        <tr>
+          <td>${t.label}${t.badge ? ' <span class="tier-badge tier-' + t.badgeCls + '">' + t.badge + '</span>' : ''}</td>
+          <td class="conf-record">${t.correct}–${t.total - t.correct}</td>
+          <td class="conf-pct ${t.cls}">${t.total > 0 ? Math.round(t.correct / t.total * 100) + '%' : '—'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+  <div class="record-signal-section">
+    <div class="section-heading">Signal Accuracy</div>
+    <div class="signal-grid compact-signal-grid">
+      ${Object.values(signals).map(s => signalCardHTML(s)).join('')}
+    </div>
   </div>
 </div>
 
 <div class="history-section">
   <div class="section-heading">Game Log</div>
-  <table class="history-table">
-    <thead>
-      <tr><th>Date</th><th>Matchup</th><th>Predicted</th><th>Actual</th><th></th></tr>
-    </thead>
-    <tbody>
-      ${resolved.slice().reverse().map(r => {
-        const hit  = r.predicted_winner === r.actual_winner;
-        const pred = r.predicted_winner === 'home' ? r.home_team : r.away_team;
-        const act  = r.actual_winner    === 'home' ? r.home_team : r.away_team;
-        const score = (r.home_score != null && r.away_score != null)
-          ? ` (${r.away_score}–${r.home_score})`
-          : '';
-        const spBadge = r.sp_scratched
-          ? ' <span class="sp-scratch-badge" title="Predicted starter did not start">⚠ SP Changed</span>'
-          : '';
-        return `
-      <tr class="${r.sp_scratched ? 'row-scratch' : (hit ? 'row-hit' : 'row-miss')}">
-        <td>${r.date}</td>
-        <td>${abbrev(r.away_team)} @ ${abbrev(r.home_team)}${spBadge}</td>
-        <td>${abbrev(pred)} (${Math.round((r.home_win_pct || 0.5) * 100)}%)</td>
-        <td>${abbrev(act)}${score}</td>
-        <td class="result-icon">${r.sp_scratched ? '—' : (hit ? '✓' : '✗')}</td>
-      </tr>`;
-      }).join('')}
-    </tbody>
-  </table>
+  ${byDate.map(({ date: d, games }) => {
+    const dc = games.filter(r => r.predicted_winner === r.actual_winner).length;
+    const dLabel = formatDateLabel(d);
+    return `
+  <div class="day-group">
+    <div class="day-header">
+      <span class="day-label">${dLabel}</span>
+      <span class="day-record ${dc / games.length >= 0.5 ? 'day-win' : 'day-loss'}">${dc}–${games.length - dc}</span>
+    </div>
+    <table class="history-table">
+      <tbody>
+        ${games.slice().reverse().map(r => {
+          const hit      = r.predicted_winner === r.actual_winner;
+          const predTeam = r.predicted_winner === 'home' ? r.home_team : r.away_team;
+          const actTeam  = r.actual_winner    === 'home' ? r.home_team : r.away_team;
+          const predPct  = r.predicted_winner === 'home'
+            ? Math.round((r.home_win_pct || 0.5) * 100)
+            : Math.round((1 - (r.home_win_pct || 0.5)) * 100);
+          const conf     = Math.max(r.home_win_pct || 0.5, 1 - (r.home_win_pct || 0.5));
+          const tierCls  = conf >= 0.70 ? 'elite' : conf >= 0.65 ? 'great' : conf >= 0.60 ? 'good' : '';
+          const score    = r.home_score != null
+            ? `<span class="hist-score">${r.away_score}–${r.home_score}</span>`
+            : '';
+          const spBadge  = r.sp_scratched
+            ? ' <span class="sp-scratch-badge" title="Predicted starter did not start">⚠ SP</span>' : '';
+          return `
+        <tr class="${r.sp_scratched ? 'row-scratch' : (hit ? 'row-hit' : 'row-miss')}">
+          <td class="hist-matchup">${abbrev(r.away_team)} @ ${abbrev(r.home_team)}${spBadge}</td>
+          <td class="hist-pred">
+            ${abbrev(predTeam)} <span class="hist-pct${tierCls ? ' tier-badge tier-' + tierCls : ''}">${predPct}%</span>
+          </td>
+          <td class="hist-actual">${abbrev(actTeam)} ${score}</td>
+          <td class="result-icon">${r.sp_scratched ? '<span class="res-scratch">–</span>' : (hit ? '<span class="res-hit">✓</span>' : '<span class="res-miss">✗</span>')}</td>
+        </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+  }).join('')}
 </div>`;
+}
+
+function calcStreak(decided) {
+  if (!decided.length) return { type: 'W', count: 0 };
+  const last = decided[decided.length - 1];
+  const type = last.predicted_winner === last.actual_winner ? 'W' : 'L';
+  let count = 0;
+  for (let i = decided.length - 1; i >= 0; i--) {
+    const hit = decided[i].predicted_winner === decided[i].actual_winner;
+    if ((type === 'W') === hit) count++;
+    else break;
+  }
+  return { type, count };
+}
+
+function calcConfidenceTiers(decided) {
+  const tiers = [
+    { label: '70%+',   badge: 'ELITE', badgeCls: 'elite', lo: 0.70, hi: 1.00, correct: 0, total: 0 },
+    { label: '65–70%', badge: 'GREAT', badgeCls: 'great', lo: 0.65, hi: 0.70, correct: 0, total: 0 },
+    { label: '60–65%', badge: 'GOOD',  badgeCls: 'good',  lo: 0.60, hi: 0.65, correct: 0, total: 0 },
+    { label: 'Under 60%', badge: null, badgeCls: '',       lo: 0.50, hi: 0.60, correct: 0, total: 0 },
+  ];
+  for (const r of decided) {
+    const conf = Math.max(r.home_win_pct || 0.5, 1 - (r.home_win_pct || 0.5));
+    const hit  = r.predicted_winner === r.actual_winner;
+    for (const t of tiers) {
+      if (conf >= t.lo && (t.hi === 1.00 ? conf <= t.hi : conf < t.hi)) {
+        t.total++;
+        if (hit) t.correct++;
+        break;
+      }
+    }
+  }
+  return tiers.map(t => ({
+    ...t,
+    cls: t.total === 0 ? '' : (t.correct / t.total >= 0.60 ? 'conf-strong' : t.correct / t.total >= 0.50 ? 'conf-ok' : 'conf-weak'),
+  }));
+}
+
+function groupByDate(decided) {
+  const map = new Map();
+  for (const r of decided) {
+    if (!map.has(r.date)) map.set(r.date, []);
+    map.get(r.date).push(r);
+  }
+  return Array.from(map.entries())
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([date, games]) => ({ date, games }));
 }
 
 function signalCardHTML(s) {
@@ -656,36 +740,33 @@ function signalCardHTML(s) {
 </div>`;
 }
 
-function calcSignalAccuracy(resolved) {
+function calcSignalAccuracy(decided) {
   const m = {
-    overall:       { label: 'Overall pick accuracy',           correct: 0, total: 0 },
-    pitcherHome:   { label: 'Home pitcher score edge ≥ 5pts',  correct: 0, total: 0 },
-    pitcherAway:   { label: 'Away pitcher score edge ≥ 5pts',  correct: 0, total: 0 },
-    lineupHome:    { label: 'Home lineup score edge ≥ 5pts',   correct: 0, total: 0 },
-    compsHome:     { label: 'Comps home rate ≥ 55%',           correct: 0, total: 0 },
+    pitcher: { label: 'Pitcher edge ≥ 5pts', correct: 0, total: 0 },
+    comps:   { label: 'Comps signal ≥ 55%',  correct: 0, total: 0 },
+    conf60:  { label: 'Picks at 60%+',        correct: 0, total: 0 },
+    conf65:  { label: 'Picks at 65%+',        correct: 0, total: 0 },
   };
 
-  for (const r of resolved) {
+  for (const r of decided) {
     const homeWon = r.actual_winner === 'home';
-    m.overall.total++;
-    if ((r.predicted_winner === 'home') === homeWon) m.overall.correct++;
+    const hit     = r.predicted_winner === r.actual_winner;
+    const conf    = Math.max(r.home_win_pct || 0.5, 1 - (r.home_win_pct || 0.5));
 
     const ph = r.pitcher_score_home, pa = r.pitcher_score_away;
-    if (ph != null && pa != null) {
-      if (ph - pa >= 0.05) { m.pitcherHome.total++; if (homeWon) m.pitcherHome.correct++; }
-      if (pa - ph >= 0.05) { m.pitcherAway.total++; if (!homeWon) m.pitcherAway.correct++; }
-    }
-
-    const lh = r.lineup_score_home, la = r.lineup_score_away;
-    if (lh != null && la != null && lh - la >= 0.05) {
-      m.lineupHome.total++;
-      if (homeWon) m.lineupHome.correct++;
+    if (ph != null && pa != null && Math.abs(ph - pa) >= 0.05) {
+      const favouredHomeWin = ph > pa;
+      m.pitcher.total++;
+      if (favouredHomeWin === homeWon) m.pitcher.correct++;
     }
 
     if (r.comps_home_win_rate != null && r.comps_home_win_rate >= 0.55) {
-      m.compsHome.total++;
-      if (homeWon) m.compsHome.correct++;
+      m.comps.total++;
+      if (homeWon) m.comps.correct++;
     }
+
+    if (conf >= 0.60) { m.conf60.total++; if (hit) m.conf60.correct++; }
+    if (conf >= 0.65) { m.conf65.total++; if (hit) m.conf65.correct++; }
   }
 
   return m;
