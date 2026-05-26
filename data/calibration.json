@@ -1,72 +1,48 @@
 {
-  "generated_at": "2026-05-24T02:27:46.193145+00:00",
+  "generated_at": "2026-05-26T17:21:10.775795+00:00",
   "seasons_used": [
-    2023,
-    2024,
-    2025
+    2026
   ],
-  "total_graded": 189587,
+  "total_graded": 805,
   "logistic_params": {
-    "midpoint": 11.0,
-    "slope": 0.0803
+    "midpoint": 10.2074,
+    "slope": 23.66303
   },
   "win_rates": {
     "by_signal_band": {
       "5.0-5.9": {
-        "n": 168354,
-        "win_rate": 0.3917
+        "n": 708,
+        "win_rate": 0.5565
       },
       "6.0-6.9": {
-        "n": 18305,
-        "win_rate": 0.3774
+        "n": 97,
+        "win_rate": 0.5361
       },
       "7.0-7.9": {
-        "n": 2584,
-        "win_rate": 0.411
+        "n": 0,
+        "win_rate": null
       },
       "8.0-8.9": {
-        "n": 344,
-        "win_rate": 0.3459
+        "n": 0,
+        "win_rate": null
       },
       "9.0+": {
         "n": 0,
         "win_rate": null
       }
     },
-    "by_bet_type": {
-      "HIT_PROP": {
-        "n": 78400,
-        "win_rate": 0.5227
-      },
-      "HR_PROP": {
-        "n": 46867,
-        "win_rate": 0.1398
-      },
-      "TB_PROP": {
-        "n": 41116,
-        "win_rate": 0.3656
-      },
-      "TEAM_TOTAL": {
-        "n": 15382,
-        "win_rate": 0.4732
-      },
-      "TOTAL": {
-        "n": 7822,
-        "win_rate": 0.5362
-      }
-    },
     "by_tier": {
-      "APPEALING": {
-        "n": 181481,
-        "win_rate": 0.3908
-      },
       "ELITE": {
-        "n": 344,
-        "win_rate": 0.3459
+        "n": 0,
+        "win_rate": null
       },
       "GREAT": {
-        "n": 7762,
-        "win_rate": 0.3859
+        "n": 4,
+        "win_rate": 0.5
+      },
+      "APPEALING": {
+        "n": 801,
+        "win_rate": 0.5543
       }
     }
   },
