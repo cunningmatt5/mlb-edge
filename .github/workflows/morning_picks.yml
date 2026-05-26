@@ -42,7 +42,10 @@ jobs:
           " 2>/dev/null)
           AGE=$((NOW - GENERATED))
           echo "Games data age: ${AGE}s"
-          if [ "$AGE" -lt 1500 ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "stale=true" >> $GITHUB_OUTPUT
+            echo "Manual trigger — bypassing freshness check, regenerating."
+          elif [ "$AGE" -lt 1500 ]; then
             echo "stale=false" >> $GITHUB_OUTPUT
             echo "games.json is ${AGE}s old — still fresh, skipping."
           else
