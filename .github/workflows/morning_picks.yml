@@ -116,6 +116,7 @@ jobs:
           git add docs/backtest.json 2>/dev/null || true
           git add docs/picks.json 2>/dev/null || true
           git add data/calibration.json 2>/dev/null || true
+          git add data/opening_lines.json 2>/dev/null || true
           git diff --staged --quiet || git commit -m "chore: update picks [skip ci]"
           git pull --rebase origin master
           git push
