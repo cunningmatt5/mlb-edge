@@ -18,6 +18,7 @@ from pipeline.comps import load_comps_db
 from pipeline.odds import (
     fetch_mlb_game_lines, fetch_mlb_props, get_game_event,
     match_game_line, match_prop_line, compute_ev,
+    load_opening_lines, save_opening_lines, record_opening_lines, compute_line_movement,
 )
 from pipeline.predictor import build_game
 from pipeline.schedule import fetch_schedule
@@ -61,6 +62,14 @@ def main(dry_run: bool = False) -> None:
     if game_lines:
         log.info("Odds: %d games from Pinnacle", len(game_lines))
 
+    # Opening line tracking — record first-seen lines and compute movement
+    opening_lines: dict = {}
+    if game_lines:
+        opening_lines = load_opening_lines()
+        if record_opening_lines(games, game_lines, opening_lines):
+            save_opening_lines(opening_lines)
+            log.info("Opening lines: recorded first-seen lines for today")
+
     comps_db = load_comps_db()
     if comps_db:
         log.info("Comps database: %d historical games loaded", len(comps_db))
@@ -83,6 +92,12 @@ def main(dry_run: bool = False) -> None:
             tid = game.get(id_key)
             if tid and tid in team_records:
                 game_obj[f"{side}_record"] = team_records[tid]
+
+        # Attach line movement if significant movement detected vs. opening
+        if opening_lines and game_lines:
+            movement = compute_line_movement(game, game_lines, opening_lines)
+            if movement:
+                game_obj.setdefault("odds", {})["line_movement"] = movement
 
         game_objects.append(game_obj)
 

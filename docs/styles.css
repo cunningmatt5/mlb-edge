@@ -471,6 +471,20 @@ header {
   white-space: nowrap;
 }
 
+/* Sharp money line movement badge */
+.sharp-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+  margin-top: 6px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: rgba(245,158,11,.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245,158,11,.25);
+}
+
 /* Lineup status + batter highlights strip */
 .lineup-status-row {
   display: flex;

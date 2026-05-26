@@ -374,6 +374,7 @@ function gameCardHTML(g) {
       </div>
     </div>
     ${lineupStatusHTML(g)}
+    ${lineMovementHTML(g)}
     ${statusStrip(g)}
   </div>
   <div class="game-card-body" hidden>
@@ -937,6 +938,25 @@ function formatOddsLine(odds, awayTeam, homeTeam) {
     parts.push(`O/U ${odds.total}`);
   }
   return parts.join(' · ');
+}
+
+function lineMovementHTML(g) {
+  const mv = g.odds?.line_movement;
+  if (!mv) return '';
+  const parts = [];
+  if (mv.total_move != null) {
+    const dir = mv.total_move > 0 ? '▲' : '▼';
+    const side = mv.total_move > 0 ? 'OVER' : 'UNDER';
+    const sign = mv.total_move > 0 ? '+' : '';
+    parts.push(`${dir} Line ${sign}${mv.total_move} · Sharp ${side}`);
+  }
+  if (mv.ml_move != null) {
+    const side = mv.ml_move > 0 ? abbrev(g.home_team) : abbrev(g.away_team);
+    const dir = '▲';
+    parts.push(`${dir} ${side} ML sharp action`);
+  }
+  if (!parts.length) return '';
+  return `<div class="sharp-badge">${parts.join(' &nbsp;·&nbsp; ')}</div>`;
 }
 
 function formatWeather(wx) {

@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from datetime import date as _date_cls, datetime, timezone
 from functools import lru_cache
 from math import exp
 from pathlib import Path
@@ -13,6 +14,7 @@ import requests
 
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 TIMEOUT = 15
+OPENING_LINES_PATH = Path(__file__).parent.parent / "data" / "opening_lines.json"
 
 log = logging.getLogger(__name__)
 
@@ -329,6 +331,129 @@ def compute_ev(pick: dict, matched_line: dict) -> dict:
         "under_price":  matched_line["under_price"],
         "book":         "pinnacle",
     }
+
+
+# ── Opening line tracking ─────────────────────────────────────────────────────
+
+def load_opening_lines() -> dict:
+    """Load persisted opening lines from disk. Returns {} if file missing or corrupt."""
+    try:
+        if OPENING_LINES_PATH.exists():
+            return json.loads(OPENING_LINES_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        log.warning("Could not load opening_lines.json: %s", exc)
+    return {}
+
+
+def save_opening_lines(opening_lines: dict) -> None:
+    """Persist opening lines dict to disk."""
+    try:
+        OPENING_LINES_PATH.write_text(
+            json.dumps(opening_lines, separators=(",", ":")),
+            encoding="utf-8",
+        )
+    except Exception as exc:
+        log.warning("Could not save opening_lines.json: %s", exc)
+
+
+def record_opening_lines(games: list, game_lines: dict, opening_lines: dict) -> bool:
+    """Store the first-seen Pinnacle line for each game as the opening line.
+
+    Returns True if any new entries were written (caller should then save).
+    Stale entries from prior dates are pruned automatically.
+    """
+    today = _date_cls.today().isoformat()
+    changed = False
+
+    for game in games:
+        game_pk = str(game.get("gamePk", ""))
+        if not game_pk:
+            continue
+
+        stored = opening_lines.get(game_pk, {})
+        if stored.get("date") == today:
+            continue  # already have today's opening line
+
+        # Stale or missing — record fresh
+        away = game.get("awayTeam", "")
+        home = game.get("homeTeam", "")
+        event = game_lines.get(f"{_norm_team(away)}@{_norm_team(home)}")
+        if not event:
+            continue
+
+        markets = event.get("markets", {})
+        totals  = markets.get("totals", [])
+        h2h     = markets.get("h2h", [])
+
+        over_out  = next((o for o in totals if o.get("name") == "Over"),  None)
+        home_out  = next((o for o in h2h if _norm_team(o.get("name", "")) == _norm_team(home)), None)
+        away_out  = next((o for o in h2h if _norm_team(o.get("name", "")) == _norm_team(away)), None)
+
+        opening_lines[game_pk] = {
+            "date":        today,
+            "total":       over_out.get("point") if over_out else None,
+            "home_ml":     home_out["price"] if home_out else None,
+            "away_ml":     away_out["price"] if away_out else None,
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+        }
+        changed = True
+
+    return changed
+
+
+def compute_line_movement(game: dict, game_lines: dict, opening_lines: dict) -> Optional[dict]:
+    """Return a movement dict if the current Pinnacle line moved vs. the opening.
+
+    Total threshold: ≥ 0.5 runs.  ML threshold: ≥ 2% implied probability shift.
+    Returns None when no significant movement is detected.
+    """
+    game_pk = str(game.get("gamePk", ""))
+    opening = opening_lines.get(game_pk)
+    if not opening or opening.get("date") != _date_cls.today().isoformat():
+        return None
+
+    away = game.get("awayTeam", "")
+    home = game.get("homeTeam", "")
+    event = game_lines.get(f"{_norm_team(away)}@{_norm_team(home)}")
+    if not event:
+        return None
+
+    markets  = event.get("markets", {})
+    totals   = markets.get("totals", [])
+    h2h      = markets.get("h2h", [])
+
+    over_out     = next((o for o in totals if o.get("name") == "Over"), None)
+    home_out     = next((o for o in h2h if _norm_team(o.get("name", "")) == _norm_team(home)), None)
+    away_out     = next((o for o in h2h if _norm_team(o.get("name", "")) == _norm_team(away)), None)
+
+    result: dict = {}
+
+    # Total movement
+    if over_out and opening.get("total") is not None:
+        curr_total = over_out.get("point")
+        if curr_total is not None:
+            move = round(float(curr_total) - float(opening["total"]), 1)
+            if abs(move) >= 0.5:
+                result["total_move"]    = move
+                result["opening_total"] = opening["total"]
+                result["current_total"] = curr_total
+
+    # ML movement (implied probability)
+    if (home_out and away_out
+            and opening.get("home_ml") is not None
+            and opening.get("away_ml") is not None):
+        try:
+            open_home_prob, _ = no_vig_prob(int(opening["home_ml"]), int(opening["away_ml"]))
+            curr_home_prob, _ = no_vig_prob(int(home_out["price"]), int(away_out["price"]))
+            ml_move = round(curr_home_prob - open_home_prob, 3)
+            if abs(ml_move) >= 0.02:
+                result["ml_move"]         = ml_move
+                result["opening_home_ml"] = opening["home_ml"]
+                result["current_home_ml"] = home_out["price"]
+        except Exception:
+            pass
+
+    return result if result else None
 
 
 # ── Internal ──────────────────────────────────────────────────────────────────
