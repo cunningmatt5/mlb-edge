@@ -85,14 +85,23 @@ def _pitcher_score(sp: dict, bullpen: dict | None = None) -> float:
     return sp_score
 
 
-def _lineup_score(players: list[dict]) -> float:
-    """Composite lineup strength on [0, 1]; 1 = elite offense."""
+def _lineup_score(players: list[dict], sp_throws: Optional[str] = None) -> float:
+    """Composite lineup strength on [0, 1]; 1 = elite offense.
+
+    When sp_throws is 'L' or 'R', uses split-specific xwOBA for each batter
+    (falling back to season stats when splits are unavailable).
+    """
     if not players:
         return 0.5
 
     pairs: list[tuple[float, float]] = []
     for key, (w, invert, (lo, hi)) in _L_WEIGHTS.items():
-        vals = [p[key] for p in players if p.get(key) is not None]
+        if key == "xwoba" and sp_throws in ("L", "R"):
+            suffix = "_vs_l" if sp_throws == "L" else "_vs_r"
+            vals = [(p.get(f"xwoba{suffix}") or p.get("xwoba")) for p in players]
+            vals = [v for v in vals if v is not None]
+        else:
+            vals = [p[key] for p in players if p.get(key) is not None]
         avg = sum(vals) / len(vals) if vals else None
         normed = normalize(avg, lo, hi) if avg is not None else 0.5
         if invert:
@@ -123,13 +132,33 @@ def _win_probability(
     comps_home_win_rate: Optional[float],
     park_modifier: float,
     weather_modifier: float,
+    vegas_home_prob: Optional[float] = None,
 ) -> tuple[float, float]:
-    """Return (home_win_pct, away_win_pct) blended from stat model and historical comps."""
+    """Return (home_win_pct, away_win_pct).
+
+    When vegas_home_prob is provided (live picks), uses the Pinnacle no-vig
+    probability as the logit base and adds only small corrections from our
+    model signals.  Regression on 12k+ games shows adding pitcher/lineup
+    differential at full weight (RAW_EDGE_MULT=2.0) increases log-loss vs.
+    Vegas-only; a reduced multiplier (0.5) blends in our marginal signal.
+
+    Without Vegas lines (backtest fallback), the independent model runs at
+    full RAW_EDGE_MULT.
+    """
     raw_edge = (
         (home_lineup_score - away_pitcher_score)
         - (away_lineup_score - home_pitcher_score)
     )
-    logit_stats = _logit(HOME_ADVANTAGE) + raw_edge * _RAW_EDGE_MULT
+
+    if vegas_home_prob is not None:
+        # Vegas-anchored: start from market's best estimate, add small corrections
+        logit_base  = _logit(vegas_home_prob)
+        edge_mult   = 0.5   # marginal correction weight; regression shows 2.0 adds noise
+    else:
+        logit_base  = _logit(HOME_ADVANTAGE)
+        edge_mult   = _RAW_EDGE_MULT
+
+    logit_stats = logit_base + raw_edge * edge_mult
 
     if comps_home_win_rate is not None and _COMPS_WIN_BLEND > 0:
         logit_comps = _logit(comps_home_win_rate)
@@ -320,6 +349,7 @@ def _format_sp_stats(sp: dict, name_fallback: str) -> dict:
     return {
         "name":        sp.get("name", name_fallback),
         "mlbam_id":    sp.get("mlbam_id"),
+        "throws":      sp.get("throws"),
         "season":      season,
         "recent":      recent,
         "trend_flags": _trend_flags_pitcher(sp),
@@ -464,10 +494,14 @@ def build_game(
 
     home_bullpen = cache.get(f"bullpen:{home_team}")
     away_bullpen = cache.get(f"bullpen:{away_team}")
+    home_sp_throws = home_sp.get("throws")   # pitcher handedness for platoon splits
+    away_sp_throws = away_sp.get("throws")
+
     home_pitcher_score = _pitcher_score(home_sp, home_bullpen)
     away_pitcher_score = _pitcher_score(away_sp, away_bullpen)
-    home_lineup_score  = _lineup_score(home_lineup_players)
-    away_lineup_score  = _lineup_score(away_lineup_players)
+    # Pass opposing SP handedness so lineup uses vs-LHP / vs-RHP xwOBA splits
+    home_lineup_score  = _lineup_score(home_lineup_players, sp_throws=away_sp_throws)
+    away_lineup_score  = _lineup_score(away_lineup_players, sp_throws=home_sp_throws)
 
     home_xwoba = lineup_weighted_mean(home_lineup_players, "xwoba")
     away_xwoba = lineup_weighted_mean(away_lineup_players, "xwoba")
@@ -510,10 +544,26 @@ def build_game(
                     away_bullpen[k] = away_bullpen[k] * 0.95
         away_pitcher_score = _pitcher_score(away_sp, away_bullpen)
 
+    odds_out = _extract_odds(odds, home_team, away_team)
+
+    # Extract Pinnacle no-vig home probability to use as logit base in win probability.
+    # Diagnostics on 12k+ games show adding pitcher/lineup diff at full weight (2.0)
+    # increases log-loss vs. Vegas-only; Vegas-anchored approach corrects this.
+    vegas_home_prob: Optional[float] = None
+    if odds_out and odds_out.get("home_ml") and odds_out.get("away_ml"):
+        try:
+            from pipeline.odds import no_vig_prob
+            vegas_home_prob, _ = no_vig_prob(
+                int(odds_out["home_ml"]), int(odds_out["away_ml"])
+            )
+        except Exception:
+            pass
+
     home_win_pct, away_win_pct = _win_probability(
         home_pitcher_score, away_pitcher_score,
         home_lineup_score, away_lineup_score,
         comps_home_win_rate, park_mod + rest_mod, weather_mod,
+        vegas_home_prob=vegas_home_prob,
     )
     pred_home, pred_away = _predicted_runs(
         home_lineup_score, away_lineup_score,
@@ -521,15 +571,14 @@ def build_game(
         park_run_factor, weather_mod,
     )
 
-    odds_out = _extract_odds(odds, home_team, away_team)
-
-    # Vegas anchor: blend 70% model / 30% Pinnacle, capped at ±1.5 runs from Vegas line.
-    # Applied after the model formula so it acts as a guard, not the primary signal.
+    # Vegas total anchor: 60% Vegas / 40% model, capped at ±1.0 runs.
+    # Diagnostics show model has systematic upward bias on totals (77% Over predictions
+    # with only 47% hit rate); increased Vegas weight corrects this.
     if odds_out and odds_out.get("total"):
         vegas_total = odds_out["total"]
         model_total_raw = pred_home + pred_away
-        blended = 0.70 * model_total_raw + 0.30 * vegas_total
-        blended = max(vegas_total - 1.5, min(vegas_total + 1.5, blended))
+        blended = 0.40 * model_total_raw + 0.60 * vegas_total
+        blended = max(vegas_total - 1.0, min(vegas_total + 1.0, blended))
         ratio = blended / model_total_raw if model_total_raw > 0 else 1.0
         pred_home = round(pred_home * ratio, 1)
         pred_away = round(pred_away * ratio, 1)
