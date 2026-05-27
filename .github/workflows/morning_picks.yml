@@ -118,5 +118,12 @@ jobs:
           git add data/calibration.json 2>/dev/null || true
           git add data/opening_lines.json 2>/dev/null || true
           git diff --staged --quiet || git commit -m "chore: update picks [skip ci]"
-          git pull --rebase origin master
-          git push
+          for i in 1 2 3; do
+            git fetch origin master
+            if git rebase -X ours origin/master; then
+              git push && break
+            else
+              git rebase --abort || true
+            fi
+            [ $i -lt 3 ] && sleep 5
+          done
