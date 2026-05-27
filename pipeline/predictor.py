@@ -12,7 +12,7 @@ from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean, bullp
 
 log = logging.getLogger(__name__)
 
-LEAGUE_AVG_RUNS  = 4.4   # recalibrated: backtest shows 8.91 actual vs 8.32 pred at 4.1 (bias -0.59)
+LEAGUE_AVG_RUNS  = 4.1   # fallback when no Vegas line available; actual MLB avg ~4.1/team
 HOME_ADVANTAGE   = 0.525  # baseline home win probability (calibrated: actual 52.7% from 805-game sample)
 _PITCHER_WEIGHT  = 0.80  # run-suppression weight (reduced from 0.85 to address -0.275 run bias)
 _LINEUP_WEIGHT   = 0.65  # run-production weight (increased from 0.55 to address -0.275 run bias)
@@ -179,8 +179,19 @@ def _predicted_runs(
     away_pitcher_score: float,
     park_run_factor: float,
     weather_modifier: float,
+    vegas_total: Optional[float] = None,
 ) -> tuple[float, float]:
-    """Return (predicted_home_runs, predicted_away_runs)."""
+    """Return (predicted_home_runs, predicted_away_runs).
+
+    When vegas_total is provided (live picks and backtest games with odds), uses
+    vegas_total / 2 as the per-team baseline. Park factor is NOT re-applied because it
+    is already embedded in the Vegas line. Only weather corrections are applied (post-
+    line-set conditions). Lineup/pitcher multipliers are small (0.15/0.20) to split
+    the total between home and away for display — they are NOT used to drive Over/Under
+    bets above Vegas's own estimate.
+
+    Without a Vegas line, falls back to LEAGUE_AVG_RUNS with full multipliers.
+    """
     park_mult    = park_run_factor / 100.0
     weather_mult = 1.0 + weather_modifier * 0.05
 
@@ -189,8 +200,16 @@ def _predicted_runs(
     away_off_edge   = away_lineup_score  - 0.5
     home_pitch_edge = home_pitcher_score - 0.5
 
-    home_runs = LEAGUE_AVG_RUNS * (1.0 + home_off_edge * _LINEUP_WEIGHT - away_pitch_edge * _PITCHER_WEIGHT) * park_mult * weather_mult
-    away_runs = LEAGUE_AVG_RUNS * (1.0 + away_off_edge * _LINEUP_WEIGHT - home_pitch_edge * _PITCHER_WEIGHT) * park_mult * weather_mult
+    if vegas_total is not None:
+        base = vegas_total / 2.0
+        # Park factor is already in the Vegas line — do NOT re-apply park_mult.
+        # Small lineup/pitcher corrections split the total for display; weather_mult
+        # captures post-line-set conditions Vegas couldn't price.
+        home_runs = base * (1.0 + home_off_edge * 0.15 - away_pitch_edge * 0.20) * weather_mult
+        away_runs = base * (1.0 + away_off_edge * 0.15 - home_pitch_edge * 0.20) * weather_mult
+    else:
+        home_runs = LEAGUE_AVG_RUNS * (1.0 + home_off_edge * _LINEUP_WEIGHT - away_pitch_edge * _PITCHER_WEIGHT) * park_mult * weather_mult
+        away_runs = LEAGUE_AVG_RUNS * (1.0 + away_off_edge * _LINEUP_WEIGHT - home_pitch_edge * _PITCHER_WEIGHT) * park_mult * weather_mult
 
     home_runs = round(max(1.0, min(12.0, home_runs)), 1)
     away_runs = round(max(1.0, min(12.0, away_runs)), 1)
@@ -565,23 +584,13 @@ def build_game(
         comps_home_win_rate, park_mod + rest_mod, weather_mod,
         vegas_home_prob=vegas_home_prob,
     )
+    vegas_total: Optional[float] = odds_out.get("total") if odds_out else None
     pred_home, pred_away = _predicted_runs(
         home_lineup_score, away_lineup_score,
         home_pitcher_score, away_pitcher_score,
         park_run_factor, weather_mod,
+        vegas_total=vegas_total,
     )
-
-    # Vegas total anchor: 60% Vegas / 40% model, capped at ±1.0 runs.
-    # Diagnostics show model has systematic upward bias on totals (77% Over predictions
-    # with only 47% hit rate); increased Vegas weight corrects this.
-    if odds_out and odds_out.get("total"):
-        vegas_total = odds_out["total"]
-        model_total_raw = pred_home + pred_away
-        blended = 0.40 * model_total_raw + 0.60 * vegas_total
-        blended = max(vegas_total - 1.0, min(vegas_total + 1.0, blended))
-        ratio = blended / model_total_raw if model_total_raw > 0 else 1.0
-        pred_home = round(pred_home * ratio, 1)
-        pred_away = round(pred_away * ratio, 1)
 
     narrative = _generate_narrative(
         home_team, away_team,

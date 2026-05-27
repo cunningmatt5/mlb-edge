@@ -232,6 +232,17 @@ def score_game(
                 )
 
     park_mod = (park_run_factor - 100) / 1000
+
+    # Extract closing Vegas total early so _predicted_runs() can use it as anchor
+    bt_vegas_total: Optional[float] = None
+    if odds_row:
+        ct = odds_row.get("closing_total")
+        if ct is not None and not (isinstance(ct, float) and pd.isna(ct)):
+            try:
+                bt_vegas_total = float(ct)
+            except (TypeError, ValueError):
+                pass
+
     home_win_pct, away_win_pct = _win_probability(
         home_pitcher_score, away_pitcher_score,
         home_lineup_score, away_lineup_score,
@@ -241,6 +252,7 @@ def score_game(
         home_lineup_score, away_lineup_score,
         home_pitcher_score, away_pitcher_score,
         park_run_factor, 0.0,
+        vegas_total=bt_vegas_total,
     )
 
     actual_home = game["home_score"]

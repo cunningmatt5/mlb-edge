@@ -1,0 +1,235 @@
+{
+  "n_games": 6398,
+  "calibration": [
+    {
+      "bin": 1,
+      "n": 639,
+      "pred_prob": 0.4381,
+      "actual_wr": 0.3975,
+      "vegas_prob": 0.4532,
+      "model_err": 0.0406,
+      "vegas_err": 0.0557
+    },
+    {
+      "bin": 2,
+      "n": 639,
+      "pred_prob": 0.4728,
+      "actual_wr": 0.4617,
+      "vegas_prob": 0.4637,
+      "model_err": 0.0112,
+      "vegas_err": 0.002
+    },
+    {
+      "bin": 3,
+      "n": 639,
+      "pred_prob": 0.4919,
+      "actual_wr": 0.4429,
+      "vegas_prob": 0.5001,
+      "model_err": 0.049,
+      "vegas_err": 0.0572
+    },
+    {
+      "bin": 4,
+      "n": 639,
+      "pred_prob": 0.5066,
+      "actual_wr": 0.4679,
+      "vegas_prob": 0.509,
+      "model_err": 0.0387,
+      "vegas_err": 0.0411
+    },
+    {
+      "bin": 5,
+      "n": 639,
+      "pred_prob": 0.5192,
+      "actual_wr": 0.5133,
+      "vegas_prob": 0.53,
+      "model_err": 0.0059,
+      "vegas_err": 0.0167
+    },
+    {
+      "bin": 6,
+      "n": 639,
+      "pred_prob": 0.5311,
+      "actual_wr": 0.5399,
+      "vegas_prob": 0.5394,
+      "model_err": -0.0089,
+      "vegas_err": -0.0005
+    },
+    {
+      "bin": 7,
+      "n": 639,
+      "pred_prob": 0.5434,
+      "actual_wr": 0.5665,
+      "vegas_prob": 0.5524,
+      "model_err": -0.0231,
+      "vegas_err": -0.0141
+    },
+    {
+      "bin": 8,
+      "n": 639,
+      "pred_prob": 0.5581,
+      "actual_wr": 0.5837,
+      "vegas_prob": 0.5707,
+      "model_err": -0.0256,
+      "vegas_err": -0.013
+    },
+    {
+      "bin": 9,
+      "n": 639,
+      "pred_prob": 0.5765,
+      "actual_wr": 0.6416,
+      "vegas_prob": 0.5926,
+      "model_err": -0.0651,
+      "vegas_err": -0.049
+    },
+    {
+      "bin": 10,
+      "n": 639,
+      "pred_prob": 0.6099,
+      "actual_wr": 0.6463,
+      "vegas_prob": 0.6179,
+      "model_err": -0.0364,
+      "vegas_err": -0.0284
+    }
+  ],
+  "regression": {
+    "n_games": 6398,
+    "vegas_only_log_loss": 0.655608,
+    "joint_log_loss": 0.659719,
+    "naive_log_loss": 0.693147,
+    "pitcher_diff_coef": 0.8846,
+    "implied_prob_coef": 1.7451,
+    "intercept": -0.8049,
+    "interpretation": "pitcher_diff adds meaningful signal"
+  },
+  "edge_asymmetry": {
+    "buckets": [
+      {
+        "bucket": "strong_away",
+        "range": "< -0.10",
+        "n": 1225,
+        "win_pct": 64.3,
+        "roi": 14.06,
+        "units": 172.29
+      },
+      {
+        "bucket": "mild_away",
+        "range": "-0.10 to -0.03",
+        "n": 1514,
+        "win_pct": 57.9,
+        "roi": -3.44,
+        "units": -52.04
+      },
+      {
+        "bucket": "neutral",
+        "range": "-0.03 to +0.03",
+        "n": 1417,
+        "win_pct": 56.2,
+        "roi": -1.42,
+        "units": -20.18
+      },
+      {
+        "bucket": "mild_home",
+        "range": "+0.03 to +0.10",
+        "n": 1198,
+        "win_pct": 55.2,
+        "roi": 0.91,
+        "units": 10.85
+      },
+      {
+        "bucket": "strong_home",
+        "range": "> +0.10",
+        "n": 1044,
+        "win_pct": 48.0,
+        "roi": -4.38,
+        "units": -45.69
+      }
+    ]
+  },
+  "pitcher_diff_roi": [
+    {
+      "quintile": 1,
+      "pitcher_diff_range": "-0.461 to -0.081",
+      "n": 1279,
+      "win_pct": 57.9,
+      "roi": 10.81,
+      "units": 138.22
+    },
+    {
+      "quintile": 2,
+      "pitcher_diff_range": "-0.081 to -0.022",
+      "n": 1279,
+      "win_pct": 50.0,
+      "roi": -2.48,
+      "units": -31.72
+    },
+    {
+      "quintile": 3,
+      "pitcher_diff_range": "-0.022 to 0.025",
+      "n": 1279,
+      "win_pct": 53.4,
+      "roi": -3.09,
+      "units": -39.56
+    },
+    {
+      "quintile": 4,
+      "pitcher_diff_range": "0.025 to 0.084",
+      "n": 1279,
+      "win_pct": 57.5,
+      "roi": -2.51,
+      "units": -32.1
+    },
+    {
+      "quintile": 5,
+      "pitcher_diff_range": "0.084 to 0.371",
+      "n": 1279,
+      "win_pct": 64.3,
+      "roi": 2.17,
+      "units": 27.78
+    }
+  ],
+  "totals_accuracy": {
+    "model_over": {
+      "n": 299,
+      "hit_pct": 55.5,
+      "roi": 6.97,
+      "units": 20.84
+    },
+    "model_under": {
+      "n": 166,
+      "hit_pct": 59.6,
+      "roi": 10.25,
+      "units": 17.01
+    }
+  },
+  "season_breakdown": [
+    {
+      "season": "2021",
+      "n": 1025,
+      "accuracy": 56.4,
+      "roi": -3.65,
+      "units": -37.36
+    },
+    {
+      "season": "2022",
+      "n": 2293,
+      "accuracy": 57.9,
+      "roi": 0.59,
+      "units": 13.62
+    },
+    {
+      "season": "2023",
+      "n": 2322,
+      "accuracy": 56.2,
+      "roi": -0.2,
+      "units": -4.59
+    },
+    {
+      "season": "2026",
+      "n": 758,
+      "accuracy": 54.4,
+      "roi": 12.34,
+      "units": 93.56
+    }
+  ]
+}
