@@ -414,7 +414,12 @@ def _parse_ml(val) -> Optional[int]:
 # ---------------------------------------------------------------------------
 
 def _norm_team(name: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", str(name).lower())
+    n = re.sub(r"[^a-z0-9]", "", str(name).lower())
+    # Franchise relocations / rebrands that change the city prefix:
+    # Athletics: "Oakland Athletics" → "athletics", "Las Vegas Athletics" → "athletics"
+    if n.endswith("athletics"):
+        return "athletics"
+    return n
 
 
 def build_season_closing_lines(
@@ -522,6 +527,14 @@ def _parse_odds_api_event(event: dict, date: str) -> Optional[dict]:
     }
 
 
+_SNAPSHOTS = ["T17:00:00Z", "T22:00:00Z"]
+# Two snapshots per date (each costs ~20 quota units on paid plans):
+#   T17:00Z = 1 PM ET  → pre-game for afternoon games (1 PM, 4 PM ET starts)
+#   T22:00Z = 6 PM ET  → pre-game for evening/West Coast games (7-10 PM ET starts)
+# Union of both covers >97% of the schedule.  Prefer the later snapshot when a
+# game appears in both (odds closer to first pitch = sharper closing line).
+
+
 def fetch_odds_api_historical_season(
     season: int,
     api_key: str,
@@ -529,14 +542,15 @@ def fetch_odds_api_historical_season(
 ) -> None:
     """Fetch one season of closing lines from The Odds API historical endpoint.
 
-    Queries once per unique game date at {date}T22:00:00Z (6 PM ET snapshot,
-    covers pre-game closing lines for ~90% of games).
+    Makes TWO snapshot calls per game date (1 PM ET + 6 PM ET) to capture
+    both afternoon and evening games.  Events are merged by ID, preferring
+    the later snapshot for games that appear in both.
 
-    Progress is cached to odds_api_cache.json so interrupted runs resume
-    without re-fetching already-completed dates.
+    Progress is cached to odds_api_cache.json (keyed {date}_{snapshot}) so
+    interrupted runs resume without re-fetching completed dates.
 
-    Requires The Odds API Professional plan ($29/month).
-    Each season costs ~170 API calls (one per game date).
+    Requires The Odds API paid plan with historical access.
+    Each season costs ~2 × 170 = ~340 API calls (20 quota units each).
     """
     if seasons_dir is None:
         seasons_dir = SEASONS_DIR
@@ -556,76 +570,106 @@ def fetch_odds_api_historical_season(
     if cache_path.exists():
         with open(cache_path) as f:
             cache: dict = json.load(f)
-        log.info("Odds API %d: loaded cache — %d dates already fetched", season, len(cache))
+        log.info("Odds API %d: loaded cache — %d snapshot keys", season, len(cache))
     else:
         cache = {}
 
     games_df = pd.read_parquet(games_path)
     all_dates = sorted(games_df["date"].astype(str).unique())
-    remaining = [d for d in all_dates if d not in cache]
+
+    # Build list of (date, snapshot) pairs not yet in cache
+    todo = [
+        (d, snap) for d in all_dates for snap in _SNAPSHOTS
+        if f"{d}_{snap}" not in cache
+    ]
+    done_count = len(all_dates) * len(_SNAPSHOTS) - len(todo)
     log.info(
-        "Odds API %d: %d game dates total, %d cached, %d to fetch",
-        season, len(all_dates), len(all_dates) - len(remaining), len(remaining),
+        "Odds API %d: %d dates × %d snapshots = %d total, %d cached, %d to fetch",
+        season, len(all_dates), len(_SNAPSHOTS),
+        len(all_dates) * len(_SNAPSHOTS), done_count, len(todo),
     )
 
     url = f"{ODDS_API_BASE}/sports/baseball_mlb/odds-history/"
+    quota_left = "?"
+    quota_exhausted = False
 
-    for i, date in enumerate(remaining):
+    for i, (date, snap) in enumerate(todo):
+        cache_key = f"{date}_{snap}"
         params = {
-            "apiKey":      api_key,
-            "regions":     "us",
-            "markets":     "h2h,totals",
-            "oddsFormat":  "american",
-            "date":        f"{date}T22:00:00Z",
+            "apiKey":     api_key,
+            "regions":    "us",
+            "markets":    "h2h,totals",
+            "oddsFormat": "american",
+            "date":       f"{date}{snap}",
         }
         try:
             r = requests.get(url, params=params, timeout=TIMEOUT)
-            quota_left = r.headers.get("x-requests-remaining", "?")
+            quota_left = r.headers.get("x-requests-remaining", quota_left)
 
             if r.status_code == 401:
                 log.error(
                     "Odds API %d: 401 Unauthorized — verify ODDS_API_KEY and "
-                    "that account is on Professional plan or higher", season,
+                    "that account is on a plan with historical access", season,
                 )
+                quota_exhausted = True
                 break
             if r.status_code == 429:
-                log.error("Odds API %d: 429 quota exhausted — %d dates remain unfetched", season, len(remaining) - i)
+                log.error(
+                    "Odds API %d: 429 quota exhausted at %s (%d pairs remain)",
+                    season, date, len(todo) - i,
+                )
+                quota_exhausted = True
                 break
             if r.status_code == 422:
-                log.warning("Odds API %d: 422 for %s — date out of plan's history window", season, date)
-                cache[date] = []
+                log.warning("Odds API %d: 422 for %s%s — date out of history window", season, date, snap)
+                cache[cache_key] = []
             elif r.status_code != 200:
-                log.warning("Odds API %d: HTTP %d for %s — caching empty", season, r.status_code, date)
-                cache[date] = []
+                log.warning("Odds API %d: HTTP %d for %s%s", season, r.status_code, date, snap)
+                cache[cache_key] = []
             else:
                 body   = r.json()
                 events = body.get("data", []) if isinstance(body, dict) else body
-                cache[date] = events if isinstance(events, list) else []
+                cache[cache_key] = events if isinstance(events, list) else []
                 log.info(
-                    "Odds API %d: %s → %d events  (quota remaining: %s)",
-                    season, date, len(cache[date]), quota_left,
+                    "Odds API %d: %s%s → %d events  (quota remaining: %s)",
+                    season, date, snap, len(cache[cache_key]), quota_left,
                 )
         except Exception as exc:
-            log.warning("Odds API %d: request error for %s: %s", season, date, exc)
-            cache[date] = []
+            log.warning("Odds API %d: request error for %s%s: %s", season, date, snap, exc)
+            cache[cache_key] = []
 
-        # Save progress after every date — allows resuming if interrupted
         with open(cache_path, "w") as f:
             json.dump(cache, f)
 
-        if i < len(remaining) - 1:
-            time.sleep(0.3)  # ~3 requests/sec — polite and well within rate limits
+        if i < len(todo) - 1:
+            time.sleep(0.3)
 
-    # Build records DataFrame from cache
-    records = []
-    for date, events in cache.items():
+        if quota_exhausted:
+            break
+
+    # Merge snapshots: for each date, union events by ID preferring later snapshot.
+    # cache_key format: "2023-04-15_T17:00:00Z" — date is always YYYY-MM-DD (10 chars)
+    date_events: dict[str, dict[str, dict]] = {}  # date → {event_id: event}
+    for cache_key, events in cache.items():
+        date = cache_key[:10]  # "YYYY-MM-DD"
+        if len(cache_key) <= 10 or not cache_key[10] == "_":
+            continue  # skip legacy single-snapshot keys (date only, no suffix)
+        if date not in date_events:
+            date_events[date] = {}
         for event in (events or []):
+            eid = event.get("id")
+            if eid:
+                date_events[date][eid] = event  # later snapshot in sorted order wins
+
+    records = []
+    for date, ev_map in date_events.items():
+        for event in ev_map.values():
             rec = _parse_odds_api_event(event, date)
             if rec:
                 records.append(rec)
 
     if not records:
-        log.error("Odds API %d: no records in cache — closing_lines.parquet not saved", season)
+        log.error("Odds API %d: no records parsed — closing_lines.parquet not saved", season)
         return
 
     _save_closing_lines_from_df(pd.DataFrame(records), games_df, season, out_path, source="Odds API")
