@@ -34,6 +34,7 @@ let picksData    = null;
 let expandedPk   = null;
 let currentView  = 'games';
 let lastCheckedAt = null;
+let propsFilter  = 'all';   // 'all' | 'highconf' | 'value'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -594,6 +595,20 @@ function pitcherTableHTML(g) {
     ...homeFlags.map(f => `<span class="trend-pill home-pill">${hsp.name || g.home_team}: ${f}</span>`),
   ];
 
+  // Last-start deviation badges (data from MLB game log)
+  const lastStartPills = [];
+  for (const [sp, label] of [[asp, asp.name || g.away_team], [hsp, hsp.name || g.home_team]]) {
+    const dev = sp.last_start?.deviation;
+    if (dev == null) continue;
+    if (dev <= -1.5) {
+      lastStartPills.push(`<span class="trend-pill trend-pill-hot">↑ ${label}: last start ${dev.toFixed(1)} vs xERA</span>`);
+    } else if (dev >= 1.5) {
+      lastStartPills.push(`<span class="trend-pill trend-pill-cold">↓ ${label}: last start +${dev.toFixed(1)} vs xERA</span>`);
+    }
+  }
+
+  const flagPills = [...allFlags, ...lastStartPills];
+
   return `
 <table class="pitcher-table">
   <thead>
@@ -605,7 +620,7 @@ function pitcherTableHTML(g) {
   </thead>
   <tbody>${tbody}</tbody>
 </table>
-${allFlags.length ? `<div class="flag-row">${allFlags.join('')}</div>` : ''}`;
+${flagPills.length ? `<div class="flag-row">${flagPills.join('')}</div>` : ''}`;
 }
 
 // ── Lineups ───────────────────────────────────────────────────────────────────
@@ -1633,26 +1648,54 @@ function renderPropsView() {
     ? `Updated ${formatGeneratedAt(picksData.generated_at)}`
     : '';
 
+  const tabs = [
+    { id: 'all',      label: 'All Picks' },
+    { id: 'highconf', label: 'High Confidence' },
+    { id: 'value',    label: 'Value (Edge ≥3%)' },
+  ];
+  const tabsHtml = tabs.map(t =>
+    `<button class="pf-tab${propsFilter === t.id ? ' active' : ''}" data-filter="${t.id}">${t.label}</button>`
+  ).join('');
+
+  const filteredCards = picksData.games
+    .map(g => renderPickGameCard(g))
+    .filter(html => html.trim());
+
   view.innerHTML = `
 <div class="view-header">
   <h1>Props</h1>
   <span class="sub-label">${ts}</span>
 </div>
+<div class="props-filter-row">${tabsHtml}</div>
 <div class="picks-list">
-  ${picksData.games.map(g => renderPickGameCard(g)).join('')}
+  ${filteredCards.length ? filteredCards.join('') : '<div class="empty-state">No picks match the current filter.</div>'}
 </div>`;
+
+  view.querySelectorAll('.pf-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      propsFilter = btn.dataset.filter;
+      renderPropsView();
+    });
+  });
+}
+
+function filterPick(p) {
+  if (propsFilter === 'highconf') return (p.signal ?? 0) >= 7.0;
+  if (propsFilter === 'value')    return (p.odds?.edge_pct ?? 0) >= 3;
+  return true;
 }
 
 function renderPickGameCard(g) {
   const timeStr = g.game_time ? formatTimeET(g.game_time) : '';
   const matchup = `${abbrev(g.away_team)} @ ${abbrev(g.home_team)}`;
 
-  // Group picks by type
+  // Group picks by type, applying current filter
   const typeOrder = ['K_PROP','HR_PROP','HIT_PROP','TB_PROP','TOTAL','TEAM_TOTAL','MONEYLINE','ML_F5'];
   const grouped = {};
-  for (const p of g.picks) {
+  for (const p of g.picks.filter(filterPick)) {
     (grouped[p.bet_type] = grouped[p.bet_type] || []).push(p);
   }
+  if (!Object.keys(grouped).length) return '';
 
   const sections = typeOrder
     .filter(t => grouped[t])

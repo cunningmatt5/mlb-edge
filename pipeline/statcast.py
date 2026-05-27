@@ -645,7 +645,163 @@ def _build_team_bullpen_cache(season: int) -> dict[str, dict]:
         }
 
     log.info("Bullpen cache: %d teams (IP-weighted xERA/K%%/BB%%)", len(result))
+
+    # Enrich each team's entry with last-3-game-days reliever IP
+    today = date.today()
+    l3d_results = _build_bullpen_last3_ip_map(today)
+    for full_name in list(result.keys()):
+        result[full_name]["bp_ip_last_3"] = l3d_results.get(full_name, 0.0)
+
     return result
+
+
+# ---------------------------------------------------------------------------
+# Bullpen last-3-game-days IP (fatigue signal via MLB Stats API boxscores)
+# ---------------------------------------------------------------------------
+
+_MLB_TEAM_IDS: dict[str, int] = {
+    "Arizona Diamondbacks":  109,
+    "Atlanta Braves":        144,
+    "Baltimore Orioles":     110,
+    "Boston Red Sox":        111,
+    "Chicago Cubs":          112,
+    "Chicago White Sox":     145,
+    "Cincinnati Reds":       113,
+    "Cleveland Guardians":   114,
+    "Colorado Rockies":      115,
+    "Detroit Tigers":        116,
+    "Houston Astros":        117,
+    "Kansas City Royals":    118,
+    "Los Angeles Angels":    108,
+    "Los Angeles Dodgers":   119,
+    "Miami Marlins":         146,
+    "Milwaukee Brewers":     158,
+    "Minnesota Twins":       142,
+    "New York Mets":         121,
+    "New York Yankees":      147,
+    "Oakland Athletics":     133,
+    "Athletics":             133,
+    "Philadelphia Phillies": 143,
+    "Pittsburgh Pirates":    134,
+    "San Diego Padres":      135,
+    "San Francisco Giants":  137,
+    "Seattle Mariners":      136,
+    "St. Louis Cardinals":   138,
+    "Tampa Bay Rays":        139,
+    "Texas Rangers":         140,
+    "Toronto Blue Jays":     141,
+    "Washington Nationals":  120,
+}
+# Reverse mapping: MLB Stats API team ID → full team name
+_MLB_ID_TO_FULL: dict[int, str] = {v: k for k, v in _MLB_TEAM_IDS.items() if k != "Athletics"}
+
+# Module-level boxscore cache to avoid duplicate API calls when multiple teams share a game
+_boxscore_cache: dict[int, dict] = {}
+
+
+def _get_boxscore(game_pk: int) -> dict:
+    """Fetch and cache the boxscore for a game (keyed by game_pk)."""
+    if game_pk not in _boxscore_cache:
+        try:
+            resp = requests.get(
+                f"{MLB_STATS_BASE}/game/{game_pk}/boxscore",
+                headers=_HEADERS, timeout=TIMEOUT,
+            )
+            resp.raise_for_status()
+            _boxscore_cache[game_pk] = resp.json()
+        except Exception as exc:
+            log.debug("Boxscore fetch failed for game %d: %s", game_pk, exc)
+            _boxscore_cache[game_pk] = {}
+    return _boxscore_cache[game_pk]
+
+
+def _reliever_ip_from_boxscore(game_pk: int, team_id: int) -> float:
+    """Return total reliever IP for team_id in the given game (starter excluded)."""
+    box = _get_boxscore(game_pk)
+    if not box:
+        return 0.0
+    teams = box.get("teams", {})
+    for side in ("home", "away"):
+        t = teams.get(side, {})
+        if t.get("team", {}).get("id") != team_id:
+            continue
+        pitchers = t.get("pitchers", [])
+        players  = t.get("players", {})
+        rp_ip = 0.0
+        for pid in pitchers[1:]:   # skip index-0 (starter)
+            stats = players.get(f"ID{pid}", {}).get("stats", {}).get("pitching", {})
+            ip_str = stats.get("inningsPitched", "0")
+            try:
+                ip = float(ip_str)
+                whole = int(ip)
+                frac  = round(ip - whole, 1)
+                ip_dec = whole + (frac / 0.3 * (1.0 / 3.0)) if frac > 0 else float(whole)
+                rp_ip += ip_dec
+            except (ValueError, TypeError):
+                pass
+        return round(rp_ip, 1)
+    return 0.0
+
+
+def _build_bullpen_last3_ip_map(today: date) -> dict[str, float]:
+    """Return {full_team_name: total_reliever_ip_last_3_game_days} for all teams.
+
+    Uses a single schedule call to get all completed games in the past 5 calendar
+    days, then fetches each unique boxscore once (shared between home/away teams).
+    """
+    start = (today - timedelta(days=5)).strftime("%Y-%m-%d")
+    end   = (today - timedelta(days=1)).strftime("%Y-%m-%d")
+    try:
+        resp = requests.get(
+            f"{MLB_STATS_BASE}/schedule",
+            params={
+                "sportId": 1,
+                "startDate": start,
+                "endDate": end,
+                "gameType": "R",
+                "fields": "dates,date,games,gamePk,status,abstractGameState,teams,home,away,team,id",
+            },
+            headers=_HEADERS,
+            timeout=TIMEOUT,
+        )
+        resp.raise_for_status()
+        sched = resp.json()
+    except Exception as exc:
+        log.debug("Schedule fetch for bullpen L3D failed: %s", exc)
+        return {}
+
+    # Collect (date, game_pk, home_team_id, away_team_id) for Final games
+    game_records: list[tuple[str, int, int, int]] = []
+    for date_block in sched.get("dates", []):
+        date_str = date_block.get("date", "")
+        for g in date_block.get("games", []):
+            if g.get("status", {}).get("abstractGameState", "") != "Final":
+                continue
+            home_id = g.get("teams", {}).get("home", {}).get("team", {}).get("id", 0)
+            away_id = g.get("teams", {}).get("away", {}).get("team", {}).get("id", 0)
+            game_records.append((date_str, g["gamePk"], home_id, away_id))
+
+    if not game_records:
+        return {}
+
+    # Determine last 3 unique game-dates
+    unique_dates = sorted({d for d, _, _, _ in game_records})[-3:]
+    date_set = set(unique_dates)
+    recent = [(d, pk, hid, aid) for d, pk, hid, aid in game_records if d in date_set]
+
+    # Aggregate reliever IP per team over those games
+    team_ip: dict[int, float] = {}
+    for _, game_pk, home_id, away_id in recent:
+        for team_id in (home_id, away_id):
+            ip = _reliever_ip_from_boxscore(game_pk, team_id)
+            team_ip[team_id] = round(team_ip.get(team_id, 0.0) + ip, 1)
+
+    # Map MLB team IDs back to full names
+    return {
+        _MLB_ID_TO_FULL[tid]: ip
+        for tid, ip in team_ip.items()
+        if tid in _MLB_ID_TO_FULL
+    }
 
 
 # ---------------------------------------------------------------------------

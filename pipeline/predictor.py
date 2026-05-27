@@ -586,6 +586,23 @@ def build_game(
                     away_bullpen[k] = away_bullpen[k] * 0.95
         away_pitcher_score = _pitcher_score(away_sp, away_bullpen)
 
+    # L3D bullpen fatigue: if team used 9+ reliever IP over last 3 game-days, degrade xERA 12%
+    # League avg is ~5-6 IP/day = ~15-18 IP over 3 days; 9+ in 3 days = heavy recent overuse
+    _BP_L3D_THRESHOLD = 9.0
+    _BP_L3D_XERA_MULT = 1.12
+    home_bp_l3d = (home_bullpen or {}).get("bp_ip_last_3", 0.0) or 0.0
+    away_bp_l3d = (away_bullpen or {}).get("bp_ip_last_3", 0.0) or 0.0
+    if home_bp_l3d > _BP_L3D_THRESHOLD and home_bullpen:
+        home_bullpen = {**home_bullpen}
+        if home_bullpen.get("xera") is not None:
+            home_bullpen["xera"] = round(home_bullpen["xera"] * _BP_L3D_XERA_MULT, 4)
+        home_pitcher_score = _pitcher_score(home_sp, home_bullpen)
+    if away_bp_l3d > _BP_L3D_THRESHOLD and away_bullpen:
+        away_bullpen = {**away_bullpen}
+        if away_bullpen.get("xera") is not None:
+            away_bullpen["xera"] = round(away_bullpen["xera"] * _BP_L3D_XERA_MULT, 4)
+        away_pitcher_score = _pitcher_score(away_sp, away_bullpen)
+
     odds_out = _extract_odds(odds, home_team, away_team)
 
     # Extract Pinnacle no-vig home probability to use as logit base in win probability.
@@ -684,6 +701,8 @@ def build_game(
                 "away_rest_days":     away_rest,
                 "bullpen_xera_home":        home_bullpen.get("xera") if home_bullpen else None,
                 "bullpen_xera_away":        away_bullpen.get("xera") if away_bullpen else None,
+                "bp_ip_last_3_home":        round(home_bp_l3d, 1) if home_bp_l3d else None,
+                "bp_ip_last_3_away":        round(away_bp_l3d, 1) if away_bp_l3d else None,
                 "last_start_dev_home":      home_last_start_dev,
                 "last_start_dev_away":      away_last_start_dev,
                 "umpire":                   umpire_name or None,
