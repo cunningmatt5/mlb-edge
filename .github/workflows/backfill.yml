@@ -22,7 +22,7 @@ permissions:
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 180
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -49,9 +49,15 @@ jobs:
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: |
-          python -m pipeline.historical --seasons "${{ github.event.inputs.seasons }}" \
+          EXTRA_ARGS=""
+          if [ "${{ github.event.inputs.odds_source }}" = "odds_api" ] && [ -n "$ODDS_API_KEY" ]; then
+            EXTRA_ARGS="--api-key $ODDS_API_KEY"
+          fi
+          python -m pipeline.historical \
+            --seasons "${{ github.event.inputs.seasons }}" \
             --with-odds \
-            --odds-source "${{ github.event.inputs.odds_source }}"
+            --odds-source "${{ github.event.inputs.odds_source }}" \
+            $EXTRA_ARGS
 
       - name: Run backtest with EV stats
         run: python -m pipeline.backtest --seasons "${{ github.event.inputs.seasons }}"
