@@ -45,11 +45,32 @@ def save_history(records: list[dict]) -> None:
 def append_today(history: list[dict], games: list[dict], today_str: str) -> list[dict]:
     """Add today's prediction records (unresolved) to history."""
     from pipeline.odds import no_vig_prob
-    existing_pks = {r["gamePk"] for r in history}
+    existing_by_pk = {r["gamePk"]: r for r in history}
     added = 0
     for g in games:
         pk = g["gamePk"]
-        if pk in existing_pks:
+        if pk in existing_by_pk:
+            # Patch odds fields if they were missing when the record was first created
+            existing = existing_by_pk[pk]
+            odds     = g.get("odds") or {}
+            home_ml  = odds.get("home_ml")
+            away_ml  = odds.get("away_ml")
+            if home_ml is not None and existing.get("home_ml") is None:
+                pred = g.get("prediction", {})
+                model_edge_ml = None
+                try:
+                    pinnacle_home_prob, _ = no_vig_prob(int(home_ml), int(away_ml))
+                    model_edge_ml = round((pred.get("home_win_pct") or 0.5) - pinnacle_home_prob, 4)
+                except Exception:
+                    pass
+                existing.update({
+                    "home_ml":       home_ml,
+                    "away_ml":       away_ml,
+                    "vegas_total":   odds.get("total"),
+                    "over_price":    odds.get("over_price"),
+                    "under_price":   odds.get("under_price"),
+                    "model_edge_ml": model_edge_ml,
+                })
             continue
         pred    = g.get("prediction", {})
         signals = pred.get("model_signals", {})

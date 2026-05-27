@@ -751,6 +751,10 @@ function renderRecordView() {
   <span class="sub-label">${correct}–${decided.length - correct} (${pct}%) &nbsp;·&nbsp; ${decided.length} games graded ${streakLabel}</span>
 </div>
 
+<div class="rec-vegas-section">
+  ${renderVegasSection(decided)}
+</div>
+
 <div class="record-top-grid">
   <div class="record-conf-section">
     <div class="section-heading">Record by Confidence</div>
@@ -807,6 +811,7 @@ function renderRecordView() {
             ${abbrev(predTeam)} <span class="hist-pct${tierCls ? ' tier-badge tier-' + tierCls : ''}">${predPct}%</span>
           </td>
           <td class="hist-actual">${abbrev(actTeam)} ${score}</td>
+          <td class="bt-edge">${r.model_edge_ml != null ? `<span class="${r.model_edge_ml >= 0 ? 'edge-pos' : 'edge-neg'}">${r.model_edge_ml >= 0 ? '+' : ''}${(r.model_edge_ml * 100).toFixed(1)}%</span>` : '<span style="color:var(--text-dim)">—</span>'}</td>
           <td class="result-icon">${r.sp_scratched ? '<span class="res-scratch">–</span>' : (hit ? '<span class="res-hit">✓</span>' : '<span class="res-miss">✗</span>')}</td>
         </tr>`;
         }).join('')}
@@ -910,6 +915,220 @@ function calcSignalAccuracy(decided) {
   }
 
   return m;
+}
+
+// ── Vegas performance analysis ────────────────────────────────────────────────
+function computeVegasStats(records) {
+  const priced = records.filter(r => r.home_ml != null && r.away_ml != null);
+
+  function mlUnits(odds, won) {
+    const ret = odds > 0 ? odds / 100 : 100 / Math.abs(odds);
+    return won ? ret : -1;
+  }
+
+  // ML edge buckets: classify by model_edge_ml (model's home_win_pct − pinnacle implied home prob)
+  // Positive edge = model favours home more than Vegas; negative = model favours away
+  const mlBuckets = {
+    negative: { label: 'Away Pick',   desc: 'Model favours away', n: 0, wins: 0, units: 0 },
+    low:      { label: '0–3% Edge',   desc: 'Marginal home lean',  n: 0, wins: 0, units: 0 },
+    mid:      { label: '3–6% Edge',   desc: 'Moderate home edge',  n: 0, wins: 0, units: 0 },
+    high:     { label: '6%+ Edge',    desc: 'Strong home edge',    n: 0, wins: 0, units: 0 },
+  };
+
+  for (const r of priced) {
+    const edge    = r.model_edge_ml ?? 0;
+    const homeWon = r.actual_winner === 'home';
+    // Determine which side we'd bet (model's pick direction) and appropriate odds
+    let bucket, won, odds;
+    if (edge < 0) {
+      bucket = mlBuckets.negative;
+      won    = !homeWon;         // model picked away
+      odds   = r.away_ml;
+    } else if (edge < 0.03) {
+      bucket = mlBuckets.low;
+      won    = homeWon;
+      odds   = r.home_ml;
+    } else if (edge < 0.06) {
+      bucket = mlBuckets.mid;
+      won    = homeWon;
+      odds   = r.home_ml;
+    } else {
+      bucket = mlBuckets.high;
+      won    = homeWon;
+      odds   = r.home_ml;
+    }
+    if (odds == null) continue;
+    bucket.n++;
+    if (won) bucket.wins++;
+    bucket.units += mlUnits(odds, won);
+  }
+
+  // Totals direction
+  const pricedTotals = priced.filter(r => r.vegas_total != null && r.actual_total != null);
+  const totalsBuckets = {
+    over:  { label: 'Model Over',  n: 0, hits: 0, units: 0 },
+    under: { label: 'Model Under', n: 0, hits: 0, units: 0 },
+    push:  { label: 'No Lean',     n: 0, hits: 0, units: 0 },
+  };
+
+  for (const r of pricedTotals) {
+    const diff    = (r.predicted_total ?? 0) - r.vegas_total;
+    const wentOver = r.actual_total > r.vegas_total;
+    let bucket, odds, won;
+    if (diff > 0.5) {
+      bucket = totalsBuckets.over;
+      odds   = r.over_price  ?? -110;
+      won    = wentOver;
+    } else if (diff < -0.5) {
+      bucket = totalsBuckets.under;
+      odds   = r.under_price ?? -110;
+      won    = !wentOver;
+    } else {
+      bucket = totalsBuckets.push;
+      odds   = -110;
+      won    = false;  // no-lean bets not counted toward ROI
+    }
+    bucket.n++;
+    if (won) bucket.hits++;
+    if (bucket !== totalsBuckets.push) bucket.units += mlUnits(odds, won);
+  }
+
+  // Overall ROI summaries
+  const mlUnitsTotal  = Object.values(mlBuckets).reduce((s, b) => s + b.units, 0);
+  const mlBetsTotal   = Object.values(mlBuckets).reduce((s, b) => s + b.n, 0);
+  const totUnitsTotal = totalsBuckets.over.units + totalsBuckets.under.units;
+  const totBetsTotal  = totalsBuckets.over.n + totalsBuckets.under.n;
+
+  return {
+    ml:       { buckets: mlBuckets,   totalUnits: mlUnitsTotal,  totalBets: mlBetsTotal },
+    totals:   { buckets: totalsBuckets, totalUnits: totUnitsTotal, totalBets: totBetsTotal },
+    n_priced: priced.length,
+    n_total:  records.length,
+  };
+}
+
+function renderVegasSection(records) {
+  const v = computeVegasStats(records);
+  const MIN_GAMES = 5;
+
+  if (v.n_priced < MIN_GAMES) {
+    return `
+<div class="section-heading">Performance vs. Vegas Lines</div>
+<div class="rec-vegas-placeholder">
+  Vegas line tracking active — section populates as games accumulate (${v.n_priced} of ${v.n_total} games have line data).
+</div>`;
+  }
+
+  function winPct(b) {
+    return b.n > 0 ? Math.round(b.wins / b.n * 100) + '%' : '—';
+  }
+  function hitPct(b) {
+    return b.n > 0 ? Math.round(b.hits / b.n * 100) + '%' : '—';
+  }
+  function roiStr(units, n) {
+    if (!n) return '—';
+    const pct  = (units / n * 100).toFixed(1);
+    const sign = units >= 0 ? '+' : '';
+    return `${sign}${pct}%`;
+  }
+  function roiCls(units) {
+    return units > 0 ? 'edge-pos' : units < 0 ? 'edge-neg' : '';
+  }
+  function edgeCls(bucket) {
+    const { n, wins } = bucket;
+    if (!n) return 'edge-card';
+    const rate = wins / n;
+    return `edge-card ${rate >= 0.55 ? 'edge-green' : rate >= 0.50 ? 'edge-amber' : 'edge-red'}`;
+  }
+  function totalsCls(bucket) {
+    const { n, hits } = bucket;
+    if (!n) return 'edge-card';
+    const rate = hits / n;
+    return `edge-card ${rate >= 0.55 ? 'edge-green' : rate >= 0.50 ? 'edge-amber' : 'edge-red'}`;
+  }
+
+  const { ml, totals } = v;
+  const b = ml.buckets;
+  const t = totals.buckets;
+  const mlRoi  = roiStr(ml.totalUnits,     ml.totalBets);
+  const totRoi = roiStr(totals.totalUnits, totals.totalBets);
+  const mlSign  = ml.totalUnits  >= 0 ? '+' : '';
+  const totSign = totals.totalUnits >= 0 ? '+' : '';
+
+  return `
+<div class="section-heading">Performance vs. Vegas Lines</div>
+<p class="rec-priced-note">${v.n_priced} of ${v.n_total} resolved games have Pinnacle line data</p>
+
+<div class="section-subheading">Moneyline Edge Buckets</div>
+<div class="edge-bucket-grid">
+  <div class="${edgeCls(b.negative)}">
+    <div class="edge-card-label">${b.negative.label}</div>
+    <div class="edge-rate">${winPct(b.negative)}</div>
+    <div class="edge-n">${b.negative.n} games</div>
+    <div class="edge-desc">${b.negative.desc}</div>
+    <div class="edge-badge ${roiCls(b.negative.units) === 'edge-pos' ? 'badge-green' : roiCls(b.negative.units) === 'edge-neg' ? 'badge-red' : 'badge-amber'}">${roiStr(b.negative.units, b.negative.n)} ROI</div>
+  </div>
+  <div class="${edgeCls(b.low)}">
+    <div class="edge-card-label">${b.low.label}</div>
+    <div class="edge-rate">${winPct(b.low)}</div>
+    <div class="edge-n">${b.low.n} games</div>
+    <div class="edge-desc">${b.low.desc}</div>
+    <div class="edge-badge ${roiCls(b.low.units) === 'edge-pos' ? 'badge-green' : roiCls(b.low.units) === 'edge-neg' ? 'badge-red' : 'badge-amber'}">${roiStr(b.low.units, b.low.n)} ROI</div>
+  </div>
+  <div class="${edgeCls(b.mid)}">
+    <div class="edge-card-label">${b.mid.label}</div>
+    <div class="edge-rate">${winPct(b.mid)}</div>
+    <div class="edge-n">${b.mid.n} games</div>
+    <div class="edge-desc">${b.mid.desc}</div>
+    <div class="edge-badge ${roiCls(b.mid.units) === 'edge-pos' ? 'badge-green' : roiCls(b.mid.units) === 'edge-neg' ? 'badge-red' : 'badge-amber'}">${roiStr(b.mid.units, b.mid.n)} ROI</div>
+  </div>
+  <div class="${edgeCls(b.high)}">
+    <div class="edge-card-label">${b.high.label}</div>
+    <div class="edge-rate">${winPct(b.high)}</div>
+    <div class="edge-n">${b.high.n} games</div>
+    <div class="edge-desc">${b.high.desc}</div>
+    <div class="edge-badge ${roiCls(b.high.units) === 'edge-pos' ? 'badge-green' : roiCls(b.high.units) === 'edge-neg' ? 'badge-red' : 'badge-amber'}">${roiStr(b.high.units, b.high.n)} ROI</div>
+  </div>
+</div>
+
+<div class="section-subheading" style="margin-top:16px;">Totals Direction</div>
+<div class="rec-totals-grid">
+  <div class="${totalsCls(t.over)}">
+    <div class="edge-card-label">${t.over.label}</div>
+    <div class="edge-rate">${hitPct(t.over)}</div>
+    <div class="edge-n">${t.over.n} games</div>
+    <div class="edge-desc">Model predicted &gt; Vegas total</div>
+    <div class="edge-badge ${roiCls(t.over.units) === 'edge-pos' ? 'badge-green' : roiCls(t.over.units) === 'edge-neg' ? 'badge-red' : 'badge-amber'}">${roiStr(t.over.units, t.over.n)} ROI</div>
+  </div>
+  <div class="${totalsCls(t.under)}">
+    <div class="edge-card-label">${t.under.label}</div>
+    <div class="edge-rate">${hitPct(t.under)}</div>
+    <div class="edge-n">${t.under.n} games</div>
+    <div class="edge-desc">Model predicted &lt; Vegas total</div>
+    <div class="edge-badge ${roiCls(t.under.units) === 'edge-pos' ? 'badge-green' : roiCls(t.under.units) === 'edge-neg' ? 'badge-red' : 'badge-amber'}">${roiStr(t.under.units, t.under.n)} ROI</div>
+  </div>
+  <div class="edge-card">
+    <div class="edge-card-label">${t.push.label}</div>
+    <div class="edge-rate">${t.push.n}</div>
+    <div class="edge-n">games</div>
+    <div class="edge-desc">Model within 0.5 of Vegas line</div>
+    <div class="edge-badge badge-amber">No bet</div>
+  </div>
+</div>
+
+<div class="section-subheading" style="margin-top:16px;">Simulated ROI (flat $1 bets)</div>
+<div class="rec-roi-grid">
+  <div class="roi-card">
+    <div class="roi-label">Moneyline (${ml.totalBets} bets)</div>
+    <div class="roi-val ${ml.totalUnits >= 0 ? 'roi-pos' : 'roi-neg'}">${mlSign}${ml.totalUnits.toFixed(2)} u</div>
+    <div class="roi-sub">${mlRoi} ROI</div>
+  </div>
+  <div class="roi-card">
+    <div class="roi-label">Totals (${totals.totalBets} bets)</div>
+    <div class="roi-val ${totals.totalUnits >= 0 ? 'roi-pos' : 'roi-neg'}">${totSign}${totals.totalUnits.toFixed(2)} u</div>
+    <div class="roi-sub">${totRoi} ROI</div>
+  </div>
+</div>`;
 }
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
