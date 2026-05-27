@@ -133,6 +133,8 @@ def _win_probability(
     park_modifier: float,
     weather_modifier: float,
     vegas_home_prob: Optional[float] = None,
+    last_start_dev_home: Optional[float] = None,
+    last_start_dev_away: Optional[float] = None,
 ) -> tuple[float, float]:
     """Return (home_win_pct, away_win_pct).
 
@@ -142,8 +144,11 @@ def _win_probability(
     differential at full weight (RAW_EDGE_MULT=2.0) increases log-loss vs.
     Vegas-only; a reduced multiplier (0.5) blends in our marginal signal.
 
-    Without Vegas lines (backtest fallback), the independent model runs at
-    full RAW_EDGE_MULT.
+    last_start_dev_home/away: single-start ERA estimate minus season xERA.
+    Positive = recently pitched worse; negative = recently better. Weight 0.04
+    per unit — a 3-run deviation moves logit by 0.12 (~3pp win probability).
+    Vegas lines are set 1-2 days prior using season aggregates; recent start
+    is the freshest signal that lines haven't fully absorbed.
     """
     raw_edge = (
         (home_lineup_score - away_pitcher_score)
@@ -167,6 +172,12 @@ def _win_probability(
         logit_blend = logit_stats
 
     logit_blend += park_modifier * 0.5 + weather_modifier * 0.2
+
+    # Last-start deviation: if home pitcher recently struggled, adjust down; away up
+    if last_start_dev_home is not None:
+        logit_blend -= last_start_dev_home * 0.04
+    if last_start_dev_away is not None:
+        logit_blend += last_start_dev_away * 0.04
 
     home_pct = round(_sigmoid(logit_blend), 4)
     return home_pct, round(1.0 - home_pct, 4)
@@ -365,12 +376,24 @@ def _format_sp_stats(sp: dict, name_fallback: str) -> dict:
             "starts_n":  starts_n,
         }
 
+    last_start: dict = {}
+    lsd = sp.get("last_start_deviation")
+    ls_era = sp.get("last_start_era_est")
+    ls_ip  = sp.get("last_start_ip")
+    if lsd is not None or ls_era is not None:
+        last_start = {
+            "deviation": r(lsd, 2),
+            "era_est":   r(ls_era, 2),
+            "ip":        r(ls_ip, 1),
+        }
+
     return {
         "name":        sp.get("name", name_fallback),
         "mlbam_id":    sp.get("mlbam_id"),
         "throws":      sp.get("throws"),
         "season":      season,
         "recent":      recent,
+        "last_start":  last_start,
         "trend_flags": _trend_flags_pitcher(sp),
     }
 
@@ -578,11 +601,16 @@ def build_game(
         except Exception:
             pass
 
+    home_last_start_dev = home_sp.get("last_start_deviation")
+    away_last_start_dev = away_sp.get("last_start_deviation")
+
     home_win_pct, away_win_pct = _win_probability(
         home_pitcher_score, away_pitcher_score,
         home_lineup_score, away_lineup_score,
         comps_home_win_rate, park_mod + rest_mod, weather_mod,
         vegas_home_prob=vegas_home_prob,
+        last_start_dev_home=home_last_start_dev,
+        last_start_dev_away=away_last_start_dev,
     )
     vegas_total: Optional[float] = odds_out.get("total") if odds_out else None
     pred_home, pred_away = _predicted_runs(
@@ -654,9 +682,11 @@ def build_game(
                 "rest_modifier":      round(rest_mod, 4),
                 "home_rest_days":     home_rest,
                 "away_rest_days":     away_rest,
-                "bullpen_xera_home":  home_bullpen.get("xera") if home_bullpen else None,
-                "bullpen_xera_away":  away_bullpen.get("xera") if away_bullpen else None,
-                "umpire":             umpire_name or None,
+                "bullpen_xera_home":        home_bullpen.get("xera") if home_bullpen else None,
+                "bullpen_xera_away":        away_bullpen.get("xera") if away_bullpen else None,
+                "last_start_dev_home":      home_last_start_dev,
+                "last_start_dev_away":      away_last_start_dev,
+                "umpire":                   umpire_name or None,
             },
         },
     }

@@ -146,6 +146,10 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
     for mlbam_id in sp_ids:
         _merge_rolling_pitcher(cache[mlbam_id], mlbam_id, start, end)
 
+    # --- Pitcher last-start deviation (season xERA vs. most recent start ERA est.) ---
+    for mlbam_id in sp_ids:
+        _merge_pitcher_last_start(cache[mlbam_id], mlbam_id, season)
+
     # --- Batter recent game logs (last 5 games: H, HR, K per game) ---
     for mlbam_id in batter_ids:
         _merge_batter_game_log(cache[mlbam_id], mlbam_id, season)
@@ -645,10 +649,65 @@ def _build_team_bullpen_cache(season: int) -> dict[str, dict]:
 
 
 # ---------------------------------------------------------------------------
-# Batter recent game log (MLB Stats API — last N games H/HR/K)
+# Pitcher last-start deviation (MLB Stats API — most recent start ERA estimate)
 # ---------------------------------------------------------------------------
 
 MLB_STATS_BASE = "https://statsapi.mlb.com/api/v1"
+
+
+def _merge_pitcher_last_start(entry: dict, mlbam_id: int, season: int) -> None:
+    """Fetch the most recent pitching game log entry and compute last-start ERA estimate.
+
+    Computes: last_start_deviation = single_start_era_est - season_xera
+    A negative value means the pitcher recently outperformed their season average;
+    positive means they struggled. Clamped to [-3.0, +3.0] to prevent outlier starts
+    (e.g. 0 IP relief appearance) from dominating the signal.
+    """
+    try:
+        url = (
+            f"{MLB_STATS_BASE}/people/{mlbam_id}/stats"
+            f"?stats=gameLog&group=pitching&season={season}"
+        )
+        resp = requests.get(url, headers=_HEADERS, timeout=TIMEOUT)
+        resp.raise_for_status()
+        data = resp.json()
+        splits = []
+        for stats_block in data.get("stats", []):
+            splits = stats_block.get("splits", [])
+            if splits:
+                break
+        # Filter to starts only (games where the pitcher was the starter)
+        starts = [s for s in splits if s.get("stat", {}).get("gamesStarted", 0) >= 1]
+        if not starts:
+            return
+        last = starts[-1]["stat"]
+        ip_str = last.get("inningsPitched", "0.0")
+        try:
+            ip = float(ip_str)
+            # Convert "X.1" / "X.2" notation (outs) to decimal innings
+            whole = int(ip)
+            frac  = round(ip - whole, 1)
+            ip_decimal = whole + (frac / 0.3 * (1/3)) if frac > 0 else float(whole)
+        except (ValueError, TypeError):
+            return
+        if ip_decimal < 1.0:
+            return  # relief appearance, not a real start
+        er  = int(last.get("earnedRuns", 0))
+        last_start_era = (er / ip_decimal) * 9.0
+
+        season_xera = entry.get("xera") or entry.get("xfip")
+        if season_xera is not None:
+            dev = last_start_era - season_xera
+            entry["last_start_deviation"] = round(max(-3.0, min(3.0, dev)), 2)
+        entry["last_start_era_est"] = round(last_start_era, 2)
+        entry["last_start_ip"]      = round(ip_decimal, 1)
+    except Exception as exc:
+        log.debug("Pitcher last-start fetch failed for %d: %s", mlbam_id, exc)
+
+
+# ---------------------------------------------------------------------------
+# Batter recent game log (MLB Stats API — last N games H/HR/K)
+# ---------------------------------------------------------------------------
 
 
 def _merge_batter_game_log(entry: dict, mlbam_id: int, season: int, n: int = 5) -> None:
