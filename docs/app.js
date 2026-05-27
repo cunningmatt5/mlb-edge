@@ -100,21 +100,37 @@ async function loadPicks() {
 }
 
 // ── Auto-refresh ──────────────────────────────────────────────────────────────
+// Polls every 60s when any game is live, 5 min otherwise.
 let _autoTimer = null;
 
+function _hasLiveGames() {
+  return (gamesData?.games || []).some(g => g.game_status === 'live');
+}
+
+function _refreshInterval() {
+  return _hasLiveGames() ? 60 * 1000 : 5 * 60 * 1000;
+}
+
+async function _doRefresh() {
+  const prev = gamesData?.generated_at;
+  await loadGames();
+  lastCheckedAt = Date.now();
+  if (gamesData?.generated_at !== prev) {
+    expandedPk = null;
+    renderGamesView();
+  } else {
+    updateFooter();
+  }
+  _scheduleRefresh();
+}
+
+function _scheduleRefresh() {
+  if (_autoTimer) clearTimeout(_autoTimer);
+  _autoTimer = setTimeout(_doRefresh, _refreshInterval());
+}
+
 function startAutoRefresh() {
-  if (_autoTimer) clearInterval(_autoTimer);
-  _autoTimer = setInterval(async () => {
-    const prev = gamesData?.generated_at;
-    await loadGames();
-    lastCheckedAt = Date.now();
-    if (gamesData?.generated_at !== prev) {
-      expandedPk = null;
-      renderGamesView();
-    } else {
-      updateFooter();
-    }
-  }, 5 * 60 * 1000);
+  _scheduleRefresh();
 }
 
 async function manualRefresh() {

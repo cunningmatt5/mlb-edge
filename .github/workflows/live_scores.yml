@@ -1,0 +1,52 @@
+name: Live Score Updates
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # every 5 minutes
+  workflow_dispatch:
+
+# Cancel any queued run — always use the freshest score fetch
+concurrency:
+  group: live-scores
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  patch-scores:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4.2.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install requests
+        run: pip install requests
+
+      - name: Patch live scores
+        run: python -m pipeline.live_scores
+
+      - name: Commit if scores changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/games.json
+          if git diff --staged --quiet; then
+            echo "No score changes — nothing to commit"
+          else
+            git commit -m "chore: live score update [skip ci]"
+            git pull --rebase origin master
+            git push
+          fi

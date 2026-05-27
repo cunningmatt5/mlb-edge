@@ -114,6 +114,30 @@ def main(dry_run: bool = False) -> None:
 
     game_objects.sort(key=lambda g: g.get("game_time_utc") or "")
 
+    # Re-attach any games that left preview state (probable pitcher cleared by MLB API)
+    # and were therefore filtered out of fetch_schedule(). Preserve this morning's
+    # prediction and refresh only the score/inning fields.
+    try:
+        old_path = OUTPUT_DIR / "games.json"
+        if old_path.exists():
+            old_data = json.loads(old_path.read_text(encoding="utf-8"))
+            if old_data.get("date") == today.isoformat():
+                old_by_pk = {g["gamePk"]: g for g in old_data.get("games", [])}
+                new_pks   = {g["gamePk"] for g in game_objects}
+                dropped   = [pk for pk in old_by_pk if pk not in new_pks]
+                if dropped:
+                    log.info("Re-attaching %d live/final game(s) from existing games.json", len(dropped))
+                    from pipeline.live_scores import fetch_linescores
+                    score_updates = fetch_linescores(dropped)
+                    for pk in dropped:
+                        preserved = dict(old_by_pk[pk])
+                        if pk in score_updates:
+                            preserved.update(score_updates[pk])
+                        game_objects.append(preserved)
+                    game_objects.sort(key=lambda g: g.get("game_time_utc") or "")
+    except Exception as exc:
+        log.warning("Live game merge failed (non-fatal): %s", exc)
+
     output = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "date":         today.isoformat(),
