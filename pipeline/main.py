@@ -93,10 +93,12 @@ def main(dry_run: bool = False) -> None:
             if tid and tid in team_records:
                 game_obj[f"{side}_record"] = team_records[tid]
 
-        # Attach line movement if significant movement detected vs. opening
+        # Attach line movement if significant movement detected vs. opening.
+        # Also stored on the original game dict so analytics scorers can access it.
         if opening_lines and game_lines:
             movement = compute_line_movement(game, game_lines, opening_lines)
             if movement:
+                game["line_movement"] = movement
                 game_obj.setdefault("odds", {})["line_movement"] = movement
 
         game_objects.append(game_obj)

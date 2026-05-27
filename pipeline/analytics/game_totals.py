@@ -79,11 +79,25 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
             f"{'above' if run_tend > 0 else 'below'} expected — {tend_dir} lean"
         )
 
+    line_movement = game.get("line_movement") or {}
+    total_move    = line_movement.get("total_move")  # positive = sharp money on OVER
+
     for direction, base_signal in [("OVER", over_signal), ("UNDER", under_signal)]:
         ump_mod, ump_reason = compute_umpire_modifier(umpire, "TOTAL", direction)
         # run tendency: positive trend boosts OVER, suppresses UNDER
         tend_mod = run_tend if direction == "OVER" else -run_tend
-        signal = max(0.0, min(10.0, round(base_signal + ump_mod + tend_mod, 1)))
+        # line movement: +0.3 when sharp money confirms our direction
+        lm_mod = 0.0
+        lm_reason = None
+        if total_move is not None and abs(total_move) >= 0.5:
+            agrees = (direction == "OVER" and total_move > 0) or (direction == "UNDER" and total_move < 0)
+            if agrees:
+                lm_mod = 0.3
+                move_dir = "up" if total_move > 0 else "down"
+                opening_t = line_movement.get("opening_total", "?")
+                current_t = line_movement.get("current_total", "?")
+                lm_reason = f"Total moved {move_dir} ({opening_t} → {current_t}) — sharp money confirms {direction}"
+        signal = max(0.0, min(10.0, round(base_signal + ump_mod + tend_mod + lm_mod, 1)))
         if signal >= 5.0:
             reasons = _build_reasons(direction, home_sp, away_sp, avg_xwoba, park_run, venue)
             if weather_reason:
@@ -92,6 +106,8 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
                 reasons = (reasons + [ump_reason])[:4]
             if run_tend_reason and direction == ("OVER" if run_tend > 0 else "UNDER"):
                 reasons = (reasons + [run_tend_reason])[:4]
+            if lm_reason:
+                reasons = (reasons + [lm_reason])[:4]
 
             picks.append({
                 "bet_type":  "TOTAL",
@@ -116,6 +132,8 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
                     "umpire_modifier":    round(ump_mod, 2) if ump_mod else None,
                     "run_tendency":       round(run_tend, 2) if run_tend else None,
                     "umpire":             umpire or None,
+                    "line_movement_mod":  round(lm_mod, 2) if lm_mod else None,
+                    "total_move":         total_move,
                 },
             })
 

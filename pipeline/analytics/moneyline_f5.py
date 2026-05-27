@@ -44,7 +44,35 @@ def score_moneyline_f5(game: dict, cache: dict) -> list[dict]:
     fav_ml = home_name if ml_direction == "HOME" else away_name
     fav_f5 = home_name if f5_direction == "HOME" else away_name
 
+    # Line movement: +0.3 signal when sharp money confirms our ML direction
+    line_movement = game.get("line_movement") or {}
+    ml_move = line_movement.get("ml_move")  # positive = sharp money on HOME
+    lm_ml_mod = 0.0
+    lm_ml_reason = None
+    if ml_move is not None and abs(ml_move) >= 0.02:
+        agrees_ml = (ml_direction == "HOME" and ml_move > 0) or (ml_direction == "AWAY" and ml_move < 0)
+        if agrees_ml:
+            lm_ml_mod = 0.3
+            steam_team = home_name if ml_move > 0 else away_name
+            lm_ml_reason = f"Steam → {steam_team}: ML shortened {abs(ml_move):.1%} since open — sharp money confirms"
+    ml_signal = min(10.0, round(ml_signal + lm_ml_mod, 1))
+
+    lm_f5_mod = 0.0
+    lm_f5_reason = None
+    if ml_move is not None and abs(ml_move) >= 0.02:
+        agrees_f5 = (f5_direction == "HOME" and ml_move > 0) or (f5_direction == "AWAY" and ml_move < 0)
+        if agrees_f5:
+            lm_f5_mod = 0.3
+            steam_team = home_name if ml_move > 0 else away_name
+            lm_f5_reason = f"Steam → {steam_team}: ML shortened {abs(ml_move):.1%} since open — sharp money confirms F5"
+    f5_signal = min(10.0, round(f5_signal + lm_f5_mod, 1))
+
     if ml_signal >= 5.0:
+        ml_reasons = _build_reasons(
+            "ML", ml_direction, home_sp, away_sp, home_wrc, away_wrc, home_name, away_name
+        )
+        if lm_ml_reason:
+            ml_reasons = (ml_reasons + [lm_ml_reason])[:4]
         picks.append({
             "bet_type":     "ML_F5",
             "subject":      f"{away_name} @ {home_name}",
@@ -52,9 +80,7 @@ def score_moneyline_f5(game: dict, cache: dict) -> list[dict]:
             "direction":    ml_direction,
             "headline": f"{fav_ml} Moneyline",
             "signal": ml_signal,
-            "reasons": _build_reasons(
-                "ML", ml_direction, home_sp, away_sp, home_wrc, away_wrc, home_name, away_name
-            ),
+            "reasons": ml_reasons,
             "raw_scores": {
                 "home_sp_quality": round(home_sp_q, 3),
                 "away_sp_quality": round(away_sp_q, 3),
@@ -63,10 +89,17 @@ def score_moneyline_f5(game: dict, cache: dict) -> list[dict]:
                 "away_wrc_plus": round(away_wrc, 1),
                 "lineup_diff_normalized": round(lineup_diff, 3),
                 "ml_edge": round(ml_edge, 3),
+                "line_movement_mod": round(lm_ml_mod, 2) if lm_ml_mod else None,
+                "ml_move": ml_move,
             },
         })
 
     if f5_signal >= 5.0:
+        f5_reasons = _build_reasons(
+            "F5", f5_direction, home_sp, away_sp, home_wrc, away_wrc, home_name, away_name
+        )
+        if lm_f5_reason:
+            f5_reasons = (f5_reasons + [lm_f5_reason])[:4]
         picks.append({
             "bet_type":     "ML_F5",
             "subject":      f"{away_name} @ {home_name}",
@@ -74,9 +107,7 @@ def score_moneyline_f5(game: dict, cache: dict) -> list[dict]:
             "direction":    f5_direction,
             "headline": f"{fav_f5} First 5 Innings",
             "signal": f5_signal,
-            "reasons": _build_reasons(
-                "F5", f5_direction, home_sp, away_sp, home_wrc, away_wrc, home_name, away_name
-            ),
+            "reasons": f5_reasons,
             "raw_scores": {
                 "home_sp_quality": round(home_sp_q, 3),
                 "away_sp_quality": round(away_sp_q, 3),
@@ -84,6 +115,8 @@ def score_moneyline_f5(game: dict, cache: dict) -> list[dict]:
                 "home_wrc_plus": round(home_wrc, 1),
                 "away_wrc_plus": round(away_wrc, 1),
                 "f5_edge": round(f5_edge, 3),
+                "line_movement_mod": round(lm_f5_mod, 2) if lm_f5_mod else None,
+                "ml_move": ml_move,
             },
         })
 
