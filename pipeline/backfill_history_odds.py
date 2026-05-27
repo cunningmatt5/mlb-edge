@@ -19,16 +19,74 @@ import time
 from pathlib import Path
 from typing import Optional
 
+import re
+
 import requests
 
 from pipeline.odds import no_vig_prob
-from pipeline.odds_historical import (
-    ODDS_API_BASE,
-    _PREFERRED_BOOKS,
-    _SNAPSHOTS,
-    _norm_team,
-    _parse_odds_api_event,
-)
+
+# ── Inline from odds_historical (avoids pulling in the pandas dependency) ──
+ODDS_API_BASE   = "https://api.the-odds-api.com/v4"
+_PREFERRED_BOOKS = ["pinnacle", "draftkings", "fanduel", "betmgm", "williamhill_us"]
+_SNAPSHOTS       = ["T17:00:00Z", "T22:00:00Z"]
+
+
+def _norm_team(name: str) -> str:
+    n = re.sub(r"[^a-z0-9]", "", str(name).lower())
+    if n.endswith("athletics"):
+        return "athletics"
+    return n
+
+
+def _parse_odds_api_event(event: dict, date: str) -> Optional[dict]:
+    home_team  = event.get("home_team", "")
+    away_team  = event.get("away_team", "")
+    bookmakers = event.get("bookmakers", [])
+    bm_by_key  = {bm["key"]: bm for bm in bookmakers}
+
+    bm = None
+    for key in _PREFERRED_BOOKS:
+        if key in bm_by_key:
+            bm = bm_by_key[key]
+            break
+    if bm is None and bookmakers:
+        bm = bookmakers[0]
+    if bm is None:
+        return None
+
+    markets = {m["key"]: m for m in bm.get("markets", [])}
+
+    home_ml = away_ml = None
+    if "h2h" in markets:
+        hn = _norm_team(home_team)
+        an = _norm_team(away_team)
+        for outcome in markets["h2h"].get("outcomes", []):
+            on = _norm_team(outcome.get("name", ""))
+            if on == hn:
+                home_ml = outcome.get("price")
+            elif on == an:
+                away_ml = outcome.get("price")
+
+    closing_total = over_price = under_price = None
+    if "totals" in markets:
+        for outcome in markets["totals"].get("outcomes", []):
+            nm = outcome.get("name", "").lower()
+            if nm == "over":
+                closing_total = outcome.get("point")
+                over_price    = outcome.get("price")
+            elif nm == "under":
+                under_price = outcome.get("price")
+
+    return {
+        "date":          date,
+        "home_team":     home_team,
+        "away_team":     away_team,
+        "home_ml":       home_ml,
+        "away_ml":       away_ml,
+        "closing_total": closing_total,
+        "over_price":    over_price  if over_price  else -110,
+        "under_price":   under_price if under_price else -110,
+    }
 
 HISTORY_PATH = Path(__file__).parent.parent / "docs" / "history.json"
 TIMEOUT      = 45
