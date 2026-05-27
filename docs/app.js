@@ -350,8 +350,6 @@ function gameCardHTML(g) {
     ? `<span class="sp-changed-badge" title="Starting pitcher changed — stats updating on next rebuild">⚠ SP Changed</span>`
     : '';
 
-  const hFlags  = (g.home_sp?.trend_flags || []).slice(0, 1);
-  const aFlags  = (g.away_sp?.trend_flags || []).slice(0, 1);
   const status  = g.game_status || 'preview';
   const fav     = gameFav(g);
 
@@ -371,7 +369,6 @@ function gameCardHTML(g) {
             ${aXera != null ? `<span class="xera-line">${spEra(aXera, 'away')}</span>` : ''}
           </div>
         </div>
-        ${aFlags.map(f => `<span class="trend-pill">${f}</span>`).join('')}
       </div>
       <div class="game-info-cell">
         <span class="game-time">${timeStr}</span>
@@ -390,11 +387,11 @@ function gameCardHTML(g) {
             ${teamRecordHTML(g.home_record)}
           </div>
         </div>
-        ${hFlags.map(f => `<span class="trend-pill">${f}</span>`).join('')}
       </div>
     </div>
     ${lineupStatusHTML(g)}
     ${lineMovementHTML(g)}
+    ${vegasEdgeStripHTML(g)}
     ${statusStrip(g)}
   </div>
   <div class="game-card-body" hidden>
@@ -442,9 +439,7 @@ function statusStrip(g) {
   const pred    = g.prediction || {};
   const homePct = Math.round((pred.home_win_pct || 0.5) * 100);
   const awayPct = 100 - homePct;
-  const fav     = gameFav(g);
-  const favTeam = abbrev(fav === 'home' ? g.home_team : g.away_team);
-  const favPct  = fav === 'home' ? homePct : awayPct;
+  const awayFav = awayPct > homePct;
   const tier    = gameTier(pred.home_win_pct);
   const tierLabel = tier === 'elite' ? 'ELITE' : tier === 'great' ? 'GREAT' : tier === 'good' ? 'GOOD' : '';
   const tierBadge = tier ? `<span class="tier-badge tier-${tier}">${tierLabel}</span>` : '';
@@ -459,7 +454,11 @@ function statusStrip(g) {
   return `
 <div class="pred-strip">
   <div class="pred-left">
-    <span class="pred-fav">${favTeam} ${favPct}%</span>
+    <div class="pred-both-pct">
+      <span class="${awayFav ? 'pf-fav' : 'pf-dog'}">${abbrev(g.away_team)} ${awayPct}%</span>
+      <span class="pf-sep">—</span>
+      <span class="${awayFav ? 'pf-dog' : 'pf-fav'}">${abbrev(g.home_team)} ${homePct}%</span>
+    </div>
     ${tierBadge}
   </div>
   ${scoreCenter}
@@ -472,33 +471,52 @@ function spEra(val, side = 'home') {
   return `<span class="${cls}">xERA ${val.toFixed(2)}</span>`;
 }
 
-// ── Lineup status + batter highlights (collapsed card) ───────────────────────
+// ── Vegas edge strip (collapsed card) — surfaces ML and total model edge ──────
+function vegasEdgeStripHTML(g) {
+  const odds = g.odds;
+  const pred = g.prediction || {};
+  const status = g.game_status || 'preview';
+  if (!odds || status !== 'preview') return '';
+
+  const pills = [];
+
+  // ML edge
+  if (odds.home_ml != null && odds.away_ml != null && pred.home_win_pct != null) {
+    const [vegasHomePct, vegasAwayPct] = noVigProb(odds.home_ml, odds.away_ml);
+    const modelHomePct = pred.home_win_pct;
+    const homeEdge = modelHomePct - vegasHomePct;
+    const awayEdge = (1 - modelHomePct) - vegasAwayPct;
+    const edgeSide = homeEdge >= awayEdge ? 'home' : 'away';
+    const edgePct  = Math.abs(edgeSide === 'home' ? homeEdge : awayEdge);
+    const edgeTeam = edgeSide === 'home' ? g.home_team : g.away_team;
+    if (edgePct >= 0.02) {
+      const cls = edgePct >= 0.05 ? 'edge-pill strong' : 'edge-pill mild';
+      pills.push(`<span class="${cls}">ML +${(edgePct * 100).toFixed(1)}% ${abbrev(edgeTeam)}</span>`);
+    }
+  }
+
+  // Total lean
+  if (odds.total != null && pred.predicted_total != null) {
+    const diff = +(pred.predicted_total - odds.total).toFixed(1);
+    if (Math.abs(diff) >= 0.2) {
+      const dir = diff > 0 ? 'OVER' : 'UNDER';
+      const dirCls = diff > 0 ? 'dir-over' : 'dir-under';
+      const strCls = Math.abs(diff) >= 0.5 ? 'strong' : 'mild';
+      pills.push(`<span class="edge-pill ${strCls} ${dirCls}">${dir} ${pred.predicted_total.toFixed(1)} vs ${odds.total}</span>`);
+    }
+  }
+
+  if (!pills.length) return '';
+  return `<div class="edge-strip">${pills.join('')}</div>`;
+}
+
+// ── Lineup status (collapsed card) — batter highlights moved to expanded lineup section ──
 function lineupStatusHTML(g) {
   const isOfficial = g.lineup_status !== 'tbd';
   const statusChip = isOfficial
     ? `<span class="lineup-chip official">✓ Official</span>`
     : `<span class="lineup-chip tbd">Lineups TBD</span>`;
-
-  if (!isOfficial) {
-    return `
-<div class="lineup-status-row">
-  <div class="bh-side bh-away"></div>
-  <div class="ls-center">${statusChip}</div>
-  <div class="bh-side bh-home"></div>
-</div>`;
-  }
-
-  const awayBatters = getNotableBatters(g.away_lineup);
-  const homeBatters = getNotableBatters(g.home_lineup);
-  const chip = b =>
-    `<span class="bh-chip ${b._type}">${shortName(b.name)} · ${b._label}</span>`;
-
-  return `
-<div class="lineup-status-row">
-  <div class="bh-side bh-away">${awayBatters.map(chip).join('')}</div>
-  <div class="ls-center">${statusChip}</div>
-  <div class="bh-side bh-home">${homeBatters.map(chip).join('')}</div>
-</div>`;
+  return `<div class="lineup-status-row"><div class="ls-center">${statusChip}</div></div>`;
 }
 
 function getNotableBatters(lineup, maxShow = 3) {
@@ -631,7 +649,17 @@ function lineupsHTML(g) {
     </div>`;
   }
 
+  const chip = b =>
+    `<span class="bh-chip ${b._type}">${shortName(b.name)} · ${b._label}</span>`;
+
+  const awayNotable = getNotableBatters(g.away_lineup);
+  const homeNotable = getNotableBatters(g.home_lineup);
+  const allNotable  = [...awayNotable, ...homeNotable];
+  const insightsRow = allNotable.length
+    ? `<div class="lineup-insights-row">${allNotable.map(chip).join('')}</div>` : '';
+
   return `
+${insightsRow}
 <div class="lineup-pair">
   <div class="lineup-half">
     <div class="lineup-team-label">${g.away_team} <span class="side-tag">Away</span></div>
