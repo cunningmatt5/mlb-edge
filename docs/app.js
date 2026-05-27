@@ -1041,38 +1041,105 @@ function renderBacktestView() {
     return;
   }
 
-  const { stats, games = [], total_games, season, seasons } = backtestData;
-  const seasonLabel = seasons ? seasons.join('–') : (season || '');
+  const { stats, games = [], ev_stats, roi_stats } = backtestData;
   if (!stats) {
     el.innerHTML = `<div class="empty-state"><p>No backtest stats found in data.</p></div>`;
     return;
   }
 
   const pct = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
-  const num = (v, d=2) => v != null ? v.toFixed(d) : '—';
-  const signedNum = v => v != null ? (v >= 0 ? '+' : '') + v.toFixed(2) : '—';
+  const signedPct = v => v != null ? (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%' : '—';
 
-  // ── Summary bar ──────────────────────────────────────────────────────────
-  const overallPct  = pct(stats.win_pct_overall);
-  const totalDecided = stats.total_decided || 0;
-  const totalMAE    = num(stats.total_mae);
-  const totalBias   = signedNum(stats.total_bias);
-  const biasClass   = (stats.total_bias || 0) > 0 ? 'bias-high' : 'bias-low';
+  // ── Hero strip ────────────────────────────────────────────────────────────
+  const hasVegas = ev_stats && ev_stats.n_with_lines > 0;
+  const vegasN = ev_stats?.n_with_lines;
+  const vegasNStr = vegasN != null ? vegasN.toLocaleString() : '—';
+  const brierModel = ev_stats?.brier_score != null ? ev_stats.brier_score.toFixed(4) : '—';
+  const avgEdge = ev_stats?.ml_edge_mean != null ? signedPct(ev_stats.ml_edge_mean) : '—';
+  const avgEdgeCls = (ev_stats?.ml_edge_mean ?? 0) >= 0 ? 'hero-green' : 'hero-red';
+  const totalDecided = (stats.total_decided || stats.total || 0).toLocaleString();
 
-  // ── Confidence bars ───────────────────────────────────────────────────────
-  const tierLabels = { '50_55': '50–55%', '55_60': '55–60%', '60_65': '60–65%', '65_plus': '65%+' };
-  const confGrid = Object.entries(stats.win_pct_by_confidence || {}).map(([key, t]) => {
-    const barPct = t.pct != null ? Math.round(t.pct * 100) : 0;
-    const barClass = barPct >= 55 ? 'conf-bar-good' : barPct >= 50 ? 'conf-bar-ok' : 'conf-bar-bad';
-    return `
-      <div class="conf-bar-row">
-        <span class="conf-label">${tierLabels[key] || key}</span>
-        <div class="conf-bar-track">
-          <div class="conf-bar-fill ${barClass}" style="width:${Math.min(100,barPct*1.4)}%"></div>
-        </div>
-        <span class="conf-stat">${pct(t.pct)}</span>
-        <span class="conf-count">(${t.total ?? 0} games)</span>
+  const heroCards = [
+    { val: vegasNStr,                        label: 'Games w/ Vegas Lines',    sub: null },
+    { val: pct(stats.win_pct_overall),       label: 'Model Win Rate',          sub: null },
+    { val: brierModel,                       label: 'Model Brier Score',       sub: 'Vegas baseline: 0.2229' },
+    { val: avgEdge,                          label: 'Avg Model Edge vs Vegas', sub: null, cls: avgEdgeCls },
+    { val: totalDecided,                     label: 'Total Games Graded',      sub: null },
+  ].map(c => `
+    <div class="bt-hero-card">
+      <div class="bt-hero-val${c.cls ? ' ' + c.cls : ''}">${c.val}</div>
+      <div class="bt-hero-label">${c.label}</div>
+      ${c.sub ? `<div class="bt-hero-sub">${c.sub}</div>` : ''}
+    </div>`).join('');
+
+  // ── Vegas Edge Analysis ───────────────────────────────────────────────────
+  let edgeSection = '';
+  if (hasVegas && ev_stats.by_edge_bucket) {
+    const eb = ev_stats.by_edge_bucket;
+    const buckets = [
+      { key: 'negative',  label: 'Model Picks Away',    desc: 'Model rates home below Vegas — away team pick', cls: 'edge-green', badge: 'badge-green', badgeText: 'Best Zone' },
+      { key: '0_to_3pct', label: '0–3% Home Edge',      desc: 'Slight model advantage on home team',           cls: 'edge-amber', badge: 'badge-amber', badgeText: 'Marginal' },
+      { key: '3_to_6pct', label: '3–6% Home Edge',      desc: 'Moderate model advantage on home team',         cls: 'edge-amber', badge: 'badge-amber', badgeText: 'Marginal' },
+      { key: '6pct_plus', label: '6%+ Home Edge',       desc: 'Large model confidence — historically wrong',   cls: 'edge-red',   badge: 'badge-red',   badgeText: 'Caution' },
+    ];
+    const cards = buckets.map(b => {
+      const d = eb[b.key] || {};
+      const wr = d.win_rate != null ? (d.win_rate * 100).toFixed(1) + '%' : '—';
+      const n = d.n != null ? d.n.toLocaleString() : '—';
+      return `<div class="edge-card ${b.cls}">
+        <div class="edge-card-label">${b.label}</div>
+        <div class="edge-rate">${wr}</div>
+        <div class="edge-n">${n} games</div>
+        <div class="edge-desc">${b.desc}</div>
+        <span class="edge-badge ${b.badge}">${b.badgeText}</span>
       </div>`;
+    }).join('');
+    edgeSection = `
+      <div class="bt-section-title">Vegas Edge Analysis <span class="bt-count">(pick win rate by model edge vs closing line)</span></div>
+      <div class="edge-bucket-grid">${cards}</div>`;
+  }
+
+  // ── Calibration curve ─────────────────────────────────────────────────────
+  let calSection = '';
+  if (hasVegas && ev_stats.calibration_curve?.length) {
+    const calRows = ev_stats.calibration_curve.map(row => {
+      const delta = row.actual_win_rate != null && row.model_prob_mean != null
+        ? row.actual_win_rate - row.model_prob_mean : null;
+      const deltaTxt = delta != null ? (delta >= 0 ? '+' : '') + (delta * 100).toFixed(2) + '%' : '—';
+      const deltaCls = delta == null ? '' : delta >= 0 ? 'delta-pos' : 'delta-neg';
+      return `<tr>
+        <td>${row.bin ?? '—'}</td>
+        <td>${row.n?.toLocaleString() ?? '—'}</td>
+        <td>${row.model_prob_mean != null ? (row.model_prob_mean * 100).toFixed(1) + '%' : '—'}</td>
+        <td>${row.actual_win_rate != null ? (row.actual_win_rate * 100).toFixed(1) + '%' : '—'}</td>
+        <td class="${deltaCls}">${deltaTxt}</td>
+      </tr>`;
+    }).join('');
+    calSection = `
+      <div class="bt-section-title">Model Calibration — Predicted vs. Actual <span class="bt-count">(${vegasNStr} games with Vegas lines)</span></div>
+      <div class="bt-table-wrap" style="margin-bottom:16px">
+        <table class="bt-cal-table">
+          <thead><tr><th>Prob Bin</th><th>Games</th><th>Model Avg</th><th>Actual Win Rate</th><th>Delta</th></tr></thead>
+          <tbody>${calRows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  // ── Confidence tier table ─────────────────────────────────────────────────
+  const tierLabels = { '50_55': '50–55%', '55_60': '55–60%', '60_65': '60–65%', '65_plus': '65%+' };
+  const confRows = Object.entries(stats.win_pct_by_confidence || {}).map(([key, t]) => {
+    const base = t.pct != null ? t.pct - 0.5 : null;
+    const baseTxt = base != null ? (base >= 0 ? '+' : '') + (base * 100).toFixed(1) + '%' : '—';
+    const baseCls = base == null ? '' : base >= 0 ? 'baseline-pos' : 'baseline-neg';
+    const pctTxt = t.pct != null ? (t.pct * 100).toFixed(1) + '%' : '—';
+    const pctCls = (t.pct ?? 0) >= 0.55 ? 'tier-pct tier-pct-good' : (t.pct ?? 0) >= 0.5 ? 'tier-pct tier-pct-ok' : 'tier-pct tier-pct-bad';
+    return `<tr>
+      <td><strong>${tierLabels[key] || key}</strong></td>
+      <td>${t.total ?? '—'}</td>
+      <td>${t.correct ?? '—'}</td>
+      <td class="${pctCls}">${pctTxt}</td>
+      <td class="${baseCls}">${baseTxt}</td>
+    </tr>`;
   }).join('');
 
   // ── Signal accuracy ───────────────────────────────────────────────────────
@@ -1081,7 +1148,7 @@ function renderBacktestView() {
   const cmp = sigAcc.comps      || {};
   const tot = sigAcc.totals_dir || {};
 
-  // ── Game log ─────────────────────────────────────────────────────────────
+  // ── Game log ──────────────────────────────────────────────────────────────
   const rows = games.slice(0, 200).map(g => {
     const winnerTeam = g.predicted_winner === 'home' ? g.home_team : g.away_team;
     const actualTeam = g.actual_winner === 'home' ? g.home_team : g.away_team;
@@ -1089,44 +1156,59 @@ function renderBacktestView() {
     const rowClass = g.correct ? 'row-hit' : g.actual_winner === 'tie' ? '' : 'row-miss';
     const icon = g.actual_winner === 'tie' ? '—' : (g.correct ? '✓' : '✗');
     const dateFmt = g.date ? g.date.slice(5).replace('-', '/') : '—';
-    const predTotal = g.predicted_total != null ? g.predicted_total.toFixed(1) : '—';
+    const edgeVal = g.model_edge_ml != null ? g.model_edge_ml : null;
+    const edgeTxt = edgeVal != null ? (edgeVal >= 0 ? '+' : '') + (edgeVal * 100).toFixed(1) + '%' : '—';
+    const edgeCls = edgeVal == null ? '' : edgeVal >= 0 ? 'edge-pos' : 'edge-neg';
     return `<tr class="${rowClass}">
+      <td class="bt-season">${g.season ?? '—'}</td>
       <td class="bt-date">${dateFmt}</td>
       <td class="bt-matchup">${abbrev(g.away_team)} @ ${abbrev(g.home_team)}</td>
       <td class="bt-pred">${abbrev(winnerTeam)} <span class="bt-conf">${conf}%</span></td>
       <td class="bt-actual">${abbrev(actualTeam)} <span class="bt-score">${g.away_score}–${g.home_score}</span></td>
-      <td class="bt-total">${predTotal} / ${g.actual_total ?? '—'}</td>
+      <td class="bt-edge ${edgeCls}">${edgeTxt}</td>
       <td class="bt-icon ${g.correct ? 'icon-correct' : (g.actual_winner === 'tie' ? '' : 'icon-wrong')}">${icon}</td>
     </tr>`;
   }).join('');
 
+  // ── ROI section ───────────────────────────────────────────────────────────
+  const roiHtml = (() => {
+    const roi = roi_stats;
+    if (!roi || (!roi.ml_bets && !roi.total_bets)) return '';
+    const fmtRoi = v => v != null ? (v >= 0 ? '+' : '') + v.toFixed(2) + '%' : '—';
+    const fmtUnits = v => v != null ? (v >= 0 ? '+' : '') + v.toFixed(2) : '—';
+    const roiCls = v => v == null ? '' : v >= 0 ? 'roi-pos' : 'roi-neg';
+    return `
+      <div class="bt-section-title">ROI — Live Lines <span class="bt-count">(from records with Pinnacle lines stored)</span></div>
+      <div class="roi-grid">
+        <div class="roi-card">
+          <span class="roi-label">Moneyline ROI</span>
+          <span class="roi-val ${roiCls(roi.ml_roi_pct)}">${fmtRoi(roi.ml_roi_pct)}</span>
+          <span class="roi-sub">${fmtUnits(roi.ml_units_won)} units · ${roi.ml_bets ?? 0} bets</span>
+        </div>
+        <div class="roi-card">
+          <span class="roi-label">Totals ROI</span>
+          <span class="roi-val ${roiCls(roi.total_roi_pct)}">${fmtRoi(roi.total_roi_pct)}</span>
+          <span class="roi-sub">${fmtUnits(roi.total_units_won)} units · ${roi.total_bets ?? 0} bets</span>
+        </div>
+      </div>`;
+  })();
+
   el.innerHTML = `
     <div class="backtest-wrap">
 
-      <div class="backtest-summary">
-        <div class="bt-summary-stat">
-          <span class="bt-big">${overallPct}</span>
-          <span class="bt-label">Win Accuracy</span>
-        </div>
-        <div class="bt-summary-divider"></div>
-        <div class="bt-summary-stat">
-          <span class="bt-big">${totalDecided}</span>
-          <span class="bt-label">${seasonLabel} Games</span>
-        </div>
-        <div class="bt-summary-divider"></div>
-        <div class="bt-summary-stat">
-          <span class="bt-big">${totalMAE}</span>
-          <span class="bt-label">Total MAE</span>
-        </div>
-        <div class="bt-summary-divider"></div>
-        <div class="bt-summary-stat">
-          <span class="bt-big ${biasClass}">${totalBias}</span>
-          <span class="bt-label">Pred Bias</span>
-        </div>
-      </div>
+      <div class="bt-hero-grid">${heroCards}</div>
+
+      ${edgeSection}
+
+      ${calSection}
 
       <div class="bt-section-title">Win % by Confidence Tier</div>
-      <div class="confidence-grid">${confGrid}</div>
+      <div class="bt-table-wrap" style="margin-bottom:16px">
+        <table class="bt-conf-table">
+          <thead><tr><th>Confidence</th><th>Games</th><th>Correct</th><th>Win Rate</th><th>vs. Baseline</th></tr></thead>
+          <tbody>${confRows}</tbody>
+        </table>
+      </div>
 
       <div class="bt-section-title">Signal Accuracy</div>
       <div class="signal-accuracy-grid">
@@ -1147,35 +1229,13 @@ function renderBacktestView() {
         </div>
       </div>
 
-      ${(() => {
-        const roi = backtestData.roi_stats;
-        if (!roi || (!roi.ml_bets && !roi.total_bets)) return '';
-        const fmtRoi = v => v != null ? (v >= 0 ? '+' : '') + v.toFixed(2) + '%' : '—';
-        const fmtUnits = v => v != null ? (v >= 0 ? '+' : '') + v.toFixed(2) : '—';
-        const roiCls = v => v == null ? '' : v >= 0 ? 'roi-pos' : 'roi-neg';
-        return `
-      <div class="bt-section-title">ROI — Live Lines <span class="bt-count">(from records with Pinnacle lines stored)</span></div>
-      <div class="roi-grid">
-        <div class="roi-card">
-          <span class="roi-label">Moneyline ROI</span>
-          <span class="roi-val ${roiCls(roi.ml_roi_pct)}">${fmtRoi(roi.ml_roi_pct)}</span>
-          <span class="roi-sub">${fmtUnits(roi.ml_units_won)} units · ${roi.ml_bets ?? 0} bets</span>
-        </div>
-        <div class="roi-card">
-          <span class="roi-label">Totals ROI</span>
-          <span class="roi-val ${roiCls(roi.total_roi_pct)}">${fmtRoi(roi.total_roi_pct)}</span>
-          <span class="roi-sub">${fmtUnits(roi.total_units_won)} units · ${roi.total_bets ?? 0} bets</span>
-        </div>
-      </div>`;
-      })()}
+      ${roiHtml}
 
       <div class="bt-section-title">Game Log <span class="bt-count">(${games.length} games, most recent first)</span></div>
       <div class="bt-table-wrap">
         <table class="bt-table">
           <thead>
-            <tr>
-              <th>Date</th><th>Matchup</th><th>Predicted</th><th>Actual</th><th>Total P/A</th><th></th>
-            </tr>
+            <tr><th>Season</th><th>Date</th><th>Matchup</th><th>Predicted</th><th>Actual</th><th>Edge</th><th></th></tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
