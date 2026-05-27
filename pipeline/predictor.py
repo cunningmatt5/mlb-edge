@@ -12,10 +12,12 @@ from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean, bullp
 
 log = logging.getLogger(__name__)
 
-LEAGUE_AVG_RUNS  = 4.1   # calibrated from 7,303-game comps DB (was 4.5 → bias +1.7 runs)
+LEAGUE_AVG_RUNS  = 4.4   # recalibrated: backtest shows 8.91 actual vs 8.32 pred at 4.1 (bias -0.59)
 HOME_ADVANTAGE   = 0.525  # baseline home win probability (calibrated: actual 52.7% from 805-game sample)
 _PITCHER_WEIGHT  = 0.80  # run-suppression weight (reduced from 0.85 to address -0.275 run bias)
 _LINEUP_WEIGHT   = 0.65  # run-production weight (increased from 0.55 to address -0.275 run bias)
+_RAW_EDGE_MULT   = 2.0   # logit-space multiplier; 2.0 widens output to ~0.35-0.70 vs old 0.43-0.61
+_COMPS_WIN_BLEND = 0.0   # comps are anti-correlated with outcomes in backtest (−10.5 Brier pts); disabled
 
 # Pitcher strength weights: (weight, invert, (lo, hi))
 # invert=True means lower value = better pitcher
@@ -127,11 +129,11 @@ def _win_probability(
         (home_lineup_score - away_pitcher_score)
         - (away_lineup_score - home_pitcher_score)
     )
-    logit_stats = _logit(HOME_ADVANTAGE) + raw_edge * 1.5
+    logit_stats = _logit(HOME_ADVANTAGE) + raw_edge * _RAW_EDGE_MULT
 
-    if comps_home_win_rate is not None:
+    if comps_home_win_rate is not None and _COMPS_WIN_BLEND > 0:
         logit_comps = _logit(comps_home_win_rate)
-        logit_blend = logit_stats * 0.8 + logit_comps * 0.2
+        logit_blend = logit_stats * (1 - _COMPS_WIN_BLEND) + logit_comps * _COMPS_WIN_BLEND
     else:
         logit_blend = logit_stats
 

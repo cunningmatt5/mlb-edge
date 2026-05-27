@@ -1,7 +1,12 @@
-"""Refit calibration.json from live 2026 resolved game history.
+"""Refit calibration.json using Platt scaling on backtest + live history data.
 
-Reads history.json, excludes SP-scratched games and unresolved records,
-and updates the logistic params + win-rate bands.
+Reads docs/backtest.json (9,784+ games with Vegas closing lines) and
+docs/history.json (live 2026 resolved games), then fits:
+
+    P(home_wins) = sigmoid(a * logit(home_win_pct) + b)
+
+via maximum-likelihood (binary cross-entropy), storing the Platt params
+and calibration diagnostics in data/calibration.json.
 
 Usage:
     python -m pipeline.recalibrate           # write new calibration.json
@@ -17,163 +22,250 @@ import math
 from datetime import datetime, timezone
 from pathlib import Path
 
-from pipeline.history import load_history
-
-DATA_DIR       = Path(__file__).parent.parent / "data"
+DATA_DIR         = Path(__file__).parent.parent / "data"
+DOCS_DIR         = Path(__file__).parent.parent / "docs"
 CALIBRATION_PATH = DATA_DIR / "calibration.json"
+BACKTEST_PATH    = DOCS_DIR / "backtest.json"
+HISTORY_PATH     = DOCS_DIR / "history.json"
 
 log = logging.getLogger(__name__)
 
-# Signal bands for win-rate reporting
-_BANDS = [
-    ("5.0-5.9", 5.0, 6.0),
-    ("6.0-6.9", 6.0, 7.0),
-    ("7.0-7.9", 7.0, 8.0),
-    ("8.0-8.9", 8.0, 9.0),
-    ("9.0+",    9.0, 99.0),
-]
-
-# Tier cutoffs
-_ELITE_CUTOFF = 8.0
-_GREAT_CUTOFF = 6.5
+# Reasonable fallback signal params for prop picks (midpoint = neutral, slope = moderate)
+_SIGNAL_MIDPOINT_DEFAULT = 7.5
+_SIGNAL_SLOPE_DEFAULT    = 0.45
 
 
-def _logistic(x: float, midpoint: float, slope: float) -> float:
-    return 1.0 / (1.0 + math.exp(-(x - midpoint) / slope))
+# ---------------------------------------------------------------------------
+# Math
+# ---------------------------------------------------------------------------
+
+def _logit(p: float) -> float:
+    p = max(1e-7, min(1 - 1e-7, p))
+    return math.log(p / (1 - p))
 
 
-def _fit_logistic(pairs: list[tuple[float, float]]) -> tuple[float, float]:
-    """Fit logistic curve (midpoint, slope) by gradient descent on log-loss.
+def _sigmoid(x: float) -> float:
+    x = max(-20.0, min(20.0, x))
+    return 1.0 / (1.0 + math.exp(-x))
 
-    pairs: list of (signal_value, 1-if-correct 0-if-not)
-    Returns (midpoint, slope) that minimises binary cross-entropy.
+
+def _fit_platt(
+    probs: list[float],
+    labels: list[float],
+    lr: float = 0.02,
+    iters: int = 5000,
+) -> tuple[float, float]:
+    """Fit Platt scaling params (a, b) by gradient descent on log-loss.
+
+    Model: P(y=1) = sigmoid(a * logit(prob) + b)
+    Minimises binary cross-entropy.  Well-calibrated input gives a≈1, b≈0.
     """
-    if not pairs:
-        return 11.0, 0.0803
+    if len(probs) < 30:
+        return 1.0, 0.0
 
-    # Initialise near calibration.json defaults
-    mp, sl = 11.0, 0.0803
-    lr = 0.05
-    for _ in range(2000):
-        grad_mp = grad_sl = 0.0
-        for x, y in pairs:
-            p  = _logistic(x, mp, sl)
-            p  = max(1e-9, min(1 - 1e-9, p))
-            dL = p - y  # dLoss / d(logit)
-            grad_mp += dL * (-1.0 / sl)
-            grad_sl += dL * (-(x - mp) / (sl ** 2))
-        n = len(pairs)
-        mp -= lr * grad_mp / n
-        sl -= lr * grad_sl / n
-        sl  = max(0.01, sl)  # keep slope positive
+    a, b = 1.0, 0.0
+    n = len(probs)
+    for it in range(iters):
+        ga = gb = 0.0
+        for p, y in zip(probs, labels):
+            lp   = _logit(p)
+            pred = _sigmoid(a * lp + b)
+            err  = pred - y
+            ga  += err * lp
+            gb  += err
+        a -= lr * ga / n
+        b -= lr * gb / n
 
-    return round(mp, 4), round(sl, 6)
+        # Adaptive LR decay
+        if it == 2000:
+            lr *= 0.5
+
+    return round(a, 6), round(b, 6)
 
 
-def _win_rates_by_band(records: list[dict]) -> dict:
+# ---------------------------------------------------------------------------
+# Data loading
+# ---------------------------------------------------------------------------
+
+def _load_backtest_pairs() -> list[tuple[float, float]]:
+    """Return (home_win_pct, home_won) pairs from docs/backtest.json."""
+    if not BACKTEST_PATH.exists():
+        log.warning("backtest.json not found at %s — skipping", BACKTEST_PATH)
+        return []
+    try:
+        data = json.loads(BACKTEST_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        log.warning("Could not read backtest.json: %s", exc)
+        return []
+
+    pairs: list[tuple[float, float]] = []
+    for g in data.get("games", []):
+        hwp = g.get("home_win_pct")
+        aw  = g.get("actual_winner")
+        if hwp is None or aw in (None, "tie"):
+            continue
+        pairs.append((float(hwp), 1.0 if aw == "home" else 0.0))
+    log.info("Backtest: %d graded games loaded", len(pairs))
+    return pairs
+
+
+def _load_history_pairs() -> list[tuple[float, float]]:
+    """Return (home_win_pct, home_won) pairs from docs/history.json."""
+    if not HISTORY_PATH.exists():
+        log.warning("history.json not found at %s — skipping", HISTORY_PATH)
+        return []
+    try:
+        data = json.loads(HISTORY_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        log.warning("Could not read history.json: %s", exc)
+        return []
+
+    pairs: list[tuple[float, float]] = []
+    for r in data:
+        hwp = r.get("home_win_pct")
+        aw  = r.get("actual_winner")
+        if hwp is None or aw in (None, "tie") or r.get("sp_scratched"):
+            continue
+        pairs.append((float(hwp), 1.0 if aw == "home" else 0.0))
+    log.info("History: %d graded games loaded", len(pairs))
+    return pairs
+
+
+# ---------------------------------------------------------------------------
+# Calibration metrics
+# ---------------------------------------------------------------------------
+
+def _brier_score(probs: list[float], labels: list[float]) -> float:
+    if not probs:
+        return 0.0
+    return round(sum((p - y) ** 2 for p, y in zip(probs, labels)) / len(probs), 6)
+
+
+def _calibration_curve(
+    probs: list[float],
+    labels: list[float],
+    bins: int = 10,
+) -> list[dict]:
+    """Bucket model probabilities into equal-width bins and compute actual win rates."""
+    width = 1.0 / bins
+    curve = []
+    for i in range(bins):
+        lo = round(i * width, 3)
+        hi = round((i + 1) * width, 3)
+        bucket = [(p, y) for p, y in zip(probs, labels) if lo <= p < hi]
+        if hi == 1.0:
+            bucket = [(p, y) for p, y in zip(probs, labels) if p >= lo]
+        n = len(bucket)
+        if n == 0:
+            continue
+        mean_p  = round(sum(p for p, _ in bucket) / n, 4)
+        win_rate = round(sum(y for _, y in bucket) / n, 4)
+        curve.append({
+            "bin":            f"{lo:.2f}-{hi:.2f}",
+            "n":              n,
+            "model_prob_mean": mean_p,
+            "actual_win_rate": win_rate,
+        })
+    return curve
+
+
+def _win_rates_by_prob_band(probs: list[float], labels: list[float]) -> dict:
+    """Win rates in confidence buckets (based on max(p, 1-p))."""
+    bands = [
+        ("50-55%", 0.50, 0.55),
+        ("55-60%", 0.55, 0.60),
+        ("60-65%", 0.60, 0.65),
+        ("65%+",   0.65, 1.00),
+    ]
     result = {}
-    for label, lo, hi in _BANDS:
+    for label, lo, hi in bands:
         bucket = [
-            r for r in records
-            if r.get("home_win_pct") is not None
-            and lo <= _record_max_conf(r) < hi
+            y for p, y in zip(probs, labels)
+            if lo <= max(p, 1 - p) < hi or (hi == 1.00 and max(p, 1 - p) >= lo)
         ]
         n = len(bucket)
-        correct = sum(1 for r in bucket if r.get("actual_winner") == r.get("predicted_winner"))
         result[label] = {
             "n":        n,
-            "win_rate": round(correct / n, 4) if n > 0 else None,
+            "win_rate": round(sum(bucket) / n, 4) if n > 0 else None,
         }
     return result
 
 
-def _record_max_conf(r: dict) -> float:
-    hwp = r.get("home_win_pct") or 0.5
-    return max(hwp, 1.0 - hwp) * 10  # convert probability to ~signal scale
-
-
-def _win_rates_by_tier(records: list[dict]) -> dict:
-    def _tier(r):
-        conf = _record_max_conf(r)
-        if conf >= _ELITE_CUTOFF:
-            return "ELITE"
-        if conf >= _GREAT_CUTOFF:
-            return "GREAT"
-        return "APPEALING"
-
-    tiers: dict[str, list] = {"ELITE": [], "GREAT": [], "APPEALING": []}
-    for r in records:
-        tiers[_tier(r)].append(r)
-
-    result = {}
-    for tier, bucket in tiers.items():
-        n = len(bucket)
-        correct = sum(1 for r in bucket if r.get("actual_winner") == r.get("predicted_winner"))
-        result[tier] = {
-            "n":        n,
-            "win_rate": round(correct / n, 4) if n > 0 else None,
-        }
-    return result
-
+# ---------------------------------------------------------------------------
+# Main refit
+# ---------------------------------------------------------------------------
 
 def refit(dry_run: bool = False) -> None:
-    history = load_history()
-    resolved = [
-        r for r in history
-        if r.get("actual_winner") not in (None, "tie")
-        and not r.get("sp_scratched")
-    ]
-    n_total     = len(history)
-    n_resolved  = len(resolved)
-    n_scratched = sum(1 for r in history if r.get("sp_scratched"))
-    log.info(
-        "History: %d total, %d resolved non-tie non-scratched, %d SP-scratched",
-        n_total, n_resolved, n_scratched,
-    )
+    bt_pairs   = _load_backtest_pairs()
+    hist_pairs = _load_history_pairs()
+    all_pairs  = bt_pairs + hist_pairs
 
-    if n_resolved < 30:
+    if len(all_pairs) < 30:
         log.warning(
-            "Only %d resolved records — insufficient for reliable refit (need ≥30). "
-            "Calibration unchanged.",
-            n_resolved,
+            "Only %d graded games — insufficient for Platt fit (need ≥30). Skipping.",
+            len(all_pairs),
         )
         return
 
-    # Build (signal_proxy, correct) pairs for logistic fit
-    pairs: list[tuple[float, float]] = []
-    for r in resolved:
-        hwp = r.get("home_win_pct")
-        if hwp is None:
-            continue
-        conf_prob  = max(hwp, 1.0 - hwp)
-        signal_est = conf_prob * 10  # rough proxy for signal value
-        correct    = 1.0 if r["actual_winner"] == r["predicted_winner"] else 0.0
-        pairs.append((signal_est, correct))
-
-    mp, sl = _fit_logistic(pairs)
-    overall_wr = sum(1 for r in resolved if r["actual_winner"] == r["predicted_winner"]) / n_resolved
+    probs  = [p for p, _ in all_pairs]
+    labels = [y for _, y in all_pairs]
 
     log.info(
-        "Refit complete: midpoint=%.4f slope=%.6f overall_win_rate=%.4f (n=%d)",
-        mp, sl, overall_wr, n_resolved,
+        "Fitting Platt calibration on %d games (%d backtest + %d live history)",
+        len(all_pairs), len(bt_pairs), len(hist_pairs),
     )
 
-    band_rates = _win_rates_by_band(resolved)
-    tier_rates = _win_rates_by_tier(resolved)
+    a, b = _fit_platt(probs, labels)
+
+    # Calibrated probabilities for diagnostics
+    cal_probs = [_sigmoid(a * _logit(p) + b) for p in probs]
+
+    brier_raw = _brier_score(probs, labels)
+    brier_cal = _brier_score(cal_probs, labels)
+    cal_curve = _calibration_curve(cal_probs, labels)
+    win_rates  = _win_rates_by_prob_band(cal_probs, labels)
+
+    # Overall win rate (predicted winner correct)
+    decided = [(p, y) for p, y in zip(probs, labels)]
+    correct = sum(1 for p, y in decided if (p >= 0.5) == (y > 0.5))
+    overall_win_rate = round(correct / len(decided), 4)
+
+    seasons_used = sorted({
+        g.get("season")
+        for g in json.loads(BACKTEST_PATH.read_text()).get("games", [])
+        if g.get("season") is not None
+    }) if BACKTEST_PATH.exists() else []
+    if hist_pairs:
+        seasons_used = sorted(set(seasons_used) | {2026})
+
+    log.info(
+        "Platt fit: a=%.6f b=%.6f | Brier raw=%.4f -> cal=%.4f | overall_wr=%.4f",
+        a, b, brier_raw, brier_cal, overall_win_rate,
+    )
 
     new_calibration = {
-        "generated_at":     datetime.now(timezone.utc).isoformat(),
-        "seasons_used":     [2026],
-        "total_graded":     n_resolved,
-        "logistic_params":  {"midpoint": mp, "slope": sl},
-        "win_rates": {
-            "by_signal_band": band_rates,
-            "by_tier":        tier_rates,
+        "generated_at":    datetime.now(timezone.utc).isoformat(),
+        "seasons_used":    seasons_used,
+        "total_graded":    len(all_pairs),
+        "source_breakdown": {
+            "historical_backtest": len(bt_pairs),
+            "live_history":        len(hist_pairs),
         },
-        "tier_recommendations": {
-            "elite_cutoff": _ELITE_CUTOFF,
-            "great_cutoff": _GREAT_CUTOFF,
+        "platt_params": {
+            "a": a,
+            "b": b,
         },
+        "logistic_params": {
+            "midpoint": _SIGNAL_MIDPOINT_DEFAULT,
+            "slope":    _SIGNAL_SLOPE_DEFAULT,
+        },
+        "brier_score": {
+            "raw_model":   brier_raw,
+            "calibrated":  brier_cal,
+        },
+        "overall_win_rate": overall_win_rate,
+        "win_rates_by_confidence": win_rates,
+        "calibration_curve": cal_curve,
     }
 
     if dry_run:
@@ -194,7 +286,7 @@ if __name__ == "__main__":
         format="%(asctime)s  %(levelname)-7s  %(message)s",
         datefmt="%H:%M:%S",
     )
-    parser = argparse.ArgumentParser(description="Refit calibration.json from 2026 history")
-    parser.add_argument("--dry-run", action="store_true", help="Print new params without writing")
+    parser = argparse.ArgumentParser(description="Refit calibration from backtest + live history")
+    parser.add_argument("--dry-run", action="store_true", help="Print params without writing")
     args = parser.parse_args()
     refit(dry_run=args.dry_run)

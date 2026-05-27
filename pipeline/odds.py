@@ -6,6 +6,7 @@ import logging
 import re
 from datetime import date as _date_cls, datetime, timezone
 from functools import lru_cache
+import math
 from math import exp
 from pathlib import Path
 from typing import Optional
@@ -168,35 +169,62 @@ def no_vig_prob(over_odds: int, under_odds: int) -> tuple[float, float]:
 
 @lru_cache(maxsize=1)
 def _load_calibration_params() -> tuple[float, float]:
-    """Return (midpoint, slope) from data/calibration.json, or defaults (7.5, 0.45).
+    """Return (midpoint, slope) for prop signal → probability from data/calibration.json.
 
-    Validates the fit before using it: if the midpoint hit the curve_fit boundary
-    (≥10.5) or the slope is too flat (< 0.15), the calibration is degenerate
-    (win rates never reached 50% in the backtest) and we fall back to defaults.
+    Reads 'logistic_params' field (stable defaults for prop-signal EV calculations).
+    Falls back to (7.5, 0.45) on any error or out-of-range values.
     """
     cal_path = Path(__file__).parent.parent / "data" / "calibration.json"
     try:
         d = json.loads(cal_path.read_text())
-        p = d["logistic_params"]
-        midpoint = float(p["midpoint"])
-        slope    = float(p["slope"])
-        if midpoint >= 9.0 or slope < 0.15:
-            log.debug(
-                "Calibration params degenerate (midpoint=%.2f slope=%.4f) — using defaults",
-                midpoint, slope,
-            )
+        p = d.get("logistic_params", {})
+        midpoint = float(p.get("midpoint", 7.5))
+        slope    = float(p.get("slope", 0.45))
+        if not (4.0 <= midpoint <= 11.0) or slope < 0.05:
             return 7.5, 0.45
         return midpoint, slope
     except Exception:
         return 7.5, 0.45
 
 
-def signal_to_model_prob(signal: float) -> float:
-    """Map 5–10 signal to win probability via logistic curve.
+@lru_cache(maxsize=1)
+def _load_platt_params() -> tuple[float, float]:
+    """Return (a, b) Platt scaling params for game win probability calibration.
 
-    Parameters are loaded from data/calibration.json when available;
+    Reads 'platt_params' field from data/calibration.json.
+    Falls back to (1.0, 0.0) — identity mapping — on any error.
+    """
+    cal_path = Path(__file__).parent.parent / "data" / "calibration.json"
+    try:
+        d = json.loads(cal_path.read_text())
+        pp = d.get("platt_params", {})
+        a = float(pp.get("a", 1.0))
+        b = float(pp.get("b", 0.0))
+        if not (0.1 <= a <= 10.0) or not (-5.0 <= b <= 5.0):
+            return 1.0, 0.0
+        return a, b
+    except Exception:
+        return 1.0, 0.0
+
+
+def calibrate_home_prob(home_win_pct: float) -> float:
+    """Apply Platt scaling to map a raw model home win probability to a calibrated one.
+
+    Uses logistic regression fit from recalibrate.py:
+        P(home_wins) = sigmoid(a * logit(home_win_pct) + b)
+    """
+    a, b = _load_platt_params()
+    p = max(0.001, min(0.999, home_win_pct))
+    logit_p = math.log(p / (1.0 - p))
+    return round(1.0 / (1.0 + exp(-(a * logit_p + b))), 4)
+
+
+def signal_to_model_prob(signal: float) -> float:
+    """Map 5–10 prop signal to win probability via logistic curve.
+
+    Parameters are loaded from data/calibration.json (logistic_params field);
     falls back to hardcoded defaults (midpoint=7.5, slope=0.45).
-    signal 7.5 always → 0.5 regardless of midpoint (by logistic design).
+    signal 7.5 always → 0.5 at midpoint.
     """
     midpoint, slope = _load_calibration_params()
     return round(1.0 / (1.0 + exp(-(signal - midpoint) * slope)), 4)
