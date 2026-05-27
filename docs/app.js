@@ -54,7 +54,7 @@ function setupNav() {
       document.getElementById('props-view').hidden    = currentView !== 'props';
       document.getElementById('record-view').hidden   = currentView !== 'record';
       document.getElementById('backtest-view').hidden = currentView !== 'backtest';
-      if (currentView === 'record')   renderRecordView();
+      if (currentView === 'record')   loadBacktest().then(renderRecordView);
       if (currentView === 'backtest') loadBacktest().then(renderBacktestView);
       if (currentView === 'props')    loadPicks().then(renderPropsView);
     });
@@ -1043,9 +1043,10 @@ function renderVegasSection() {
   const v = computeVegasStats(all);
   const MIN_GAMES = 5;
 
+  const histPriced = hist.filter(r => r.home_ml != null).length;
   const btNote = bt.length > 0
-    ? `${bt.length.toLocaleString()} historical (2021–25) + ${hist.filter(r => r.home_ml != null).length} this season`
-    : `${hist.filter(r => r.home_ml != null).length} games this season`;
+    ? `${bt.length.toLocaleString()} historical (2021–25) + ${histPriced} this season`
+    : `${histPriced} games this season`;
 
   if (v.n_priced < MIN_GAMES) {
     return `
@@ -1083,6 +1084,61 @@ function renderVegasSection() {
     return `edge-card ${rate >= 0.55 ? 'edge-green' : rate >= 0.50 ? 'edge-amber' : 'edge-red'}`;
   }
 
+  // Build per-season accuracy rows from backtest games + 2026 history
+  function buildSeasonRows() {
+    const byYear = {};
+    // backtest games (2021-2025): use correct/actual_winner fields
+    for (const r of (backtestData && backtestData.games) || []) {
+      const yr = r.season || (r.date || '').slice(0, 4);
+      if (!yr) continue;
+      if (!byYear[yr]) byYear[yr] = { n: 0, correct: 0, units: 0, bets: 0 };
+      byYear[yr].n++;
+      if (r.correct) byYear[yr].correct++;
+      if (r.home_ml != null && r.away_ml != null) {
+        const homeWon = r.actual_winner === 'home';
+        const edge    = r.model_edge_ml ?? 0;
+        const betHome = edge >= 0;
+        const won     = betHome ? homeWon : !homeWon;
+        const odds    = betHome ? r.home_ml : r.away_ml;
+        const ret     = odds > 0 ? odds / 100 : 100 / Math.abs(odds);
+        byYear[yr].units += won ? ret : -1;
+        byYear[yr].bets++;
+      }
+    }
+    // 2026 history
+    for (const r of (historyData || [])) {
+      if (r.actual_winner !== 'home' && r.actual_winner !== 'away') continue;
+      const yr = (r.date || '').slice(0, 4) || '2026';
+      if (!byYear[yr]) byYear[yr] = { n: 0, correct: 0, units: 0, bets: 0 };
+      byYear[yr].n++;
+      if (r.predicted_winner === r.actual_winner) byYear[yr].correct++;
+      if (r.home_ml != null && r.away_ml != null) {
+        const homeWon = r.actual_winner === 'home';
+        const edge    = r.model_edge_ml ?? 0;
+        const betHome = edge >= 0;
+        const won     = betHome ? homeWon : !homeWon;
+        const odds    = betHome ? r.home_ml : r.away_ml;
+        const ret     = odds > 0 ? odds / 100 : 100 / Math.abs(odds);
+        byYear[yr].units += won ? ret : -1;
+        byYear[yr].bets++;
+      }
+    }
+    return Object.entries(byYear)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([yr, d]) => {
+        const acc    = d.n ? Math.round(d.correct / d.n * 100) : 0;
+        const roiPct = d.bets ? (d.units / d.bets * 100).toFixed(1) : null;
+        const roiTxt = roiPct != null ? `<span class="${d.units >= 0 ? 'edge-pos' : 'edge-neg'}">${d.units >= 0 ? '+' : ''}${roiPct}%</span>` : '—';
+        return `<tr>
+          <td class="syr-yr">${yr}</td>
+          <td>${d.correct}–${d.n - d.correct}</td>
+          <td class="${acc >= 55 ? 'edge-pos' : acc >= 50 ? '' : 'edge-neg'}">${acc}%</td>
+          <td>${d.bets > 0 ? d.bets : '—'}</td>
+          <td>${roiTxt}</td>
+        </tr>`;
+      }).join('');
+  }
+
   const { ml, totals } = v;
   const b = ml.buckets;
   const t = totals.buckets;
@@ -1095,7 +1151,13 @@ function renderVegasSection() {
 <div class="section-heading">Performance vs. Vegas Lines</div>
 <p class="rec-priced-note">${v.n_priced.toLocaleString()} games with Pinnacle lines &nbsp;·&nbsp; ${btNote}</p>
 
-<div class="section-subheading">Moneyline Edge Buckets</div>
+<div class="section-subheading">Season Breakdown</div>
+<table class="season-year-table">
+  <thead><tr><th>Season</th><th>Record</th><th>Acc%</th><th>Bets</th><th>ML ROI</th></tr></thead>
+  <tbody>${buildSeasonRows()}</tbody>
+</table>
+
+<div class="section-subheading" style="margin-top:16px;">Moneyline Edge Buckets</div>
 <div class="edge-bucket-grid">
   <div class="${edgeCls(b.negative)}">
     <div class="edge-card-label">${b.negative.label}</div>
