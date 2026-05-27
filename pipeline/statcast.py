@@ -811,13 +811,23 @@ def _build_bullpen_last3_ip_map(today: date) -> dict[str, float]:
 MLB_STATS_BASE = "https://statsapi.mlb.com/api/v1"
 
 
-def _merge_pitcher_last_start(entry: dict, mlbam_id: int, season: int) -> None:
-    """Fetch the most recent pitching game log entry and compute last-start ERA estimate.
+def _ip_to_decimal(ip_str: str) -> float | None:
+    """Convert MLB innings-pitched string (e.g. '5.1', '6.2') to decimal."""
+    try:
+        ip = float(ip_str)
+        whole = int(ip)
+        frac  = round(ip - whole, 1)
+        return whole + (frac / 0.3 * (1 / 3)) if frac > 0 else float(whole)
+    except (ValueError, TypeError):
+        return None
 
-    Computes: last_start_deviation = single_start_era_est - season_xera
-    A negative value means the pitcher recently outperformed their season average;
-    positive means they struggled. Clamped to [-3.0, +3.0] to prevent outlier starts
-    (e.g. 0 IP relief appearance) from dominating the signal.
+
+def _merge_pitcher_last_start(entry: dict, mlbam_id: int, season: int) -> None:
+    """Fetch pitching game log and compute single and 3-start trend deviations.
+
+    Single-start deviation (last_start_deviation): for backward-compat display.
+    3-start weighted trend (last_3_start_deviation): weights 0.5/0.3/0.2 newest→oldest.
+    Pitch count (last_start_pitches): flags high-pitch outings for SP load signal.
     """
     try:
         url = (
@@ -836,27 +846,46 @@ def _merge_pitcher_last_start(entry: dict, mlbam_id: int, season: int) -> None:
         starts = [s for s in splits if s.get("stat", {}).get("gamesStarted", 0) >= 1]
         if not starts:
             return
-        last = starts[-1]["stat"]
-        ip_str = last.get("inningsPitched", "0.0")
-        try:
-            ip = float(ip_str)
-            # Convert "X.1" / "X.2" notation (outs) to decimal innings
-            whole = int(ip)
-            frac  = round(ip - whole, 1)
-            ip_decimal = whole + (frac / 0.3 * (1/3)) if frac > 0 else float(whole)
-        except (ValueError, TypeError):
-            return
-        if ip_decimal < 1.0:
-            return  # relief appearance, not a real start
-        er  = int(last.get("earnedRuns", 0))
-        last_start_era = (er / ip_decimal) * 9.0
 
         season_xera = entry.get("xera") or entry.get("xfip")
-        if season_xera is not None:
-            dev = last_start_era - season_xera
-            entry["last_start_deviation"] = round(max(-3.0, min(3.0, dev)), 2)
-        entry["last_start_era_est"] = round(last_start_era, 2)
-        entry["last_start_ip"]      = round(ip_decimal, 1)
+
+        def _start_era(stat: dict) -> float | None:
+            ip_dec = _ip_to_decimal(stat.get("inningsPitched", "0"))
+            if ip_dec is None or ip_dec < 1.0:
+                return None
+            er = int(stat.get("earnedRuns", 0))
+            return (er / ip_dec) * 9.0
+
+        # --- Single most-recent start ---
+        last = starts[-1]["stat"]
+        last_era = _start_era(last)
+        if last_era is not None:
+            entry["last_start_era_est"] = round(last_era, 2)
+            ip_dec = _ip_to_decimal(last.get("inningsPitched", "0"))
+            if ip_dec:
+                entry["last_start_ip"] = round(ip_dec, 1)
+            pitches = last.get("pitchesThrown")
+            if pitches is not None:
+                entry["last_start_pitches"] = int(pitches)
+            if season_xera is not None:
+                dev = last_era - season_xera
+                entry["last_start_deviation"] = round(max(-3.0, min(3.0, dev)), 2)
+
+        # --- Rolling 3-start weighted trend ---
+        recent = starts[-3:]  # up to 3 most recent starts (newest last)
+        weighted_deviations: list[tuple[float, float]] = []  # (deviation, weight)
+        weights = [0.2, 0.3, 0.5]  # oldest → newest
+        offset = 3 - len(recent)
+        for i, s in enumerate(recent):
+            era = _start_era(s["stat"])
+            if era is not None and season_xera is not None:
+                w = weights[offset + i]
+                dev = max(-3.0, min(3.0, era - season_xera))
+                weighted_deviations.append((dev, w))
+        if weighted_deviations:
+            total_w = sum(w for _, w in weighted_deviations)
+            trend_dev = sum(d * w for d, w in weighted_deviations) / total_w
+            entry["last_3_start_deviation"] = round(trend_dev, 2)
     except Exception as exc:
         log.debug("Pitcher last-start fetch failed for %d: %s", mlbam_id, exc)
 

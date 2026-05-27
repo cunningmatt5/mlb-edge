@@ -1929,3 +1929,28 @@ header {
   font-weight: 500;
   white-space: nowrap;
 }
+
+/* ── ML pick consensus badges ────────────────────────────────────── */
+
+.consensus-badge {
+  font-size: 0.63rem;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+.consensus-badge.contrarian {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.2);
+}
+
+.consensus-badge.confirms-market {
+  background: rgba(107, 114, 128, 0.15);
+  color: #9ca3af;
+  border: 1px solid rgba(107, 114, 128, 0.3);
+}

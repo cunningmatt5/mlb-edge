@@ -183,6 +183,22 @@ def main(dry_run: bool = False) -> None:
                 all_picks += score_moneyline_f5(game, cache)
                 all_picks.sort(key=lambda p: p["signal"], reverse=True)
 
+                # Tag ML_F5 picks as CONTRARIAN or CONFIRMS_MARKET for UI badge
+                if game_lines:
+                    try:
+                        from pipeline.odds import no_vig_prob
+                        _ml_event = get_game_event(game, game_lines)
+                        if _ml_event and _ml_event.get("home_ml") and _ml_event.get("away_ml"):
+                            _vhp, _ = no_vig_prob(int(_ml_event["home_ml"]), int(_ml_event["away_ml"]))
+                            for pick in all_picks:
+                                if pick["bet_type"] == "ML_F5":
+                                    if pick["direction"] == "HOME" and _vhp > 0.54:
+                                        pick["consensus_tag"] = "CONFIRMS_MARKET"
+                                    elif pick["direction"] == "AWAY" and _vhp > 0.54:
+                                        pick["consensus_tag"] = "CONTRARIAN"
+                    except Exception:
+                        pass
+
                 # Attach EV calculations where Pinnacle lines are available
                 if game_lines:
                     game_event = get_game_event(game, game_lines)

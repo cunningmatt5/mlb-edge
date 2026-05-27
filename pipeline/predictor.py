@@ -144,11 +144,11 @@ def _win_probability(
     differential at full weight (RAW_EDGE_MULT=2.0) increases log-loss vs.
     Vegas-only; a reduced multiplier (0.5) blends in our marginal signal.
 
-    last_start_dev_home/away: single-start ERA estimate minus season xERA.
-    Positive = recently pitched worse; negative = recently better. Weight 0.04
-    per unit — a 3-run deviation moves logit by 0.12 (~3pp win probability).
-    Vegas lines are set 1-2 days prior using season aggregates; recent start
-    is the freshest signal that lines haven't fully absorbed.
+    last_start_dev_home/away: prefers 3-start weighted trend deviation; falls
+    back to single-start ERA vs season xERA. Positive = recently worse; negative
+    = recently better. Weight 0.05 per unit — a 3-run sustained trend moves logit
+    by 0.15 (~3.5pp win probability). Vegas lines set 1-2 days prior don't fully
+    absorb multi-start trends.
     """
     raw_edge = (
         (home_lineup_score - away_pitcher_score)
@@ -156,9 +156,16 @@ def _win_probability(
     )
 
     if vegas_home_prob is not None:
-        # Vegas-anchored: start from market's best estimate, add small corrections
-        logit_base  = _logit(vegas_home_prob)
-        edge_mult   = 0.5   # marginal correction weight; regression shows 2.0 adds noise
+        # Vegas-anchored: start from market's best estimate, add small corrections.
+        # Direction-agreement asymmetry: backtesting shows +14% ROI when model
+        # contradicts Vegas (away lean) vs -4% when both agree on home favorites.
+        # Reduce edge_mult when model and Vegas both lean home — agreement with a
+        # well-priced favorite is noise; keep full weight only when disagreeing.
+        logit_base = _logit(vegas_home_prob)
+        if raw_edge > 0 and vegas_home_prob > 0.54:
+            edge_mult = 0.25  # both lean home — dampened to reduce overconfidence
+        else:
+            edge_mult = 0.5   # model disagrees with Vegas or neutral — keep full signal
     else:
         logit_base  = _logit(HOME_ADVANTAGE)
         edge_mult   = _RAW_EDGE_MULT
@@ -175,9 +182,9 @@ def _win_probability(
 
     # Last-start deviation: if home pitcher recently struggled, adjust down; away up
     if last_start_dev_home is not None:
-        logit_blend -= last_start_dev_home * 0.04
+        logit_blend -= last_start_dev_home * 0.05
     if last_start_dev_away is not None:
-        logit_blend += last_start_dev_away * 0.04
+        logit_blend += last_start_dev_away * 0.05
 
     home_pct = round(_sigmoid(logit_blend), 4)
     return home_pct, round(1.0 - home_pct, 4)
@@ -618,8 +625,29 @@ def build_game(
         except Exception:
             pass
 
-    home_last_start_dev = home_sp.get("last_start_deviation")
-    away_last_start_dev = away_sp.get("last_start_deviation")
+    # Use 3-start weighted trend when available; fall back to single start
+    home_last_start_dev = home_sp.get("last_3_start_deviation") or home_sp.get("last_start_deviation")
+    away_last_start_dev = away_sp.get("last_3_start_deviation") or away_sp.get("last_start_deviation")
+
+    # Pitch count load signal: high pitch count last start → SP may not go deep,
+    # shifting more innings to the (possibly fatigued) bullpen. Scale down pitcher score.
+    _SP_HIGH_PITCH_THRESHOLD = 100
+    _SP_HIGH_PITCH_MULT = 0.935  # ~6.5% reduction to SP component
+    home_sp_score_base = _pitcher_score(home_sp, None)  # SP-only score for scaling
+    away_sp_score_base = _pitcher_score(away_sp, None)
+
+    home_pitches = home_sp.get("last_start_pitches")
+    away_pitches = away_sp.get("last_start_pitches")
+    if home_pitches and home_pitches > _SP_HIGH_PITCH_THRESHOLD and home_bullpen:
+        home_pitcher_score = round(
+            home_sp_score_base * _SP_HIGH_PITCH_MULT * 0.60
+            + bullpen_score(home_bullpen) * 0.40, 4
+        )
+    if away_pitches and away_pitches > _SP_HIGH_PITCH_THRESHOLD and away_bullpen:
+        away_pitcher_score = round(
+            away_sp_score_base * _SP_HIGH_PITCH_MULT * 0.60
+            + bullpen_score(away_bullpen) * 0.40, 4
+        )
 
     home_win_pct, away_win_pct = _win_probability(
         home_pitcher_score, away_pitcher_score,
@@ -629,6 +657,19 @@ def build_game(
         last_start_dev_home=home_last_start_dev,
         last_start_dev_away=away_last_start_dev,
     )
+
+    # Flag when model and Vegas both agree strongly on home — signal is dampened
+    # (edge_mult 0.25 vs 0.5). Surfaces in UI so users weight picks accordingly.
+    _raw_edge_for_flag = (
+        (home_lineup_score - away_pitcher_score)
+        - (away_lineup_score - home_pitcher_score)
+    )
+    consensus_suppressed = bool(
+        vegas_home_prob is not None
+        and _raw_edge_for_flag > 0
+        and vegas_home_prob > 0.54
+    )
+
     vegas_total: Optional[float] = odds_out.get("total") if odds_out else None
     pred_home, pred_away = _predicted_runs(
         home_lineup_score, away_lineup_score,
@@ -705,7 +746,12 @@ def build_game(
                 "bp_ip_last_3_away":        round(away_bp_l3d, 1) if away_bp_l3d else None,
                 "last_start_dev_home":      home_last_start_dev,
                 "last_start_dev_away":      away_last_start_dev,
+                "last_3_start_dev_home":    home_sp.get("last_3_start_deviation"),
+                "last_3_start_dev_away":    away_sp.get("last_3_start_deviation"),
+                "last_start_pitches_home":  home_sp.get("last_start_pitches"),
+                "last_start_pitches_away":  away_sp.get("last_start_pitches"),
                 "umpire":                   umpire_name or None,
+                "consensus_suppressed":     consensus_suppressed,
             },
         },
     }

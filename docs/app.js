@@ -1771,6 +1771,15 @@ function renderPick(p) {
   const isTotal   = p.bet_type === 'TOTAL' || p.bet_type === 'TEAM_TOTAL';
   const noLineup  = isTotal && p.raw_scores && p.raw_scores.lineup_data === false;
 
+  let consensusBadge = '';
+  if (p.bet_type === 'ML_F5' && p.consensus_tag) {
+    if (p.consensus_tag === 'CONTRARIAN') {
+      consensusBadge = '<span class="consensus-badge contrarian">CONTRARIAN</span>';
+    } else if (p.consensus_tag === 'CONFIRMS_MARKET') {
+      consensusBadge = '<span class="consensus-badge confirms-market">CONFIRMS MARKET</span>';
+    }
+  }
+
   const reasonsHtml = (p.reasons || []).map(r =>
     `<li class="pick-reason">${escapeHtml(r)}</li>`
   ).join('');
@@ -1787,6 +1796,7 @@ function renderPick(p) {
       <span class="pick-subject">${escapeHtml(p.subject)}</span>
       <span class="pick-dir ${dirCls}">${p.direction}</span>
       ${noLineup ? '<span class="data-quality-badge">Pitcher-only signal</span>' : ''}
+      ${consensusBadge}
     </div>
     <div class="pick-headline">${escapeHtml(p.headline)}</div>
     <div class="signal-bar-wrap">
