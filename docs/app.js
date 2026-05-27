@@ -345,6 +345,9 @@ function gameCardHTML(g) {
   const timeStr  = g.game_time_et || formatTimeET(g.game_time_utc);
   const oddsStr  = g.odds ? formatOddsLine(g.odds, g.away_team, g.home_team) : '';
   const wxStr    = formatWeather(g.weather);
+  const spChangedBadge = g.sp_changed
+    ? `<span class="sp-changed-badge" title="Starting pitcher changed — stats updating on next rebuild">⚠ SP Changed</span>`
+    : '';
 
   const hFlags  = (g.home_sp?.trend_flags || []).slice(0, 1);
   const aFlags  = (g.away_sp?.trend_flags || []).slice(0, 1);
@@ -371,7 +374,7 @@ function gameCardHTML(g) {
       </div>
       <div class="game-info-cell">
         <span class="game-time">${timeStr}</span>
-        <span class="venue-name">${g.venue}</span>
+        <span class="venue-name">${g.venue}${spChangedBadge}</span>
         ${wxStr || oddsStr ? `<span class="game-meta">${[wxStr, oddsStr].filter(Boolean).join(' · ')}</span>` : ''}
       </div>
       <div class="team-cell home-cell">

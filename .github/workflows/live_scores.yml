@@ -12,11 +12,12 @@ concurrency:
 
 permissions:
   contents: write
+  actions: write   # needed for gh workflow run dispatch
 
 jobs:
   patch-scores:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 4
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -35,7 +36,8 @@ jobs:
       - name: Install requests
         run: pip install requests
 
-      - name: Patch live scores
+      - name: Patch live scores and preview fields
+        id: patch
         run: python -m pipeline.live_scores
 
       - name: Commit if scores changed
@@ -50,3 +52,11 @@ jobs:
             git pull --rebase origin master
             git push
           fi
+
+      - name: Trigger full rebuild if pitcher/lineup changed
+        if: steps.patch.outputs.needs_rebuild == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Pitcher or lineup change detected — dispatching full pipeline rebuild"
+          gh workflow run morning_picks.yml --ref master

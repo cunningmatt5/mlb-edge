@@ -647,6 +647,18 @@ header {
   white-space: nowrap;
 }
 
+.sp-changed-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 4px;
+  background: rgba(217,119,6,.15);
+  color: var(--amber);
+  vertical-align: middle;
+}
+
 /* ── Expanded body ───────────────────────────────────────────────────────── */
 .game-card-body {
   border-top: 1px solid var(--border);
