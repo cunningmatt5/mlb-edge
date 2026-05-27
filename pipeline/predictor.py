@@ -592,6 +592,17 @@ def build_game(
         vegas_total=vegas_total,
     )
 
+    # Umpire run-tendency correction: add career tendency above/below league avg.
+    # Applied after anchoring so it represents residual signal beyond what Vegas priced.
+    umpire_name = game.get("umpire", "")
+    if umpire_name:
+        from pipeline.umpire import get_umpire_corrections
+        _, ump_total_adj = get_umpire_corrections(umpire_name)
+        if abs(ump_total_adj) > 0.01:
+            half = ump_total_adj / 2.0
+            pred_home = round(max(1.0, min(12.0, pred_home + half)), 1)
+            pred_away = round(max(1.0, min(12.0, pred_away + half)), 1)
+
     narrative = _generate_narrative(
         home_team, away_team,
         home_sp_name, away_sp_name,
@@ -645,6 +656,7 @@ def build_game(
                 "away_rest_days":     away_rest,
                 "bullpen_xera_home":  home_bullpen.get("xera") if home_bullpen else None,
                 "bullpen_xera_away":  away_bullpen.get("xera") if away_bullpen else None,
+                "umpire":             umpire_name or None,
             },
         },
     }

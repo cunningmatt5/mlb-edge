@@ -102,6 +102,22 @@ def get_run_tendency(umpire_name: str) -> float:
     return 0.0
 
 
+def get_umpire_corrections(umpire_name: str) -> tuple[float, float]:
+    """Return (ml_logit_adj, total_run_adj) for the given HP umpire.
+
+    ml_logit_adj: logit-space correction to win probability.  Currently 0.0 —
+    the directional effect on win prob depends on which pitcher has more K upside,
+    which requires SP context not available here.
+
+    total_run_adj: runs to add/subtract from predicted total. Derived from
+    _RUN_TENDENCY (career tendencies calibrated from HP games).
+    Clamped to [-0.5, +0.5] to prevent over-weighting a single umpire signal.
+    """
+    run_adj = get_run_tendency(umpire_name)
+    run_adj = max(-0.5, min(0.5, run_adj))
+    return 0.0, run_adj
+
+
 def get_zone_score(umpire_name: str) -> float:
     """Return zone tendency score for the named HP umpire. 0.0 if unknown."""
     if not umpire_name:
