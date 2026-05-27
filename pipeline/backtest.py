@@ -274,15 +274,22 @@ def score_game(
         aml  = odds_row.get("away_ml")
         himp = odds_row.get("home_implied_prob")
         ct   = odds_row.get("closing_total")
+        op   = odds_row.get("over_price")
+        up   = odds_row.get("under_price")
         if pd.notna(hml) and pd.notna(himp):
-            model_edge = round(home_win_pct - float(himp), 4)
-            bet_home   = home_win_pct >= away_win_pct
-            bet_won    = (bet_home and actual_winner == "home") or \
-                         (not bet_home and actual_winner == "away")
+            model_edge   = round(home_win_pct - float(himp), 4)
+            bet_home     = home_win_pct >= away_win_pct
+            bet_won      = (bet_home and actual_winner == "home") or \
+                           (not bet_home and actual_winner == "away")
+            ct_val       = float(ct) if pd.notna(ct) else None
+            total_went_over = (actual_home + actual_away) > ct_val if ct_val is not None else None
             result.update({
                 "home_ml":           int(hml) if pd.notna(hml) else None,
                 "away_ml":           int(aml) if pd.notna(aml) else None,
-                "closing_total":     float(ct) if pd.notna(ct) else None,
+                "closing_total":     ct_val,
+                "over_price":        int(op)  if pd.notna(op)  else -110,
+                "under_price":       int(up)  if pd.notna(up)  else -110,
+                "total_went_over":   total_went_over,
                 "home_implied_prob": round(float(himp), 4),
                 "model_edge_ml":     model_edge,
                 "bet_side":          "home" if bet_home else "away",
@@ -601,15 +608,30 @@ def run_backtest(seasons: Optional[list[int]] = None) -> None:
         log.info("Season %d: scored %d games", season, len(season_results))
         all_results.extend(season_results)
 
-    # Sort most recent first for the game log display
+    # Merge with existing backtest.json: keep games from seasons not in this run
+    # so that a 2026-only Sunday refresh doesn't wipe 2021-2025 historical data.
+    existing_other: list[dict] = []
+    seasons_set = set(seasons)
+    if OUTPUT_PATH.exists():
+        try:
+            existing = json.loads(OUTPUT_PATH.read_text(encoding="utf-8"))
+            existing_other = [g for g in existing.get("games", [])
+                              if g.get("season") not in seasons_set]
+            if existing_other:
+                log.info("Keeping %d games from other seasons in merged output", len(existing_other))
+        except Exception as exc:
+            log.warning("Could not read existing backtest.json for merge: %s", exc)
+
+    all_results = all_results + existing_other
     all_results.sort(key=lambda r: r["date"], reverse=True)
 
+    all_seasons = sorted(set(r.get("season") for r in all_results if r.get("season")))
     stats     = compute_stats(all_results)
     ev_stats  = compute_ev_stats(all_results)
     roi_stats = compute_roi_from_history()
 
     output = {
-        "seasons":      seasons,
+        "seasons":      all_seasons,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "total_games":  len(all_results),
         "stats":        stats,

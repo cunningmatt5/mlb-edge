@@ -752,7 +752,7 @@ function renderRecordView() {
 </div>
 
 <div class="rec-vegas-section">
-  ${renderVegasSection(decided)}
+  ${renderVegasSection()}
 </div>
 
 <div class="record-top-grid">
@@ -918,6 +918,34 @@ function calcSignalAccuracy(decided) {
 }
 
 // ── Vegas performance analysis ────────────────────────────────────────────────
+
+// Normalise a record from either history.json or backtest.json to a common shape.
+function _normaliseVegasRecord(r) {
+  return {
+    ...r,
+    vegas_total:     r.vegas_total    ?? r.closing_total ?? null,
+    total_went_over: r.total_went_over ?? (
+      r.closing_total != null && r.actual_total != null
+        ? r.actual_total > r.closing_total
+        : null
+    ),
+  };
+}
+
+function _allVegasRecords() {
+  // 2026 live records from history.json
+  const hist = (historyData || [])
+    .filter(r => r.actual_winner === 'home' || r.actual_winner === 'away')
+    .map(_normaliseVegasRecord);
+
+  // 2021-2025 historical records from backtest.json (only games with Pinnacle odds)
+  const bt = ((backtestData && backtestData.games) || [])
+    .filter(r => r.home_ml != null && (r.actual_winner === 'home' || r.actual_winner === 'away'))
+    .map(_normaliseVegasRecord);
+
+  return { hist, bt, all: [...hist, ...bt] };
+}
+
 function computeVegasStats(records) {
   const priced = records.filter(r => r.home_ml != null && r.away_ml != null);
 
@@ -1007,15 +1035,20 @@ function computeVegasStats(records) {
   };
 }
 
-function renderVegasSection(records) {
-  const v = computeVegasStats(records);
+function renderVegasSection() {
+  const { hist, bt, all } = _allVegasRecords();
+  const v = computeVegasStats(all);
   const MIN_GAMES = 5;
+
+  const btNote = bt.length > 0
+    ? `${bt.length.toLocaleString()} historical (2021–25) + ${hist.filter(r => r.home_ml != null).length} this season`
+    : `${hist.filter(r => r.home_ml != null).length} games this season`;
 
   if (v.n_priced < MIN_GAMES) {
     return `
 <div class="section-heading">Performance vs. Vegas Lines</div>
 <div class="rec-vegas-placeholder">
-  Vegas line tracking active — section populates as games accumulate (${v.n_priced} of ${v.n_total} games have line data).
+  Vegas line tracking active — section populates as games accumulate (${v.n_priced} games have line data).
 </div>`;
   }
 
@@ -1057,7 +1090,7 @@ function renderVegasSection(records) {
 
   return `
 <div class="section-heading">Performance vs. Vegas Lines</div>
-<p class="rec-priced-note">${v.n_priced} of ${v.n_total} resolved games have Pinnacle line data</p>
+<p class="rec-priced-note">${v.n_priced.toLocaleString()} games with Pinnacle lines &nbsp;·&nbsp; ${btNote}</p>
 
 <div class="section-subheading">Moneyline Edge Buckets</div>
 <div class="edge-bucket-grid">
