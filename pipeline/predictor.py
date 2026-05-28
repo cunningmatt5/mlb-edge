@@ -661,6 +661,22 @@ def build_game(
         last_start_dev_away=away_last_start_dev,
     )
 
+    # Umpire zone × pitcher advantage: a pitcher-friendly umpire (expands strike zone)
+    # benefits the team with the better starter. Only applied when zone score is meaningful
+    # (|score| ≥ 0.5) to avoid noise from career variance.
+    umpire_name = game.get("umpire", "")
+    if umpire_name:
+        from pipeline.umpire import get_zone_score as _get_zone_score
+        _zone = _get_zone_score(umpire_name)
+        if abs(_zone) >= 0.5:
+            # pitcher_score_diff < 0 means home SP is better (lower score = better)
+            # zone > 0 and home pitcher better → boost home (ump_ml_logit > 0)
+            _sp_diff = home_pitcher_score - away_pitcher_score
+            _ump_ml_logit = _zone * (-_sp_diff) * 0.05
+            if abs(_ump_ml_logit) > 0.001:
+                home_win_pct = round(_sigmoid(_logit(home_win_pct) + _ump_ml_logit), 4)
+                away_win_pct = round(1.0 - home_win_pct, 4)
+
     # Flag when model and Vegas both agree strongly on home — signal is dampened
     # (edge_mult 0.25 vs 0.5). Surfaces in UI so users weight picks accordingly.
     _raw_edge_for_flag = (
@@ -700,7 +716,6 @@ def build_game(
 
     # Umpire run-tendency correction: add career tendency above/below league avg.
     # Applied after anchoring so it represents residual signal beyond what Vegas priced.
-    umpire_name = game.get("umpire", "")
     if umpire_name:
         from pipeline.umpire import get_umpire_corrections
         _, ump_total_adj = get_umpire_corrections(umpire_name)

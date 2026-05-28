@@ -1569,8 +1569,9 @@ function renderSegmentation(seg) {
 <div class="seg-callout">
   <div class="seg-callout-title">Where the Model Has a Historical Edge</div>
   <div class="seg-callout-body">Profitable zone: <strong>Away picks when |model edge| ≥ 10%</strong> (${fmtRoi(strongAway.roi_pct)} ROI, ${strongAway.n?.toLocaleString()} bets, 2021–2025).
-  All other edge buckets are breakeven or negative on historical data.
-  Strong Home edge (≥+10%) shows ${fmtRoi(strongHome?.roi_pct)} ROI — model overestimates well-priced home favorites.</div>
+  All other moneyline buckets are breakeven or negative.
+  Strong Home edge (≥+10%) shows ${fmtRoi(strongHome?.roi_pct)} ROI — Vegas efficiently prices home favorites, agreement is noise.
+  Totals: model anchors to Vegas closing total (avg deviation &lt;0.1 runs), no independent O/U edge exists.</div>
 </div>` : '';
 
   // --- Edge bucket table ---

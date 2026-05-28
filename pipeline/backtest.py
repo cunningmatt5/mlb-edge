@@ -657,12 +657,63 @@ def compute_segmentation(results: list[dict]) -> dict:
         "by_year":     combo_by_year,
     }
 
+    # --- Totals (O/U) ROI by model deviation from closing total ---
+    totals_priced = [
+        r for r in results
+        if r.get("closing_total") is not None
+        and r.get("over_price") is not None
+        and r.get("under_price") is not None
+        and r.get("total_went_over") is not None
+        and r.get("predicted_total") is not None
+    ]
+
+    total_dev_defs = [
+        ("Model Over (≥+1.5 runs)",       lambda d: d >= 1.5),
+        ("Model Slight Over (+0.5–+1.5)",  lambda d: 0.5 <= d < 1.5),
+        ("Neutral (±0.5 runs)",            lambda d: -0.5 < d < 0.5),
+        ("Model Slight Under (−0.5–−1.5)", lambda d: -1.5 < d <= -0.5),
+        ("Model Under (≤−1.5 runs)",       lambda d: d <= -1.5),
+    ]
+
+    by_totals = []
+    for label, fn in total_dev_defs:
+        sub = [
+            r for r in totals_priced
+            if fn(r["predicted_total"] - r["closing_total"])
+        ]
+        if not sub:
+            continue
+        units = 0.0
+        wins = 0
+        for r in sub:
+            dev = r["predicted_total"] - r["closing_total"]
+            bet_over = dev >= 0
+            went_over = r["total_went_over"]
+            won = (bet_over and went_over) or (not bet_over and not went_over)
+            price = r["over_price"] if bet_over else r["under_price"]
+            profit = _american_to_profit(price)
+            if profit is None:
+                continue
+            units += profit if won else -1.0
+            if won:
+                wins += 1
+        n = len(sub)
+        by_totals.append({
+            "label":    label,
+            "n":        n,
+            "wins":     wins,
+            "win_rate": round(wins / n, 4) if n else None,
+            "units":    round(units, 2),
+            "roi_pct":  round(units / n * 100, 2) if n else None,
+        })
+
     return {
         "by_edge_bucket":  by_edge,
         "by_year":         by_year,
         "by_pitcher_diff": by_pitcher,
         "calibration":     calibration,
         "by_combo":        by_combo,
+        "by_totals":       by_totals,
     }
 
 
