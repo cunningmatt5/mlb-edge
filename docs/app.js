@@ -1681,11 +1681,13 @@ function renderSegmentation(seg) {
   if (seg.by_combo && seg.by_combo.overall && seg.by_combo.overall.n > 0) {
     const co = seg.by_combo.overall;
     const comboYearRows = (seg.by_combo.by_year || []).map(b => {
-      const isWarn = b.year >= 2024 && (b.roi_pct ?? 0) < 5;
-      const rowCls = isWarn ? 'yr-warn' : '';
+      const isWarn = !b.live && b.year >= 2024 && (b.roi_pct ?? 0) < 5;
+      const isLive = !!b.live;
+      const rowCls = isLive ? 'yr-live' : isWarn ? 'yr-warn' : '';
+      const yearLabel = b.year + (isWarn && b.year === 2025 ? ' ⚠' : '') + (isLive ? ' 🟢' : '');
       return `<tr class="${rowCls}">
-        <td class="seg-year">${b.year}${isWarn && b.year === 2025 ? ' ⚠' : ''}</td>
-        <td class="seg-n">${b.n?.toLocaleString() ?? '—'}</td>
+        <td class="seg-year">${yearLabel}</td>
+        <td class="seg-n">${b.n?.toLocaleString() ?? '—'}${isLive ? '<span class="live-tag">live</span>' : ''}</td>
         <td class="seg-wr">${b.win_rate != null ? (b.win_rate * 100).toFixed(1) + '%' : '—'}</td>
         <td class="seg-units ${roiCls(b.units)}">${fmtUnits(b.units)}</td>
         <td class="${roiCls(b.roi_pct)} seg-roi-val">${fmtRoi(b.roi_pct)}</td>

@@ -2202,6 +2202,21 @@ header {
 }
 .combo-decay-table { margin-top: 4px; }
 .yr-warn td { color: #fb923c; }
+.yr-live td { color: #6ee7b7; }
+.live-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #6ee7b7;
+  background: rgba(110,231,183,.12);
+  border: 1px solid rgba(110,231,183,.3);
+  padding: 0 5px;
+  border-radius: 3px;
+  margin-left: 5px;
+  vertical-align: middle;
+}
 .combo-decay-note {
   margin-top: 8px;
   font-size: 11px;

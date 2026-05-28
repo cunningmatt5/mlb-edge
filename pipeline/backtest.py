@@ -650,6 +650,50 @@ def compute_segmentation(results: list[dict]) -> dict:
         row["year"] = yr
         combo_by_year.append(row)
 
+    # --- Append live 2026 combo data from history.json ---
+    # 2026 lacks Pinnacle closing lines in the backtest parquet so it doesn't
+    # appear above. Pull from history.json which has ML lines and outcomes.
+    # Filter to sane MLB ML range (|away_ml| <= 500) to exclude corrupt lines
+    # (series prices / wrong game IDs) that inflate the ROI.
+    _hist_path = Path(__file__).parent.parent / "docs" / "history.json"
+    try:
+        import json as _json
+        _hist = _json.loads(_hist_path.read_text(encoding="utf-8"))
+        _combo_2026 = [
+            r for r in _hist
+            if r.get("actual_winner") in ("home", "away")
+            and r.get("model_edge_ml") is not None
+            and r.get("pitcher_score_home") is not None
+            and r.get("pitcher_score_away") is not None
+            and r["model_edge_ml"] <= -0.10
+            and (r["pitcher_score_home"] - r["pitcher_score_away"]) < -0.05
+            and r.get("away_ml") is not None
+            and abs(r["away_ml"]) <= 500   # exclude corrupted / series prices
+        ]
+        if _combo_2026:
+            _units_26 = 0.0
+            _wins_26 = 0
+            for r in _combo_2026:
+                _won = r["actual_winner"] == "away"
+                _p   = _american_to_profit(r["away_ml"])
+                if _p is None:
+                    continue
+                _units_26 += _p if _won else -1.0
+                if _won:
+                    _wins_26 += 1
+            _n26 = len(_combo_2026)
+            combo_by_year.append({
+                "year":     2026,
+                "n":        _n26,
+                "wins":     _wins_26,
+                "win_rate": round(_wins_26 / _n26, 4) if _n26 else None,
+                "units":    round(_units_26, 2),
+                "roi_pct":  round(_units_26 / _n26 * 100, 2) if _n26 else None,
+                "live":     True,
+            })
+    except Exception:
+        pass
+
     by_combo = {
         "label":       "Strong Away + Away Pitcher Advantage",
         "description": "model_edge_ml <= -10% AND pitcher_score_diff < -0.05",
