@@ -673,6 +673,23 @@ def build_game(
         and vegas_home_prob > 0.54
     )
 
+    # Model edge vs Vegas: positive = model favors home more than market,
+    # negative = model favors away (the profitable signal in backtesting).
+    model_edge_ml: Optional[float] = None
+    if vegas_home_prob is not None:
+        model_edge_ml = round(home_win_pct - vegas_home_prob, 4)
+
+    # Pick tier based on the two strongest backtest signals aligning:
+    # away-edge disagreement with Vegas + away pitcher advantage.
+    pitcher_score_diff = round(home_pitcher_score - away_pitcher_score, 4)
+    pick_tier: Optional[str] = None
+    if model_edge_ml is not None and model_edge_ml <= -0.10 and pitcher_score_diff < -0.05:
+        pick_tier = "elite_away"
+    elif model_edge_ml is not None and model_edge_ml <= -0.10:
+        pick_tier = "strong_away"
+    elif model_edge_ml is not None and model_edge_ml >= 0.10:
+        pick_tier = "strong_home"
+
     vegas_total: Optional[float] = odds_out.get("total") if odds_out else None
     pred_home, pred_away = _predicted_runs(
         home_lineup_score, away_lineup_score,
@@ -753,6 +770,9 @@ def build_game(
             "predicted_away_runs": pred_away,
             "predicted_total":    round(pred_home + pred_away, 1),
             "narrative":          narrative,
+            "model_edge_ml":      model_edge_ml,
+            "pitcher_score_diff": pitcher_score_diff,
+            "pick_tier":          pick_tier,
             "model_signals": {
                 "pitcher_score_home": round(home_pitcher_score, 3),
                 "pitcher_score_away": round(away_pitcher_score, 3),

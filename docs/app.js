@@ -443,6 +443,12 @@ function statusStrip(g) {
   const tier    = gameTier(pred.home_win_pct);
   const tierLabel = tier === 'elite' ? 'ELITE' : tier === 'great' ? 'GREAT' : tier === 'good' ? 'GOOD' : '';
   const tierBadge = tier ? `<span class="tier-badge tier-${tier}">${tierLabel}</span>` : '';
+  const pickTier = pred.pick_tier;
+  const pickTierBadge = pickTier === 'elite_away'
+    ? `<span class="pick-tier-badge tier-elite-away">Elite Away</span>`
+    : pickTier === 'strong_away'
+    ? `<span class="pick-tier-badge tier-strong-away">Strong Away</span>`
+    : '';
   const scoreCenter = pred.predicted_away_runs != null ? `
   <span class="pred-score-est">
     <span class="pse-team">${abbrev(g.away_team)}</span>
@@ -459,7 +465,7 @@ function statusStrip(g) {
       <span class="pf-sep">—</span>
       <span class="${awayFav ? 'pf-dog' : 'pf-fav'}">${abbrev(g.home_team)} ${homePct}%</span>
     </div>
-    ${tierBadge}
+    ${tierBadge}${pickTierBadge}
   </div>
   ${scoreCenter}
   <span class="expand-arrow">▼</span>
@@ -1606,6 +1612,39 @@ function renderSegmentation(seg) {
     </tr>`;
   }).join('');
 
+  // --- Combo section (away edge + pitcher advantage) ---
+  let comboHtml = '';
+  if (seg.by_combo && seg.by_combo.overall && seg.by_combo.overall.n > 0) {
+    const co = seg.by_combo.overall;
+    const comboYearRows = (seg.by_combo.by_year || []).map(b => {
+      const isWarn = b.year >= 2024 && (b.roi_pct ?? 0) < 5;
+      const rowCls = isWarn ? 'yr-warn' : '';
+      return `<tr class="${rowCls}">
+        <td class="seg-year">${b.year}${isWarn && b.year === 2025 ? ' ⚠' : ''}</td>
+        <td class="seg-n">${b.n?.toLocaleString() ?? '—'}</td>
+        <td class="seg-wr">${b.win_rate != null ? (b.win_rate * 100).toFixed(1) + '%' : '—'}</td>
+        <td class="seg-units ${roiCls(b.units)}">${fmtUnits(b.units)}</td>
+        <td class="${roiCls(b.roi_pct)} seg-roi-val">${fmtRoi(b.roi_pct)}</td>
+      </tr>`;
+    }).join('');
+
+    comboHtml = `
+  <div class="combo-section">
+    <div class="bt-section-title">Elite Away Signal: Edge + Pitcher Advantage <span class="bt-count">(model_edge ≤ −10% AND pitcher diff &lt; −0.05)</span></div>
+    <div class="combo-summary">
+      Overall: <strong class="seg-pos">${fmtRoi(co.roi_pct)} ROI</strong> across <strong>${co.n?.toLocaleString()}</strong> bets (${co.win_rate != null ? (co.win_rate*100).toFixed(1)+'% win rate' : ''}).
+      Signal requires <em>both</em> conditions — away-edge alone yields ≈−2% ROI.
+    </div>
+    <div class="bt-table-wrap">
+      <table class="seg-table combo-decay-table">
+        <thead><tr><th>Year</th><th>Bets</th><th>Win%</th><th>Units</th><th>ROI</th></tr></thead>
+        <tbody>${comboYearRows}</tbody>
+      </table>
+    </div>
+    <div class="combo-decay-note">⚠ Signal has weakened in 2024–2025. Monitor live 2026 performance before increasing bet sizing.</div>
+  </div>`;
+  }
+
   return `
 <div class="seg-section">
   ${calloutHtml}
@@ -1617,6 +1656,8 @@ function renderSegmentation(seg) {
       <tbody>${edgeRows}</tbody>
     </table>
   </div>
+
+  ${comboHtml}
 
   <div class="seg-two-col">
     <div>

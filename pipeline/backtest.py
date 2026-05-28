@@ -627,11 +627,42 @@ def compute_segmentation(results: list[dict]) -> dict:
             "gap":           round(actual_wr - model_mean, 4),
         })
 
+    # --- Combo: strong away edge + away pitcher advantage ---
+    def _combo_subset(games, edge_thresh, pitch_thresh):
+        return [
+            r for r in games
+            if r.get("model_edge_ml") is not None
+            and r.get("pitcher_score_home") is not None
+            and r.get("pitcher_score_away") is not None
+            and r["model_edge_ml"] <= edge_thresh
+            and (r["pitcher_score_home"] - r["pitcher_score_away"]) < pitch_thresh
+        ]
+
+    combo_all = _combo_subset(priced, -0.10, -0.05)
+    combo_overall = _roi_for_subset(combo_all)
+
+    combo_by_year = []
+    for yr in sorted(set(r.get("season") for r in combo_all if r.get("season"))):
+        sub = [r for r in combo_all if r.get("season") == yr]
+        if not sub:
+            continue
+        row = _roi_for_subset(sub)
+        row["year"] = yr
+        combo_by_year.append(row)
+
+    by_combo = {
+        "label":       "Strong Away + Away Pitcher Advantage",
+        "description": "model_edge_ml <= -10% AND pitcher_score_diff < -0.05",
+        "overall":     combo_overall,
+        "by_year":     combo_by_year,
+    }
+
     return {
-        "by_edge_bucket": by_edge,
-        "by_year":        by_year,
+        "by_edge_bucket":  by_edge,
+        "by_year":         by_year,
         "by_pitcher_diff": by_pitcher,
-        "calibration":    calibration,
+        "calibration":     calibration,
+        "by_combo":        by_combo,
     }
 
 
