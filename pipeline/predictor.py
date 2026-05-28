@@ -164,9 +164,11 @@ def _win_probability(
         # well-priced favorite is noise; keep full weight only when disagreeing.
         logit_base = _logit(vegas_home_prob)
         if raw_edge > 0 and vegas_home_prob > 0.54:
-            edge_mult = 0.25  # both lean home — dampened to reduce overconfidence
+            edge_mult = 0.25  # consensus home — dampened (both model and Vegas agree)
+        elif raw_edge < 0:
+            edge_mult = 1.0   # away edge — full weight (model disagrees with Vegas)
         else:
-            edge_mult = 0.5   # model disagrees with Vegas or neutral — keep full signal
+            edge_mult = 0.5   # home edge without strong consensus
     else:
         logit_base  = _logit(HOME_ADVANTAGE)
         edge_mult   = _RAW_EDGE_MULT

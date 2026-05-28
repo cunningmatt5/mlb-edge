@@ -2079,3 +2079,86 @@ header {
   color: #9ca3af;
   border: 1px solid rgba(107, 114, 128, 0.3);
 }
+
+/* ── Backtest segmentation ─────────────────────────────────────────────────── */
+
+.seg-section { margin-top: 8px; }
+
+.seg-callout {
+  margin: 12px 0 20px;
+  padding: 12px 16px;
+  background: rgba(99,102,241,.07);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+}
+.seg-callout-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.seg-callout-body { font-size: 13px; color: var(--text-muted); line-height: 1.55; }
+
+.seg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.seg-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-dim);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.seg-table td { padding: 7px 10px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.seg-table tr:last-child td { border-bottom: none; }
+
+.seg-row-highlight-pos { background: rgba(52,211,153,.06); }
+.seg-row-highlight-neg { background: rgba(239,68,68,.05); }
+
+.seg-label { font-weight: 500; color: var(--text); }
+.seg-n     { color: var(--text-dim); font-size: 12px; }
+.seg-wr    { color: var(--text-muted); }
+.seg-year  { font-weight: 600; color: var(--text); }
+.seg-bin   { font-weight: 500; }
+.seg-roi-val { font-weight: 600; }
+
+.seg-pos { color: var(--green-light); font-weight: 600; }
+.seg-neg { color: #f87171; font-weight: 600; }
+
+.roi-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 120px;
+}
+.roi-bar {
+  height: 8px;
+  border-radius: 4px;
+  min-width: 2px;
+}
+.roi-bar-pos { background: var(--green-light); }
+.roi-bar-neg { background: #f87171; }
+.roi-bar-val { font-size: 12px; font-weight: 600; white-space: nowrap; }
+
+.seg-edge-wrap { margin-bottom: 20px; }
+
+.seg-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 4px;
+}
+@media (max-width: 700px) {
+  .seg-two-col { grid-template-columns: 1fr; }
+}
+
+.cal-gap-big  { color: #fb923c; font-weight: 700; }
+.cal-gap-pos  { color: var(--text-muted); }
+.cal-gap-neg  { color: #f87171; }

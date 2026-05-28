@@ -1546,6 +1546,102 @@ function shortName(name) {
   return parts.length >= 2 ? `${parts[parts.length - 1]}, ${parts[0][0]}.` : name;
 }
 
+// ── Backtest segmentation ─────────────────────────────────────────────────────
+
+function renderSegmentation(seg) {
+  if (!seg || !seg.by_edge_bucket || !seg.by_edge_bucket.length) return '';
+
+  const fmtRoi = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+  const fmtUnits = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + 'u';
+  const roiCls = v => v == null ? '' : v >= 0 ? 'seg-pos' : 'seg-neg';
+
+  // --- Callout box ---
+  const strongAway = seg.by_edge_bucket.find(b => b.label && b.label.startsWith('Strong Away'));
+  const strongHome = seg.by_edge_bucket.find(b => b.label && b.label.startsWith('Strong Home'));
+  const liveRoi = ''; // summary shown in ROI section above
+  const calloutHtml = strongAway ? `
+<div class="seg-callout">
+  <div class="seg-callout-title">Where the Model Has a Historical Edge</div>
+  <div class="seg-callout-body">Profitable zone: <strong>Away picks when |model edge| ≥ 10%</strong> (${fmtRoi(strongAway.roi_pct)} ROI, ${strongAway.n?.toLocaleString()} bets, 2021–2025).
+  All other edge buckets are breakeven or negative on historical data.
+  Strong Home edge (≥+10%) shows ${fmtRoi(strongHome?.roi_pct)} ROI — model overestimates well-priced home favorites.</div>
+</div>` : '';
+
+  // --- Edge bucket table ---
+  const edgeRows = seg.by_edge_bucket.map(b => {
+    const isProfitable = (b.roi_pct ?? 0) >= 0;
+    const isStrongAway = b.label?.startsWith('Strong Away');
+    const isStrongHome = b.label?.startsWith('Strong Home');
+    const rowCls = isStrongAway ? 'seg-row-highlight-pos' : isStrongHome ? 'seg-row-highlight-neg' : '';
+    const barW = Math.min(Math.abs(b.roi_pct ?? 0) * 4, 100);
+    const barHtml = `<div class="roi-bar-wrap"><div class="roi-bar ${isProfitable ? 'roi-bar-pos' : 'roi-bar-neg'}" style="width:${barW}%"></div><span class="roi-bar-val ${roiCls(b.roi_pct)}">${fmtRoi(b.roi_pct)}</span></div>`;
+    return `<tr class="${rowCls}">
+      <td class="seg-label">${b.label ?? '—'}</td>
+      <td class="seg-n">${b.n?.toLocaleString() ?? '—'}</td>
+      <td class="seg-wr">${b.win_rate != null ? (b.win_rate * 100).toFixed(1) + '%' : '—'}</td>
+      <td class="seg-units ${roiCls(b.units)}">${fmtUnits(b.units)}</td>
+      <td class="seg-roi-cell">${barHtml}</td>
+    </tr>`;
+  }).join('');
+
+  // --- Year-over-year table ---
+  const yearRows = (seg.by_year || []).map(b => `<tr>
+    <td class="seg-year">${b.year}</td>
+    <td class="seg-n">${b.n?.toLocaleString() ?? '—'}</td>
+    <td class="seg-wr">${b.win_rate != null ? (b.win_rate * 100).toFixed(1) + '%' : '—'}</td>
+    <td class="seg-units ${roiCls(b.units)}">${fmtUnits(b.units)}</td>
+    <td class="${roiCls(b.roi_pct)} seg-roi-val">${fmtRoi(b.roi_pct)}</td>
+  </tr>`).join('');
+
+  // --- Calibration table ---
+  const calRows = (seg.calibration || []).map(b => {
+    const gapCls = (b.gap ?? 0) >= 0.03 ? 'cal-gap-big' : (b.gap ?? 0) >= 0 ? 'cal-gap-pos' : 'cal-gap-neg';
+    const note = b.bin === '65%+' ? ' ⚡' : '';
+    return `<tr>
+      <td class="seg-bin">${b.bin ?? '—'}${note}</td>
+      <td class="seg-n">${b.n?.toLocaleString() ?? '—'}</td>
+      <td>${b.model_mean != null ? (b.model_mean * 100).toFixed(1) + '%' : '—'}</td>
+      <td>${b.actual_win_rate != null ? (b.actual_win_rate * 100).toFixed(1) + '%' : '—'}</td>
+      <td class="${gapCls}">${b.gap != null ? (b.gap >= 0 ? '+' : '') + (b.gap * 100).toFixed(1) + '%' : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+<div class="seg-section">
+  ${calloutHtml}
+
+  <div class="bt-section-title">ROI by Model Edge Direction <span class="bt-count">(2021–2025, bet in model's direction)</span></div>
+  <div class="bt-table-wrap seg-edge-wrap">
+    <table class="seg-table">
+      <thead><tr><th>Edge Bucket</th><th>Bets</th><th>Win%</th><th>Units</th><th>ROI</th></tr></thead>
+      <tbody>${edgeRows}</tbody>
+    </table>
+  </div>
+
+  <div class="seg-two-col">
+    <div>
+      <div class="bt-section-title">Year-over-Year Performance <span class="bt-count">(|edge| ≥ 5%)</span></div>
+      <div class="bt-table-wrap">
+        <table class="seg-table seg-yr-table">
+          <thead><tr><th>Year</th><th>Bets</th><th>Win%</th><th>Units</th><th>ROI</th></tr></thead>
+          <tbody>${yearRows}</tbody>
+        </table>
+      </div>
+    </div>
+    <div>
+      <div class="bt-section-title">Calibration: Predicted vs. Actual <span class="bt-count">(⚡ = underconfident)</span></div>
+      <div class="bt-table-wrap">
+        <table class="seg-table seg-cal-table">
+          <thead><tr><th>Confidence</th><th>Games</th><th>Model</th><th>Actual</th><th>Gap</th></tr></thead>
+          <tbody>${calRows}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+
+
 // ── Backtest view ─────────────────────────────────────────────────────────────
 
 function renderBacktestView() {
@@ -1556,7 +1652,7 @@ function renderBacktestView() {
     return;
   }
 
-  const { stats, games = [], ev_stats, roi_stats } = backtestData;
+  const { stats, games = [], ev_stats, roi_stats, segmentation } = backtestData;
   if (!stats) {
     el.innerHTML = `<div class="empty-state"><p>No backtest stats found in data.</p></div>`;
     return;
@@ -1745,6 +1841,8 @@ function renderBacktestView() {
       </div>
 
       ${roiHtml}
+
+      ${renderSegmentation(segmentation)}
 
       <div class="bt-section-title">Game Log <span class="bt-count">(${games.length} games, most recent first)</span></div>
       <div class="bt-table-wrap">

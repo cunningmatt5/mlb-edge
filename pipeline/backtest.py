@@ -481,6 +481,161 @@ def compute_ev_stats(results: list[dict]) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Segmentation analytics (ROI by edge bucket, year, pitcher diff, calibration)
+# ---------------------------------------------------------------------------
+
+def _american_to_profit(odds: int | None) -> float | None:
+    if odds is None:
+        return None
+    return odds / 100 if odds > 0 else 100 / abs(odds)
+
+
+def compute_segmentation(results: list[dict]) -> dict:
+    """Compute ROI-by-segment breakdowns for games that have Vegas closing lines."""
+    priced = [
+        r for r in results
+        if r.get("home_ml") and r.get("away_ml")
+        and r.get("model_edge_ml") is not None
+        and r.get("actual_winner") in ("home", "away")
+    ]
+    if not priced:
+        return {}
+
+    def _roi_for_subset(subset: list[dict]) -> dict:
+        units = 0.0
+        wins = 0
+        for r in subset:
+            edge = r["model_edge_ml"]
+            if edge >= 0:
+                won = r["actual_winner"] == "home"
+                profit = _american_to_profit(r["home_ml"])
+            else:
+                won = r["actual_winner"] == "away"
+                profit = _american_to_profit(r["away_ml"])
+            if profit is None:
+                continue
+            units += profit if won else -1.0
+            if won:
+                wins += 1
+        n = len(subset)
+        return {
+            "n":        n,
+            "wins":     wins,
+            "win_rate": round(wins / n, 4) if n else None,
+            "units":    round(units, 2),
+            "roi_pct":  round(units / n * 100, 2) if n else None,
+        }
+
+    # --- Edge bucket ROI ---
+    edge_defs = [
+        ("Strong Away (≤−10%)",      lambda e: e <= -0.10),
+        ("Moderate Away (−10%−5%)",  lambda e: -0.10 < e <= -0.05),
+        ("Marginal Away (−5%−0%)",   lambda e: -0.05 < e < 0),
+        ("Marginal Home (0%−5%)",    lambda e: 0 <= e < 0.05),
+        ("Moderate Home (5%−10%)",   lambda e: 0.05 <= e < 0.10),
+        ("Strong Home (≥+10%)",      lambda e: e >= 0.10),
+    ]
+    by_edge = []
+    for label, fn in edge_defs:
+        sub = [r for r in priced if fn(r["model_edge_ml"])]
+        row = _roi_for_subset(sub)
+        row["label"] = label
+        by_edge.append(row)
+
+    # --- Year-over-year ROI (|edge| >= 5%) ---
+    by_year = []
+    for yr in sorted(set(r.get("season") for r in priced if r.get("season"))):
+        sub = [r for r in priced if r.get("season") == yr and abs(r["model_edge_ml"]) >= 0.05]
+        if not sub:
+            continue
+        row = _roi_for_subset(sub)
+        row["year"] = yr
+        by_year.append(row)
+
+    # --- Pitcher differential ROI ---
+    pitch_defs = [
+        ("Strong Away (<−0.10)",     lambda d: d < -0.10),
+        ("Moderate Away (−0.10−0.05)", lambda d: -0.10 <= d < -0.05),
+        ("Neutral (±0.05)",          lambda d: -0.05 <= d <= 0.05),
+        ("Moderate Home (0.05−0.10)", lambda d: 0.05 < d <= 0.10),
+        ("Strong Home (>+0.10)",     lambda d: d > 0.10),
+    ]
+    by_pitcher = []
+    for label, fn in pitch_defs:
+        sub = [
+            r for r in priced
+            if r.get("pitcher_score_home") is not None
+            and r.get("pitcher_score_away") is not None
+            and fn(r["pitcher_score_home"] - r["pitcher_score_away"])
+        ]
+        if not sub:
+            continue
+        # For pitcher ROI, bet in pitcher's favored direction
+        units = 0.0
+        wins = 0
+        for r in sub:
+            diff = r["pitcher_score_home"] - r["pitcher_score_away"]
+            if diff >= 0:
+                won = r["actual_winner"] == "home"
+                profit = _american_to_profit(r["home_ml"])
+            else:
+                won = r["actual_winner"] == "away"
+                profit = _american_to_profit(r["away_ml"])
+            if profit is None:
+                continue
+            units += profit if won else -1.0
+            if won:
+                wins += 1
+        n = len(sub)
+        actual_home_win = round(sum(1 for r in sub if r["actual_winner"] == "home") / n, 4) if n else None
+        by_pitcher.append({
+            "label":            label,
+            "n":                n,
+            "wins":             wins,
+            "win_rate":         round(wins / n, 4) if n else None,
+            "actual_home_win_pct": actual_home_win,
+            "units":            round(units, 2),
+            "roi_pct":          round(units / n * 100, 2) if n else None,
+        })
+
+    # --- Calibration (predicted win prob vs actual, betting model's direction) ---
+    all_decided = [r for r in results if r.get("actual_winner") in ("home", "away")]
+    cal_bins = [
+        ("45–50%", 0.45, 0.50),
+        ("50–55%", 0.50, 0.55),
+        ("55–60%", 0.55, 0.60),
+        ("60–65%", 0.60, 0.65),
+        ("65%+",   0.65, 1.00),
+    ]
+    calibration = []
+    for label, lo, hi in cal_bins:
+        bucket = [
+            r for r in all_decided
+            if lo <= max(r["home_win_pct"], 1 - r["home_win_pct"]) < hi
+            or (hi == 1.00 and max(r["home_win_pct"], 1 - r["home_win_pct"]) >= lo)
+        ]
+        if not bucket:
+            continue
+        n = len(bucket)
+        model_mean = round(sum(max(r["home_win_pct"], 1 - r["home_win_pct"]) for r in bucket) / n, 4)
+        actual_wr = round(sum(1 for r in bucket if r["correct"]) / n, 4)
+        calibration.append({
+            "bin":           label,
+            "n":             n,
+            "model_mean":    model_mean,
+            "actual_win_rate": actual_wr,
+            "gap":           round(actual_wr - model_mean, 4),
+        })
+
+    return {
+        "by_edge_bucket": by_edge,
+        "by_year":        by_year,
+        "by_pitcher_diff": by_pitcher,
+        "calibration":    calibration,
+    }
+
+
+# ---------------------------------------------------------------------------
 # ROI tracking from live history records
 # ---------------------------------------------------------------------------
 
@@ -638,9 +793,10 @@ def run_backtest(seasons: Optional[list[int]] = None) -> None:
     all_results.sort(key=lambda r: r["date"], reverse=True)
 
     all_seasons = sorted(set(r.get("season") for r in all_results if r.get("season")))
-    stats     = compute_stats(all_results)
-    ev_stats  = compute_ev_stats(all_results)
-    roi_stats = compute_roi_from_history()
+    stats        = compute_stats(all_results)
+    ev_stats     = compute_ev_stats(all_results)
+    roi_stats    = compute_roi_from_history()
+    segmentation = compute_segmentation(all_results)
 
     output = {
         "seasons":      all_seasons,
@@ -649,6 +805,7 @@ def run_backtest(seasons: Optional[list[int]] = None) -> None:
         "stats":        stats,
         "ev_stats":     ev_stats,
         "roi_stats":    roi_stats,
+        "segmentation": segmentation,
         "games":        all_results,
     }
 
