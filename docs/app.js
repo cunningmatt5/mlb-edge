@@ -769,6 +769,43 @@ function predictionHTML(g) {
 </div>`;
 }
 
+// ── Game log cell helpers ─────────────────────────────────────────────────────
+
+function mlEdgeCell(r) {
+  if (r.model_edge_ml == null) {
+    return `<td class="hist-edge-ml"><span style="color:var(--text-dim)">—</span></td>`;
+  }
+  const edge     = r.model_edge_ml;
+  const absPct   = Math.abs(edge * 100).toFixed(1);
+  const sign     = edge >= 0 ? '+' : '–';
+  const teamAbbr = abbrev(edge >= 0 ? r.home_team : r.away_team);
+  const edgeWon  = edge >= 0 ? r.actual_winner === 'home' : r.actual_winner === 'away';
+  const icon     = r.sp_scratched ? '' : (edgeWon
+    ? '<span class="edge-call-hit">✓</span>'
+    : '<span class="edge-call-miss">✗</span>');
+  const cellCls  = Math.abs(edge) >= 0.10
+    ? (edge < 0 ? 'hist-edge-ml edge-strong-away' : 'hist-edge-ml edge-strong-home')
+    : 'hist-edge-ml';
+  return `<td class="${cellCls}">${sign}${absPct}% ${teamAbbr} ${icon}</td>`;
+}
+
+function totalLeanCell(r) {
+  if (r.predicted_total == null || r.vegas_total == null) {
+    return `<td class="hist-total"><span style="color:var(--text-dim)">—</span></td>`;
+  }
+  const lean = +(r.predicted_total - r.vegas_total).toFixed(1);
+  if (lean === 0) return `<td class="hist-total"><span style="color:var(--text-dim)">—</span></td>`;
+  const dir    = lean > 0 ? 'OVER' : 'UNDER';
+  const dirCls = lean > 0 ? 'dir-over' : 'dir-under';
+  const gap    = Math.abs(lean).toFixed(1);
+  let icon = '';
+  if (r.total_went_over != null && !r.sp_scratched) {
+    const hit = (lean > 0 && r.total_went_over === true) || (lean < 0 && r.total_went_over === false);
+    icon = hit ? '<span class="edge-call-hit">✓</span>' : '<span class="edge-call-miss">✗</span>';
+  }
+  return `<td class="hist-total"><span class="${dirCls}">${dir} +${gap}</span> ${icon}</td>`;
+}
+
 // ── Record view ───────────────────────────────────────────────────────────────
 function renderRecordView() {
   const view = document.getElementById('record-view');
@@ -790,6 +827,30 @@ function renderRecordView() {
   const confRows  = calcConfidenceTiers(decided);
   const signals   = calcSignalAccuracy(decided);
   const byDate    = groupByDate(decided);
+
+  // Game log summary stats
+  let mlEdgeCalls = 0, mlEdgeHits = 0, totalLeanCalls = 0, totalLeanHits = 0;
+  for (const r of decided) {
+    if (r.model_edge_ml != null && Math.abs(r.model_edge_ml) >= 0.10) {
+      mlEdgeCalls++;
+      const won = r.model_edge_ml >= 0 ? r.actual_winner === 'home' : r.actual_winner === 'away';
+      if (won) mlEdgeHits++;
+    }
+    if (r.predicted_total != null && r.vegas_total != null && r.total_went_over != null) {
+      const lean = +(r.predicted_total - r.vegas_total).toFixed(1);
+      if (lean !== 0) {
+        totalLeanCalls++;
+        if ((lean > 0 && r.total_went_over) || (lean < 0 && !r.total_went_over)) totalLeanHits++;
+      }
+    }
+  }
+  const mlPct    = mlEdgeCalls    > 0 ? Math.round(mlEdgeHits    / mlEdgeCalls    * 100) : null;
+  const totalPct = totalLeanCalls > 0 ? Math.round(totalLeanHits / totalLeanCalls * 100) : null;
+  const gameLogSummaryHTML = `
+<div class="game-log-summary">
+  <span class="log-stat">ML Value Calls (|edge|≥10%): <strong>${mlEdgeCalls > 0 ? `${mlEdgeHits}/${mlEdgeCalls} (${mlPct}%)` : '—'}</strong></span>
+  <span class="log-stat">Total Lean: <strong>${totalLeanCalls > 0 ? `${totalLeanHits}/${totalLeanCalls} (${totalPct}%)` : '—'}</strong></span>
+</div>`;
 
   view.innerHTML = `
 <div class="view-header">
@@ -825,6 +886,7 @@ function renderRecordView() {
 
 <div class="history-section">
   <div class="section-heading">Game Log</div>
+  ${gameLogSummaryHTML}
   ${byDate.map(({ date: d, games }) => {
     const dc = games.filter(r => r.predicted_winner === r.actual_winner).length;
     const dLabel = formatDateLabel(d);
@@ -834,35 +896,48 @@ function renderRecordView() {
       <span class="day-label">${dLabel}</span>
       <span class="day-record ${dc / games.length >= 0.5 ? 'day-win' : 'day-loss'}">${dc}–${games.length - dc}</span>
     </div>
-    <table class="history-table">
-      <tbody>
-        ${games.slice().reverse().map(r => {
-          const hit      = r.predicted_winner === r.actual_winner;
-          const predTeam = r.predicted_winner === 'home' ? r.home_team : r.away_team;
-          const actTeam  = r.actual_winner    === 'home' ? r.home_team : r.away_team;
-          const predPct  = r.predicted_winner === 'home'
-            ? Math.round((r.home_win_pct || 0.5) * 100)
-            : Math.round((1 - (r.home_win_pct || 0.5)) * 100);
-          const conf     = Math.max(r.home_win_pct || 0.5, 1 - (r.home_win_pct || 0.5));
-          const tierCls  = conf >= 0.70 ? 'elite' : conf >= 0.65 ? 'great' : conf >= 0.60 ? 'good' : '';
-          const score    = r.home_score != null
-            ? `<span class="hist-score">${r.away_score}–${r.home_score}</span>`
-            : '';
-          const spBadge  = r.sp_scratched
-            ? ' <span class="sp-scratch-badge" title="Predicted starter did not start">⚠ SP</span>' : '';
-          return `
-        <tr class="${r.sp_scratched ? 'row-scratch' : (hit ? 'row-hit' : 'row-miss')}">
-          <td class="hist-matchup">${abbrev(r.away_team)} @ ${abbrev(r.home_team)}${spBadge}</td>
-          <td class="hist-pred">
-            ${abbrev(predTeam)} <span class="hist-pct${tierCls ? ' tier-badge tier-' + tierCls : ''}">${predPct}%</span>
-          </td>
-          <td class="hist-actual">${abbrev(actTeam)} ${score}</td>
-          <td class="bt-edge">${r.model_edge_ml != null ? `<span class="${r.model_edge_ml >= 0 ? 'edge-pos' : 'edge-neg'}">${r.model_edge_ml >= 0 ? '+' : ''}${(r.model_edge_ml * 100).toFixed(1)}%</span>` : '<span style="color:var(--text-dim)">—</span>'}</td>
-          <td class="result-icon">${r.sp_scratched ? '<span class="res-scratch">–</span>' : (hit ? '<span class="res-hit">✓</span>' : '<span class="res-miss">✗</span>')}</td>
-        </tr>`;
-        }).join('')}
-      </tbody>
-    </table>
+    <div class="history-table-wrap">
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Matchup</th>
+            <th>Predicted</th>
+            <th>Actual</th>
+            <th>ML Edge</th>
+            <th>Total</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${games.slice().reverse().map(r => {
+            const hit      = r.predicted_winner === r.actual_winner;
+            const predTeam = r.predicted_winner === 'home' ? r.home_team : r.away_team;
+            const actTeam  = r.actual_winner    === 'home' ? r.home_team : r.away_team;
+            const predPct  = r.predicted_winner === 'home'
+              ? Math.round((r.home_win_pct || 0.5) * 100)
+              : Math.round((1 - (r.home_win_pct || 0.5)) * 100);
+            const conf     = Math.max(r.home_win_pct || 0.5, 1 - (r.home_win_pct || 0.5));
+            const tierCls  = conf >= 0.70 ? 'elite' : conf >= 0.65 ? 'great' : conf >= 0.60 ? 'good' : '';
+            const score    = r.home_score != null
+              ? `<span class="hist-score">${r.away_score}–${r.home_score}</span>`
+              : '';
+            const spBadge  = r.sp_scratched
+              ? ' <span class="sp-scratch-badge" title="Predicted starter did not start">⚠ SP</span>' : '';
+            return `
+          <tr class="${r.sp_scratched ? 'row-scratch' : (hit ? 'row-hit' : 'row-miss')}">
+            <td class="hist-matchup">${abbrev(r.away_team)} @ ${abbrev(r.home_team)}${spBadge}</td>
+            <td class="hist-pred">
+              ${abbrev(predTeam)} <span class="hist-pct${tierCls ? ' tier-badge tier-' + tierCls : ''}">${predPct}%</span>
+            </td>
+            <td class="hist-actual">${abbrev(actTeam)} ${score}</td>
+            ${mlEdgeCell(r)}
+            ${totalLeanCell(r)}
+            <td class="result-icon">${r.sp_scratched ? '<span class="res-scratch">–</span>' : (hit ? '<span class="res-hit">✓</span>' : '<span class="res-miss">✗</span>')}</td>
+          </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
   </div>`;
   }).join('')}
 </div>`;

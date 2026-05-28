@@ -1170,9 +1170,9 @@ header {
   font-size: 13px;
 }
 .history-table td { padding: 7px 8px; border-top: 1px solid var(--border); color: var(--text-muted); }
-.hist-matchup { width: 38%; color: var(--text); }
-.hist-pred    { width: 28%; }
-.hist-actual  { width: 24%; }
+.hist-matchup { width: 26%; color: var(--text); }
+.hist-pred    { width: 18%; }
+.hist-actual  { width: 16%; }
 .hist-pct     { font-size: 11px; color: var(--text-dim); margin-left: 3px; }
 .hist-score   { font-size: 11px; color: var(--text-dim); margin-left: 4px; }
 
@@ -1196,6 +1196,73 @@ header {
   font-weight: 600;
   white-space: nowrap;
   vertical-align: middle;
+}
+
+/* ── Game log redesign ───────────────────────────────────────────────────── */
+
+.history-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.history-table {
+  min-width: 520px;
+}
+
+.history-table thead th {
+  background: var(--bg-table);
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.hist-edge-ml { width: 22%; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.hist-total   { width: 12%; font-size: 12px; font-weight: 600; white-space: nowrap; }
+
+/* ML edge highlights */
+.edge-strong-away                { color: var(--green-light); }
+.edge-strong-away .edge-call-hit { text-shadow: 0 0 6px rgba(52,211,153,.60); }
+.edge-strong-home                { color: var(--gold); }
+
+/* Per-signal hit/miss icons (independent of main result) */
+.edge-call-hit  { color: var(--green-light); font-weight: 700; }
+.edge-call-miss { color: var(--text-dim); }
+
+/* Total lean: text-only colour inside table cell (suppress pill background) */
+.hist-total .dir-over  { background: transparent; color: #4ade80; }
+.hist-total .dir-under { background: transparent; color: #60a5fa; }
+
+/* Summary stats bar above game log day groups */
+.game-log-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+
+.log-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.log-stat strong {
+  color: var(--text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── Live / Final status strip ───────────────────────────────────────────── */
@@ -1625,6 +1692,9 @@ header {
   /* Props: stack stat pills on narrow screens */
   .pick-game-header { flex-direction: column; align-items: flex-start; gap: 2px; }
   .stat-pills-row   { flex-wrap: wrap; }
+
+  /* Game log: stack summary pills on narrow screens */
+  .game-log-summary { flex-direction: column; }
 }
 
 /* ── Props Tab ─────────────────────────────────────────────────────────────── */
