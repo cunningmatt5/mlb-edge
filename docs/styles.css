@@ -1194,6 +1194,24 @@ header {
 .audit-pos  { color: var(--green-light); background: rgba(52,211,153,.10); }
 .audit-neg  { color: var(--red-light);   background: rgba(248,113,113,.10); }
 .audit-even { color: var(--text-muted);  background: var(--bg-table); }
+.audit-units {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.85;
+  margin-left: 3px;
+}
+
+/* Summary bar units badge */
+.log-units {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: 4px;
+}
+.units-pos { color: var(--green-light); background: rgba(52,211,153,.12); }
+.units-neg { color: var(--red-light);   background: rgba(248,113,113,.12); }
 
 .history-table {
   width: 100%;

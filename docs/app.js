@@ -769,6 +769,18 @@ function predictionHTML(g) {
 </div>`;
 }
 
+// ── Odds / unit helpers ───────────────────────────────────────────────────────
+
+function americanToProfit(odds) {
+  // Returns profit per 1-unit stake. Returns null when odds unavailable.
+  if (odds == null || odds === 0) return null;
+  return odds > 0 ? odds / 100 : 100 / Math.abs(odds);
+}
+
+function fmtUnits(u) {
+  return (u >= 0 ? '+' : '') + u.toFixed(2) + 'u';
+}
+
 // ── Game log cell helpers ─────────────────────────────────────────────────────
 
 function mlEdgeCell(r) {
@@ -828,28 +840,40 @@ function renderRecordView() {
   const signals   = calcSignalAccuracy(decided);
   const byDate    = groupByDate(decided);
 
-  // Game log summary stats
-  let mlEdgeCalls = 0, mlEdgeHits = 0, totalLeanCalls = 0, totalLeanHits = 0;
+  // Game log summary stats (units assume 1-unit flat bet per qualifying call)
+  let mlEdgeCalls = 0, mlEdgeHits = 0, mlEdgeUnits = 0;
+  let totalLeanCalls = 0, totalLeanHits = 0, totalLeanUnits = 0;
   for (const r of decided) {
     if (r.model_edge_ml != null && Math.abs(r.model_edge_ml) >= 0.10) {
       mlEdgeCalls++;
-      const won = r.model_edge_ml >= 0 ? r.actual_winner === 'home' : r.actual_winner === 'away';
+      const edgeIsHome = r.model_edge_ml >= 0;
+      const won  = edgeIsHome ? r.actual_winner === 'home' : r.actual_winner === 'away';
+      const odds = edgeIsHome ? r.home_ml : r.away_ml;
+      const prof = won ? (americanToProfit(odds) ?? 1.0) : -1.0;
+      mlEdgeUnits += prof;
       if (won) mlEdgeHits++;
     }
     if (r.predicted_total != null && r.vegas_total != null && r.total_went_over != null) {
       const lean = +(r.predicted_total - r.vegas_total).toFixed(1);
-      if (lean !== 0) {
+      if (Math.abs(lean) >= 0.5) {
         totalLeanCalls++;
-        if ((lean > 0 && r.total_went_over) || (lean < 0 && !r.total_went_over)) totalLeanHits++;
+        const leanOver = lean > 0;
+        const hit  = (leanOver && r.total_went_over === true) || (!leanOver && r.total_went_over === false);
+        const odds = leanOver ? r.over_price : r.under_price;
+        const prof = hit ? (americanToProfit(odds) ?? 0.909) : -1.0;  // default ~-110 equiv
+        totalLeanUnits += prof;
+        if (hit) totalLeanHits++;
       }
     }
   }
   const mlPct    = mlEdgeCalls    > 0 ? Math.round(mlEdgeHits    / mlEdgeCalls    * 100) : null;
   const totalPct = totalLeanCalls > 0 ? Math.round(totalLeanHits / totalLeanCalls * 100) : null;
+  const mlUnitsCls    = mlEdgeUnits    >= 0 ? 'units-pos' : 'units-neg';
+  const totalUnitsCls = totalLeanUnits >= 0 ? 'units-pos' : 'units-neg';
   const gameLogSummaryHTML = `
 <div class="game-log-summary">
-  <span class="log-stat">ML Value Calls (|edge|≥10%): <strong>${mlEdgeCalls > 0 ? `${mlEdgeHits}/${mlEdgeCalls} (${mlPct}%)` : '—'}</strong></span>
-  <span class="log-stat">Total Lean: <strong>${totalLeanCalls > 0 ? `${totalLeanHits}/${totalLeanCalls} (${totalPct}%)` : '—'}</strong></span>
+  <span class="log-stat">ML Value Calls (|edge|≥10%): <strong>${mlEdgeCalls > 0 ? `${mlEdgeHits}/${mlEdgeCalls} (${mlPct}%)` : '—'}</strong>${mlEdgeCalls > 0 ? ` <span class="log-units ${mlUnitsCls}">${fmtUnits(mlEdgeUnits)}</span>` : ''}</span>
+  <span class="log-stat">Total Lean (≥0.5 run): <strong>${totalLeanCalls > 0 ? `${totalLeanHits}/${totalLeanCalls} (${totalPct}%)` : '—'}</strong>${totalLeanCalls > 0 ? ` <span class="log-units ${totalUnitsCls}">${fmtUnits(totalLeanUnits)}</span>` : ''}</span>
 </div>`;
 
   view.innerHTML = `
@@ -891,26 +915,37 @@ function renderRecordView() {
     const dc = games.filter(r => r.predicted_winner === r.actual_winner).length;
     const dLabel = formatDateLabel(d);
 
-    // Per-day model audit
-    let mlW = 0, mlL = 0, totW = 0, totL = 0;
+    // Per-day model audit (1-unit flat bet on each qualifying call)
+    let mlW = 0, mlL = 0, mlUnits = 0;
+    let totW = 0, totL = 0, totUnits = 0;
     for (const r of games) {
       if (r.model_edge_ml != null && Math.abs(r.model_edge_ml) >= 0.10) {
-        const won = r.model_edge_ml >= 0 ? r.actual_winner === 'home' : r.actual_winner === 'away';
+        const edgeIsHome = r.model_edge_ml >= 0;
+        const won  = edgeIsHome ? r.actual_winner === 'home' : r.actual_winner === 'away';
+        const odds = edgeIsHome ? r.home_ml : r.away_ml;
+        const prof = won ? (americanToProfit(odds) ?? 1.0) : -1.0;
+        mlUnits += prof;
         if (won) mlW++; else mlL++;
       }
       if (r.predicted_total != null && r.vegas_total != null && r.total_went_over != null) {
         const lean = +(r.predicted_total - r.vegas_total).toFixed(1);
         if (Math.abs(lean) >= 0.5) {
-          const hit = (lean > 0 && r.total_went_over === true) || (lean < 0 && r.total_went_over === false);
+          const leanOver = lean > 0;
+          const hit  = (leanOver && r.total_went_over === true) || (!leanOver && r.total_went_over === false);
+          const odds = leanOver ? r.over_price : r.under_price;
+          const prof = hit ? (americanToProfit(odds) ?? 0.909) : -1.0;
+          totUnits += prof;
           if (hit) totW++; else totL++;
         }
       }
     }
+    const mlCls  = mlUnits  >= 0 ? 'audit-pos' : 'audit-neg';
+    const totCls = totUnits >= 0 ? 'audit-pos' : 'audit-neg';
     const mlAuditHTML = (mlW + mlL > 0)
-      ? `<span class="day-audit-stat ${mlW > mlL ? 'audit-pos' : mlL > mlW ? 'audit-neg' : 'audit-even'}">ML Edge ${mlW}–${mlL}</span>`
+      ? `<span class="day-audit-stat ${mlCls}">ML Edge ${mlW}–${mlL} <span class="audit-units">${fmtUnits(mlUnits)}</span></span>`
       : '';
     const totAuditHTML = (totW + totL > 0)
-      ? `<span class="day-audit-stat ${totW > totL ? 'audit-pos' : totL > totW ? 'audit-neg' : 'audit-even'}">Total ${totW}–${totL}</span>`
+      ? `<span class="day-audit-stat ${totCls}">Total ${totW}–${totL} <span class="audit-units">${fmtUnits(totUnits)}</span></span>`
       : '';
     const auditRowHTML = (mlW + mlL + totW + totL > 0)
       ? `<div class="day-audit-row"><span class="day-audit-label">Audit</span>${mlAuditHTML}${totAuditHTML}</div>`
