@@ -7,6 +7,7 @@ import math
 from typing import Optional
 
 from pipeline.comps import build_game_profile, find_similar_games
+from pipeline.narrative import generate_narrative
 from pipeline.park_factors import get_run_factor
 from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean, bullpen_score
 
@@ -689,14 +690,36 @@ def build_game(
             pred_home = round(max(1.0, min(12.0, pred_home + half)), 1)
             pred_away = round(max(1.0, min(12.0, pred_away + half)), 1)
 
-    narrative = _generate_narrative(
-        home_team, away_team,
-        home_sp_name, away_sp_name,
-        home_sp, away_sp,
-        home_pitcher_score, away_pitcher_score,
-        home_xwoba, away_xwoba,
-        park_run_factor, weather,
-    )
+    narrative = generate_narrative({
+        "home_team":      home_team,
+        "away_team":      away_team,
+        "venue":          venue,
+        "park_run_factor": park_run_factor,
+        "home_sp":        home_sp_out,
+        "away_sp":        away_sp_out,
+        "home_lineup":    home_lineup_out,
+        "away_lineup":    away_lineup_out,
+        "lineup_status":  lineup_status,
+        "odds":           odds_out,
+        "weather":        weather,
+        "home_record":    game.get("home_record"),
+        "away_record":    game.get("away_record"),
+        "prediction": {
+            "home_win_pct":    home_win_pct,
+            "predicted_total": round(pred_home + pred_away, 1),
+            "model_signals": {
+                "pitcher_score_home":   round(home_pitcher_score, 3),
+                "pitcher_score_away":   round(away_pitcher_score, 3),
+                "lineup_score_home":    round(home_lineup_score,  3),
+                "lineup_score_away":    round(away_lineup_score,  3),
+                "bullpen_xera_home":    home_bullpen.get("xera") if home_bullpen else None,
+                "bullpen_xera_away":    away_bullpen.get("xera") if away_bullpen else None,
+                "bp_ip_last_3_home":    round(home_bp_l3d, 1) if home_bp_l3d else None,
+                "bp_ip_last_3_away":    round(away_bp_l3d, 1) if away_bp_l3d else None,
+                "consensus_suppressed": consensus_suppressed,
+            },
+        },
+    })
 
     return {
         "gamePk":          gamePk,

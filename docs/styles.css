@@ -979,8 +979,14 @@ header {
 
 .narrative {
   font-size: 13px;
-  color: var(--text-muted);
   line-height: 1.6;
+  color: var(--text-muted);
+  margin: 8px 0 4px;
+  padding: 8px 12px;
+  background: rgba(99,102,241,.06);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 4px 4px 0;
+  font-style: italic;
 }
 
 /* ── Model vs Vegas comparison block ─────────────────────────── */
