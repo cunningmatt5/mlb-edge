@@ -890,11 +890,40 @@ function renderRecordView() {
   ${byDate.map(({ date: d, games }) => {
     const dc = games.filter(r => r.predicted_winner === r.actual_winner).length;
     const dLabel = formatDateLabel(d);
+
+    // Per-day model audit
+    let mlW = 0, mlL = 0, totW = 0, totL = 0;
+    for (const r of games) {
+      if (r.model_edge_ml != null && Math.abs(r.model_edge_ml) >= 0.10) {
+        const won = r.model_edge_ml >= 0 ? r.actual_winner === 'home' : r.actual_winner === 'away';
+        if (won) mlW++; else mlL++;
+      }
+      if (r.predicted_total != null && r.vegas_total != null && r.total_went_over != null) {
+        const lean = +(r.predicted_total - r.vegas_total).toFixed(1);
+        if (Math.abs(lean) >= 0.5) {
+          const hit = (lean > 0 && r.total_went_over === true) || (lean < 0 && r.total_went_over === false);
+          if (hit) totW++; else totL++;
+        }
+      }
+    }
+    const mlAuditHTML = (mlW + mlL > 0)
+      ? `<span class="day-audit-stat ${mlW > mlL ? 'audit-pos' : mlL > mlW ? 'audit-neg' : 'audit-even'}">ML Edge ${mlW}–${mlL}</span>`
+      : '';
+    const totAuditHTML = (totW + totL > 0)
+      ? `<span class="day-audit-stat ${totW > totL ? 'audit-pos' : totL > totW ? 'audit-neg' : 'audit-even'}">Total ${totW}–${totL}</span>`
+      : '';
+    const auditRowHTML = (mlW + mlL + totW + totL > 0)
+      ? `<div class="day-audit-row"><span class="day-audit-label">Audit</span>${mlAuditHTML}${totAuditHTML}</div>`
+      : '';
+
     return `
   <div class="day-group">
     <div class="day-header">
-      <span class="day-label">${dLabel}</span>
-      <span class="day-record ${dc / games.length >= 0.5 ? 'day-win' : 'day-loss'}">${dc}–${games.length - dc}</span>
+      <div class="day-header-main">
+        <span class="day-label">${dLabel}</span>
+        <span class="day-record ${dc / games.length >= 0.5 ? 'day-win' : 'day-loss'}">Picks ${dc}–${games.length - dc}</span>
+      </div>
+      ${auditRowHTML}
     </div>
     <div class="history-table-wrap">
       <table class="history-table">
