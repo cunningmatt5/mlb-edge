@@ -2208,3 +2208,158 @@ header {
   color: #fb923c;
   font-style: italic;
 }
+
+/* ── Elite Away Signal section ────────────────────────────────────────────── */
+.ea-section {
+  margin: 0 0 20px;
+  border: 1.5px solid rgba(99,102,241,.45);
+  border-radius: 10px;
+  background: rgba(79,70,229,.06);
+  overflow: hidden;
+}
+
+.ea-section-hdr {
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid rgba(99,102,241,.2);
+  background: rgba(79,70,229,.08);
+}
+
+.ea-section-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 3px;
+}
+
+.ea-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #a5b4fc;
+}
+
+.ea-section-count {
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(99,102,241,.25);
+  color: #c7d2fe;
+  padding: 1px 8px;
+  border-radius: 10px;
+}
+
+.ea-section-sub {
+  font-size: 11px;
+  color: rgba(165,180,252,.6);
+}
+
+.ea-cards {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ea-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(79,70,229,.08);
+  border: 1px solid rgba(99,102,241,.2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  gap: 12px;
+}
+
+.ea-card:hover {
+  background: rgba(79,70,229,.15);
+  border-color: rgba(99,102,241,.45);
+}
+
+.ea-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.ea-matchup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+
+.ea-away-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #a5b4fc;
+}
+
+.ea-at {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.ea-home-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.ea-sp-line {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ea-right {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.ea-bet-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-bottom: 4px;
+}
+
+.ea-bet-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #818cf8;
+  background: rgba(99,102,241,.18);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.ea-ml {
+  font-size: 18px;
+  font-weight: 700;
+  color: #c7d2fe;
+  line-height: 1;
+}
+
+.ea-win-pct {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ea-edge-pill {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6ee7b7;
+  text-align: right;
+}
+
+@media (max-width: 480px) {
+  .ea-card { flex-direction: column; align-items: flex-start; }
+  .ea-right { text-align: left; width: 100%; }
+  .ea-bet-row { justify-content: flex-start; }
+}

@@ -168,6 +168,66 @@ function timeAgo(ts) {
   return `${min} min ago`;
 }
 
+// ── Elite Away Signal section ─────────────────────────────────────────────────
+function renderEliteAwaySection(games) {
+  const eliteGames = games.filter(g => g.prediction?.pick_tier === 'elite_away');
+  if (!eliteGames.length) return '';
+
+  const cards = eliteGames.map(g => {
+    const pred = g.prediction || {};
+    const odds = g.odds   || {};
+    const asp  = g.away_sp || {};
+    const hsp  = g.home_sp || {};
+
+    const awayPct  = Math.round((1 - (pred.home_win_pct ?? 0.5)) * 100);
+    const edgePct  = pred.model_edge_ml != null
+      ? (+(-pred.model_edge_ml * 100).toFixed(1))
+      : null;
+    const awayMl   = odds.away_ml != null
+      ? (odds.away_ml > 0 ? `+${odds.away_ml}` : String(odds.away_ml))
+      : null;
+    const aspName  = asp.name || abbrev(g.away_team);
+    const hspName  = hsp.name || abbrev(g.home_team);
+    const aspXera  = asp.xera != null ? asp.xera.toFixed(2) : null;
+    const hspXera  = hsp.xera != null ? hsp.xera.toFixed(2) : null;
+    const spLine   = (aspXera && hspXera)
+      ? `${aspName} xERA ${aspXera} vs ${hspName} xERA ${hspXera}`
+      : `${aspName} vs ${hspName}`;
+
+    return `
+<div class="ea-card" onclick="toggleCard(${g.gamePk})">
+  <div class="ea-left">
+    <div class="ea-matchup">
+      <span class="ea-away-name">${abbrev(g.away_team)}</span>
+      <span class="ea-at">@</span>
+      <span class="ea-home-name">${abbrev(g.home_team)}</span>
+    </div>
+    <div class="ea-sp-line">${spLine}</div>
+  </div>
+  <div class="ea-right">
+    <div class="ea-bet-row">
+      <span class="ea-bet-label">BET AWAY</span>
+      ${awayMl ? `<span class="ea-ml">${awayMl}</span>` : ''}
+      <span class="ea-win-pct">${awayPct}% win</span>
+    </div>
+    ${edgePct != null ? `<div class="ea-edge-pill">Model +${edgePct}% vs Vegas</div>` : ''}
+  </div>
+</div>`;
+  }).join('');
+
+  return `
+<div class="ea-section">
+  <div class="ea-section-hdr">
+    <div class="ea-section-title-wrap">
+      <span class="ea-section-title">Elite Away Signal</span>
+      <span class="ea-section-count">${eliteGames.length} game${eliteGames.length > 1 ? 's' : ''} today</span>
+    </div>
+    <div class="ea-section-sub">Away edge ≥10% + SP advantage · +23% ROI backtested (480 bets, 2021–2025)</div>
+  </div>
+  <div class="ea-cards">${cards}</div>
+</div>`;
+}
+
 // ── Games view ────────────────────────────────────────────────────────────────
 function renderGamesView() {
   const view = document.getElementById('games-view');
@@ -176,12 +236,15 @@ function renderGamesView() {
     return;
   }
 
-  const label = formatDateLabel(gamesData.date);
+  const label    = formatDateLabel(gamesData.date);
+  const eliteHtml = renderEliteAwaySection(gamesData.games);
+
   view.innerHTML = `
     <div class="view-header">
       <h1>Today's Games</h1>
       <span class="sub-label">${label} &nbsp;·&nbsp; ${gamesData.game_count} games</span>
     </div>
+    ${eliteHtml}
     <div class="game-list" id="game-list">
       ${gamesData.games.map(g => gameCardHTML(g)).join('')}
     </div>
