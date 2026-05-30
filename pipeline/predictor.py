@@ -158,17 +158,16 @@ def _win_probability(
 
     if vegas_home_prob is not None:
         # Vegas-anchored: start from market's best estimate, add small corrections.
-        # Direction-agreement asymmetry: backtesting shows +14% ROI when model
-        # contradicts Vegas (away lean) vs -4% when both agree on home favorites.
-        # Reduce edge_mult when model and Vegas both lean home — agreement with a
-        # well-priced favorite is noise; keep full weight only when disagreeing.
+        # Logistic regression on 10,369 backtest games found symmetric ~1.0-1.4x is
+        # optimal; prior asymmetric (0.25/0.5/1.0) dampening hurt calibration by 17 mBrier.
+        # Practical impact is small (pitcher_diff signals are tiny vs park/weather noise).
         logit_base = _logit(vegas_home_prob)
         if raw_edge > 0 and vegas_home_prob > 0.54:
-            edge_mult = 0.25  # consensus home — dampened (both model and Vegas agree)
+            edge_mult = 1.00  # consensus home
         elif raw_edge < 0:
-            edge_mult = 1.0   # away edge — full weight (model disagrees with Vegas)
+            edge_mult = 1.20  # away edge (data: slightly stronger pitcher signal here)
         else:
-            edge_mult = 0.5   # home edge without strong consensus
+            edge_mult = 1.00  # home edge without strong consensus
     else:
         logit_base  = _logit(HOME_ADVANTAGE)
         edge_mult   = _RAW_EDGE_MULT
