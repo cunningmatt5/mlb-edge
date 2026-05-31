@@ -4,7 +4,8 @@
 const GAMES_URL    = './games.json';
 const HISTORY_URL  = './history.json';
 const BACKTEST_URL = './backtest.json';
-const PICKS_URL    = './picks.json';
+const PICKS_URL      = './picks.json';
+const PROPS_HIST_URL = './props_history.json';
 
 // ── Team logo map (ESPN CDN abbreviations) ────────────────────────────────────
 const TEAM_LOGO = {
@@ -30,7 +31,8 @@ const TEAM_LOGO = {
 let gamesData    = null;
 let historyData  = [];
 let backtestData = null;
-let picksData    = null;
+let picksData      = null;
+let propsHistData  = null;
 let expandedPk   = null;
 let currentView  = 'games';
 let lastCheckedAt = null;
@@ -55,7 +57,7 @@ function setupNav() {
       document.getElementById('props-view').hidden    = currentView !== 'props';
       document.getElementById('record-view').hidden   = currentView !== 'record';
       document.getElementById('backtest-view').hidden = currentView !== 'backtest';
-      if (currentView === 'record')   loadBacktest().then(renderRecordView);
+      if (currentView === 'record')   Promise.all([loadBacktest(), loadPropsHistory()]).then(renderRecordView);
       if (currentView === 'backtest') loadBacktest().then(renderBacktestView);
       if (currentView === 'props')    loadPicks().then(renderPropsView);
     });
@@ -97,6 +99,15 @@ async function loadPicks() {
     if (r.ok) picksData = await r.json();
   } catch {
     picksData = null;
+  }
+}
+
+async function loadPropsHistory() {
+  try {
+    const r = await fetch(PROPS_HIST_URL + '?v=' + Date.now());
+    if (r.ok) propsHistData = await r.json();
+  } catch {
+    propsHistData = null;
   }
 }
 
@@ -887,6 +898,79 @@ function totalLeanCell(r) {
   return `<td class="hist-total"><span class="${dirCls}">${dir} +${gap}</span> ${icon}</td>`;
 }
 
+// ── Props performance ─────────────────────────────────────────────────────────
+function renderPropsPerformance() {
+  const records = propsHistData || [];
+  const resolved = records.filter(r => r.hit !== null && r.hit !== undefined);
+
+  const TYPE_LABELS = {
+    HR_PROP: 'Home Run', HIT_PROP: 'Anytime Hit',
+    TB_PROP: 'Total Bases 1.5+', K_PROP: 'Strikeouts 4.5+',
+  };
+
+  if (!resolved.length) {
+    const snap = records.length;
+    return `<div class="props-perf-section">
+      <h3 class="props-perf-title">Props Performance Tracker</h3>
+      <p class="props-perf-note">${snap ? `${snap} picks tracked — outcomes resolve after games finish. Check back tomorrow.` : 'No prop picks tracked yet. Data builds automatically each day.'}</p>
+    </div>`;
+  }
+
+  // Aggregate by type
+  const byType = {};
+  for (const r of resolved) {
+    const bt = r.bet_type;
+    if (!byType[bt]) byType[bt] = { n: 0, hits: 0 };
+    byType[bt].n++;
+    if (r.hit) byType[bt].hits++;
+  }
+
+  // Aggregate by signal band
+  const bands = [['5.0–5.9', 5.0, 6.0], ['6.0–6.4', 6.0, 6.5], ['6.5+', 6.5, 99]];
+  const bySignal = bands.map(([label, lo, hi]) => {
+    const sub = resolved.filter(r => (r.signal || 0) >= lo && (r.signal || 0) < hi);
+    if (!sub.length) return null;
+    const hits = sub.filter(r => r.hit).length;
+    return { label, n: sub.length, hits, hit_rate: Math.round(hits / sub.length * 1000) / 10 };
+  }).filter(Boolean);
+
+  const totalHits = resolved.filter(r => r.hit).length;
+  const totalHR   = Math.round(totalHits / resolved.length * 1000) / 10;
+
+  // Color hit rate: green ≥54%, yellow 50-53%, red <50%
+  const hrClass = hr => hr >= 54 ? 'hr-good' : hr >= 50 ? 'hr-ok' : 'hr-bad';
+
+  const typeRows = Object.entries(byType).map(([bt, d]) => {
+    const hr = Math.round(d.hits / d.n * 1000) / 10;
+    return `<tr>
+      <td>${TYPE_LABELS[bt] || bt}</td>
+      <td>${d.n}</td>
+      <td class="${hrClass(hr)}">${hr}%</td>
+    </tr>`;
+  }).join('');
+
+  const sigRows = bySignal.map(r => `<tr>
+    <td>Signal ${r.label}</td>
+    <td>${r.n}</td>
+    <td class="${hrClass(r.hit_rate)}">${r.hit_rate}%</td>
+  </tr>`).join('');
+
+  return `<div class="props-perf-section">
+    <h3 class="props-perf-title">Props Performance Tracker <span class="props-perf-total">${resolved.length} resolved · ${totalHR}% hit rate</span></h3>
+    <p class="props-perf-note">Break-even for standard -115 over props is ~53.5%. Green = edge, yellow = marginal, red = below market.</p>
+    <div class="props-perf-tables">
+      <table class="props-perf-table">
+        <thead><tr><th>Prop Type</th><th>N</th><th>Hit Rate</th></tr></thead>
+        <tbody>${typeRows}</tbody>
+      </table>
+      <table class="props-perf-table">
+        <thead><tr><th>Signal Strength</th><th>N</th><th>Hit Rate</th></tr></thead>
+        <tbody>${sigRows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
 // ── Record view ───────────────────────────────────────────────────────────────
 function renderRecordView() {
   const view = document.getElementById('record-view');
@@ -976,6 +1060,8 @@ function renderRecordView() {
     </div>
   </div>
 </div>
+
+${renderPropsPerformance()}
 
 <div class="history-section">
   <div class="section-heading">Game Log</div>

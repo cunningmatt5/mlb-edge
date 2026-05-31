@@ -1648,6 +1648,65 @@ header {
   color: var(--text-dim);
   margin-bottom: 10px;
 }
+/* Props Performance Tracker */
+.props-perf-section {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: 24px;
+}
+.props-perf-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.props-perf-total {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.props-perf-note {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 0 0 14px;
+}
+.props-perf-tables {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.props-perf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.props-perf-table thead th {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 4px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.props-perf-table tbody td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.props-perf-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.hr-good { color: #4caf50; font-weight: 700; }
+.hr-ok   { color: #f0a500; font-weight: 700; }
+.hr-bad  { color: #e05252; font-weight: 700; }
+
 .section-subheading {
   font-size: 11px;
   font-weight: 700;
@@ -1750,6 +1809,9 @@ header {
 
   /* Game log: stack summary pills on narrow screens */
   .game-log-summary { flex-direction: column; }
+
+  /* Props perf: stack tables on narrow screens */
+  .props-perf-tables { grid-template-columns: 1fr; }
 }
 
 /* ── Props Tab ─────────────────────────────────────────────────────────────── */
