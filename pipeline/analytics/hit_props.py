@@ -9,6 +9,9 @@ from __future__ import annotations
 
 from pipeline.scorer import normalize, weighted_avg, batter_edge_score
 
+# PA per game by lineup slot (index 0 = leadoff). Slots 4–6 ≈ baseline 1.0.
+_PA_MULT = [1.10, 1.05, 1.02, 1.00, 0.98, 0.97, 0.96, 0.93, 0.88]
+
 
 def score_hit_props(game: dict, cache: dict) -> list[dict]:
     picks = []
@@ -24,7 +27,7 @@ def score_hit_props(game: dict, cache: dict) -> list[dict]:
         # Pitcher xBA-against: higher value = more hitter-friendly
         sp_xba_s = normalize(opp_sp.get("xba_against"), lo=0.190, hi=0.330)
 
-        for batter_id in game.get(f"{bat_side}_lineup", []):
+        for order, batter_id in enumerate(game.get(f"{bat_side}_lineup", []), 1):
             b = cache.get(batter_id)
             if not b:
                 continue
@@ -45,8 +48,11 @@ def score_hit_props(game: dict, cache: dict) -> list[dict]:
                 (bb_s,      0.15),
             ])
 
-            combined = (batter_comp ** 0.60) * (sp_xba_s ** 0.40)
-            signal = max(0.0, min(10.0, round(combined * 10, 1)))
+            combined    = (batter_comp ** 0.60) * (sp_xba_s ** 0.40)
+            base_signal = max(0.0, min(10.0, round(combined * 10, 1)))
+
+            pa_mult = _PA_MULT[order - 1] if order <= 9 else 1.0
+            signal  = max(0.0, min(10.0, round(base_signal * pa_mult, 1)))
 
             if signal >= 5.0:
                 batter_name = b.get("name", f"Batter {batter_id}")
@@ -72,6 +78,8 @@ def score_hit_props(game: dict, cache: dict) -> list[dict]:
                         "sp_matchup_score": round(sp_xba_s, 3),
                         "edge_score":      batter_edge_score(b, sp_throws),
                         "recent_h_games":  b.get("recent_h_games"),
+                        "batting_order":   order,
+                        "pa_multiplier":   pa_mult,
                     },
                 })
 

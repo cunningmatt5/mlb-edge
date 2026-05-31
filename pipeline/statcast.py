@@ -569,6 +569,10 @@ def _merge_batter_split(entry: dict, df: pd.DataFrame, mlbam_id: int, split: str
     if xba is not None:
         entry[f"xba{suffix}"] = round(xba, 4)
 
+    xslg = g("est_slg") or g("xslg") or g("expected_slg")
+    if xslg is not None:
+        entry[f"xslg{suffix}"] = round(xslg, 4)
+
     k_pct = g("k_percent")
     if k_pct is not None:
         entry[f"k_pct{suffix}"] = round(k_pct / 100.0, 4)
