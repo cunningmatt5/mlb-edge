@@ -2150,7 +2150,7 @@ function renderPickGameCard(g) {
   // Group picks by type, applying current filter
   const typeOrder = ['K_PROP','HR_PROP','HIT_PROP','TB_PROP','TOTAL','TEAM_TOTAL','MONEYLINE','ML_F5'];
   const grouped = {};
-  for (const p of g.picks.filter(filterPick)) {
+  for (const p of (g.picks || []).filter(filterPick)) {
     (grouped[p.bet_type] = grouped[p.bet_type] || []).push(p);
   }
   if (!Object.keys(grouped).length) return '';

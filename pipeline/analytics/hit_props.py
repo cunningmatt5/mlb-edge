@@ -46,7 +46,7 @@ def score_hit_props(game: dict, cache: dict) -> list[dict]:
             ])
 
             combined = (batter_comp ** 0.60) * (sp_xba_s ** 0.40)
-            signal = round(combined * 10, 1)
+            signal = max(0.0, min(10.0, round(combined * 10, 1)))
 
             if signal >= 5.0:
                 batter_name = b.get("name", f"Batter {batter_id}")

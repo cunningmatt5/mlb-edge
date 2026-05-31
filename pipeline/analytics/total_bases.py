@@ -43,7 +43,7 @@ def score_total_bases_props(game: dict, cache: dict) -> list[dict]:
             ])
 
             combined = (batter_comp ** 0.55) * (context_comp ** 0.45)
-            signal = round(combined * 10, 1)
+            signal = max(0.0, min(10.0, round(combined * 10, 1)))
 
             if signal >= 5.0:
                 batter_name = b.get("name", f"Batter {batter_id}")
@@ -57,7 +57,7 @@ def score_total_bases_props(game: dict, cache: dict) -> list[dict]:
                     "reasons": _build_reasons(b, opp_sp, venue),
                     "raw_scores": {
                         "xslg": b.get("xslg"),
-                        "actual_slg": b.get("xslg"),
+                        "actual_slg": b.get("slg"),
                         "barrel_pct": _pct(b.get("barrel_pct")),
                         "sp_xslg_against": opp_sp.get("xslg_against"),
                         "park_run_factor": get_run_factor(venue),

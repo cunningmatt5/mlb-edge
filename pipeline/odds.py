@@ -239,7 +239,7 @@ def match_game_line(pick: dict, game: dict, game_lines: dict) -> Optional[dict]:
     """
     home = game.get("homeTeam", "")
     away = game.get("awayTeam", "")
-    key = f"{_norm(away)}@{_norm(home)}"
+    key = f"{_norm_team(away)}@{_norm_team(home)}"
     event = game_lines.get(key)
     if not event:
         return None

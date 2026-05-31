@@ -735,7 +735,7 @@ def _reliever_ip_from_boxscore(game_pk: int, team_id: int) -> float:
                 ip = float(ip_str)
                 whole = int(ip)
                 frac  = round(ip - whole, 1)
-                ip_dec = whole + (frac / 0.3 * (1.0 / 3.0)) if frac > 0 else float(whole)
+                ip_dec = whole + (frac / 0.3) if frac > 0 else float(whole)
                 rp_ip += ip_dec
             except (ValueError, TypeError):
                 pass
@@ -817,7 +817,7 @@ def _ip_to_decimal(ip_str: str) -> float | None:
         ip = float(ip_str)
         whole = int(ip)
         frac  = round(ip - whole, 1)
-        return whole + (frac / 0.3 * (1 / 3)) if frac > 0 else float(whole)
+        return whole + (frac / 0.3) if frac > 0 else float(whole)
     except (ValueError, TypeError):
         return None
 
