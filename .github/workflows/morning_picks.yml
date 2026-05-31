@@ -26,10 +26,11 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Skip if games.json is fresh (< 12 min old)
+      - name: Skip if games.json is fresh (< 12 min old) and for today
         id: check
         run: |
           NOW=$(date -u +%s)
+          TODAY=$(date -u +%Y-%m-%d)
           GENERATED=$(python3 -c "
           import json, sys
           from datetime import datetime, timezone
@@ -40,14 +41,25 @@ jobs:
           except Exception:
               print(0)
           " 2>/dev/null)
+          FILE_DATE=$(python3 -c "
+          import json
+          try:
+              d = json.load(open('docs/games.json'))
+              print(d.get('date', ''))
+          except Exception:
+              print('')
+          " 2>/dev/null)
           AGE=$((NOW - GENERATED))
-          echo "Games data age: ${AGE}s"
+          echo "Games data age: ${AGE}s, file date: ${FILE_DATE}, today: ${TODAY}"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "stale=true" >> $GITHUB_OUTPUT
             echo "Manual trigger — bypassing freshness check, regenerating."
+          elif [ "$FILE_DATE" != "$TODAY" ]; then
+            echo "stale=true" >> $GITHUB_OUTPUT
+            echo "games.json date is ${FILE_DATE}, not today (${TODAY}) — regenerating."
           elif [ "$AGE" -lt 720 ]; then
             echo "stale=false" >> $GITHUB_OUTPUT
-            echo "games.json is ${AGE}s old — still fresh, skipping."
+            echo "games.json is ${AGE}s old and for today — still fresh, skipping."
           else
             echo "stale=true" >> $GITHUB_OUTPUT
             echo "games.json is ${AGE}s old — regenerating."
