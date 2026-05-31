@@ -250,5 +250,14 @@ if __name__ == "__main__":
         hist = load_history()
         hist = resolve_yesterday(hist)
         save_history(hist)
+
+        # Also resolve prop picks
+        try:
+            from pipeline.props_history import load_props_history, resolve_props, save_props_history
+            props = load_props_history()
+            props = resolve_props(props)
+            save_props_history(props)
+        except Exception as exc:
+            log.warning("Props resolution failed (non-fatal): %s", exc)
     else:
         parser.print_help()

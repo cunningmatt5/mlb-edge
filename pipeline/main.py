@@ -225,6 +225,8 @@ def main(dry_run: bool = False) -> None:
 
                 if all_picks:
                     pick_games.append({
+                        "gamePk":    game.get("gamePk"),
+                        "date":      today.isoformat(),
                         "game_time": game.get("gameTime", ""),
                         "away_team": game.get("awayTeam", ""),
                         "home_team": game.get("homeTeam", ""),
@@ -240,6 +242,13 @@ def main(dry_run: bool = False) -> None:
             picks_path.write_text(json.dumps(picks_output, separators=(",", ":")), encoding="utf-8")
             log.info("Props: %d game cards, %d picks → picks.json",
                      len(pick_games), sum(len(g["picks"]) for g in pick_games))
+
+            # Snapshot today's resolvable props into props_history.json
+            try:
+                from pipeline.props_history import snapshot_picks
+                snapshot_picks(today.isoformat())
+            except Exception as exc_ph:
+                log.warning("Props history snapshot failed (non-fatal): %s", exc_ph)
         except Exception as exc:
             log.warning("Props analytics failed (non-fatal): %s", exc, exc_info=True)
 
