@@ -2392,6 +2392,32 @@ header {
   border: 1px solid rgba(99,102,241,.3);
 }
 
+/* ── Best Bets callout (Today's Best Bets on Games tab) ─────────────────── */
+.bb-section { margin-bottom: 24px; }
+.bb-section-hdr { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.bb-section-title { font-size: 1.05rem; font-weight: 700; color: var(--text-primary); }
+.bb-subsection { margin-bottom: 16px; }
+.bb-subsection-sep { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.bb-sub-hdr { margin-bottom: 10px; }
+.bb-sub-title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.bb-sub-title { font-size: 0.875rem; font-weight: 700; color: var(--text-primary); }
+.bb-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.05em;
+}
+.bb-badge-elite { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; }
+.bb-badge-conf  { background: rgba(16,185,129,.18); color: #34d399; border: 1px solid rgba(16,185,129,.3); }
+.bb-sub-desc { font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; }
+.bb-conf-card { border-left-color: #10b981 !important; }
+
+/* ── Game card left-border accent by pick tier ───────────────────────────── */
+.game-card[data-pick-tier="elite_away"]  { border-left: 3px solid #7c3aed; }
+.game-card[data-pick-tier="strong_away"] { border-left: 3px solid rgba(99,102,241,.5); }
+.game-card[data-pick-tier="strong_home"] { border-left: 3px solid rgba(251,146,60,.5); }
+
 /* Combo signal decay section */
 .combo-section {
   margin: 20px 0 8px;
