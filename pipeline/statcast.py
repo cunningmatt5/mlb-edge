@@ -165,7 +165,7 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
             _blend_batter_rolling(cache[mlbam_id])
 
     # --- Team bullpen aggregates (stored under "bullpen:{full_team_name}" keys) ---
-    bullpen_by_team = _build_team_bullpen_cache(season)
+    bullpen_by_team = _build_team_bullpen_cache(season, set(sp_ids))
     for full_name, bp_stats in bullpen_by_team.items():
         cache[f"bullpen:{full_name}"] = bp_stats
 
@@ -321,13 +321,41 @@ def _fetch_savant_batter_splits(season: int, split: str) -> pd.DataFrame:
     return _fetch_savant_csv(url, f"batter-{split}")
 
 
-def _fetch_savant_rp_leaderboard(season: int) -> pd.DataFrame:
-    """Savant statcast RP leaderboard: same columns as SP leaderboard but position=RP."""
-    url = (
-        f"{SAVANT_BASE}/leaderboard/statcast"
-        f"?type=pitcher&year={season}&position=RP&team=&min=5&csv=true"
-    )
-    return _fetch_savant_csv(url, "rp-leaderboard")
+def _fetch_all_active_rosters(season: int) -> dict[str, list[int]]:
+    """Return {full_team_name: [pitcher_mlbam_id, ...]} via one bulk MLB Stats API call.
+
+    Uses /teams?hydrate=roster(type=active) to get all 30 teams in a single request.
+    Filters to position.code == '1' (pitchers only).
+    """
+    try:
+        resp = requests.get(
+            f"{MLB_STATS_BASE}/teams",
+            params={"sportId": 1, "season": season, "hydrate": "roster(type=active)"},
+            headers=_HEADERS,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        log.warning("Active roster bulk fetch failed: %s", exc)
+        return {}
+
+    result: dict[str, list[int]] = {}
+    for team in data.get("teams", []):
+        full_name = team.get("name", "")
+        if not full_name:
+            continue
+        pitcher_ids = [
+            entry["person"]["id"]
+            for entry in team.get("roster", [])
+            if entry.get("position", {}).get("code") == "1" and entry.get("person", {}).get("id")
+        ]
+        if pitcher_ids:
+            result[full_name] = pitcher_ids
+
+    log.info("Active rosters: %d teams, %d total pitchers fetched",
+             len(result), sum(len(v) for v in result.values()))
+    return result
 
 
 def _fetch_savant_pitcher_leaderboard(season: int) -> pd.DataFrame:
@@ -596,23 +624,31 @@ def _merge_batter_split(entry: dict, df: pd.DataFrame, mlbam_id: int, split: str
 # Team bullpen aggregation
 # ---------------------------------------------------------------------------
 
-def _build_team_bullpen_cache(season: int) -> dict[str, dict]:
-    """Fetch RP leaderboard and return IP-weighted xERA/K%/BB%/whiff% keyed by full team name.
+def _build_team_bullpen_cache(season: int, sp_ids: set[int] | None = None) -> dict[str, dict]:
+    """Build IP-weighted bullpen xERA/K%/BB%/whiff% per team using roster-based pitcher mapping.
 
-    Relievers are identified via position=RP on the Savant endpoint (min 5 IP).
-    Each team's bullpen is aggregated by weighting each pitcher's metrics by their IP.
-    Cache keys use full team names so callers don't need a separate lookup.
+    The old approach (position=RP on Savant leaderboard) returned batted-ball data with no
+    team column and no xERA. This version uses:
+      1. The same working pitcher leaderboard (min=5 to include low-inning relievers)
+      2. MLB Stats API bulk active roster to map team → pitcher IDs
+      3. sp_ids exclusion so today's starters aren't counted as bullpen arms
     """
-    df = _fetch_savant_rp_leaderboard(season)
+    if sp_ids is None:
+        sp_ids = set()
+
+    # Fetch pitcher leaderboard with lower min to capture relievers (min=5 IP)
+    url = (
+        f"{SAVANT_BASE}/leaderboard/statcast"
+        f"?type=pitcher&year={season}&position=&team=&min=5&csv=true"
+    )
+    df = _fetch_savant_csv(url, "pitcher-leaderboard-bp")
     if df.empty:
+        log.warning("Bullpen: pitcher leaderboard returned empty — skipping")
         return {}
 
-    team_col = next(
-        (c for c in ("team_name_alt", "team", "team_abbrev", "player_team") if c in df.columns),
-        None,
-    )
-    if not team_col:
-        log.warning("RP leaderboard: no team column found among %s", list(df.columns))
+    id_col = _find_id_col(df)
+    if not id_col:
+        log.warning("Bullpen: no player ID column in pitcher leaderboard")
         return {}
 
     def _safe_float(v):
@@ -622,45 +658,69 @@ def _build_team_bullpen_cache(season: int) -> dict[str, dict]:
         except (TypeError, ValueError):
             return None
 
-    result: dict[str, dict] = {}
-    for abbrev_raw, grp in df.groupby(team_col):
-        abbrev = str(abbrev_raw).strip()
-        full_name = _ABBREV_TO_FULL.get(abbrev, abbrev)
+    # Build MLBAM-id → row lookup for fast per-pitcher access
+    leaderboard: dict[int, pd.Series] = {}
+    for _, row in df.iterrows():
+        try:
+            pid = int(row[id_col])
+            leaderboard[pid] = row
+        except (ValueError, TypeError):
+            pass
 
-        ips = pd.Series([_safe_float(v) or 0.0 for v in (grp["ip"] if "ip" in grp.columns else [1.0] * len(grp))])
-        total_ip = ips.sum()
+    rosters = _fetch_all_active_rosters(season)
+    if not rosters:
+        log.warning("Bullpen: roster fetch empty — skipping bullpen cache")
+        return {}
+
+    result: dict[str, dict] = {}
+    for full_name, pitcher_ids in rosters.items():
+        # Exclude today's starting pitchers and pitchers with no leaderboard data
+        rp_rows = [
+            (pid, leaderboard[pid])
+            for pid in pitcher_ids
+            if pid not in sp_ids and pid in leaderboard
+        ]
+        if not rp_rows:
+            continue
+
+        total_ip = 0.0
+        w_sum = {"xera": 0.0, "k_percent": 0.0, "bb_percent": 0.0, "whiff_percent": 0.0}
+        ip_sum = {"xera": 0.0, "k_percent": 0.0, "bb_percent": 0.0, "whiff_percent": 0.0}
+
+        for _, row in rp_rows:
+            ip_raw = (
+                _safe_float(row.get("p_formatted_ip"))
+                or _safe_float(row.get("ip"))
+                or _safe_float(row.get("innings_pitched"))
+                or 1.0
+            )
+            ip = max(ip_raw, 0.01)
+            total_ip += ip
+            for col in ("xera", "k_percent", "bb_percent", "whiff_percent"):
+                v = _safe_float(row.get(col))
+                if v is not None:
+                    w_sum[col]  += v * ip
+                    ip_sum[col] += ip
+
         if total_ip <= 0:
             continue
 
         def _wavg(col: str, divisor: float = 1.0):
-            if col not in grp.columns:
-                return None
-            vals = pd.Series([_safe_float(v) for v in grp[col]])
-            mask = vals.notna()
-            if not mask.any():
-                return None
-            w = ips[mask]
-            v = vals[mask]
-            tot_w = w.sum()
-            return float((v * w).sum() / tot_w) / divisor if tot_w > 0 else None
-
-        xera     = _wavg("xera")
-        k_pct    = _wavg("k_percent",     divisor=100.0)
-        bb_pct   = _wavg("bb_percent",    divisor=100.0)
-        whiff    = _wavg("whiff_percent", divisor=100.0)
+            w = ip_sum[col]
+            return round(w_sum[col] / w / divisor, 4) if w > 0 else None
 
         result[full_name] = {
-            "xera":      round(xera, 4)  if xera  is not None else None,
-            "k_pct":     round(k_pct, 4) if k_pct is not None else None,
-            "bb_pct":    round(bb_pct,4) if bb_pct is not None else None,
-            "whiff_pct": round(whiff, 4) if whiff  is not None else None,
-            "ip":        round(total_ip, 1),
-            "n_pitchers": int(len(grp)),
+            "xera":       _wavg("xera"),
+            "k_pct":      _wavg("k_percent",     divisor=100.0),
+            "bb_pct":     _wavg("bb_percent",     divisor=100.0),
+            "whiff_pct":  _wavg("whiff_percent",  divisor=100.0),
+            "ip":         round(total_ip, 1),
+            "n_pitchers": len(rp_rows),
         }
 
     log.info("Bullpen cache: %d teams (IP-weighted xERA/K%%/BB%%)", len(result))
 
-    # Enrich each team's entry with last-3-game-days reliever IP
+    # Enrich with last-3-game-days reliever IP (fatigue signal)
     today = date.today()
     l3d_results = _build_bullpen_last3_ip_map(today)
     for full_name in list(result.keys()):
