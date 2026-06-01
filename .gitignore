@@ -11,4 +11,5 @@ build/
 
 # Historical data — large Parquet files; calibration.json and game_comps.json are committed
 data/seasons/
+!data/seasons/*/closing_lines.parquet
 data/backtest_results.parquet
