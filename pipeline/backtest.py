@@ -27,7 +27,7 @@ log = logging.getLogger(__name__)
 
 MLB_API = "https://statsapi.mlb.com/api/v1"
 TIMEOUT = 30
-SEASONS = [2026]
+SEASONS = [2021, 2022, 2023, 2024, 2025, 2026]
 
 DOCS_DIR     = Path(__file__).parent.parent / "docs"
 SEASONS_DIR  = Path(__file__).parent.parent / "data" / "seasons"
