@@ -237,12 +237,33 @@ def fetch_recent_lineup_ids(tbd_games: list[dict], days: int = 14) -> dict[str, 
                 player_ids.update(ids)
                 games_counted += 1
 
-        if games_counted >= 3:
-            result[team_name] = list(player_ids)
-            log.info("Proxy lineup: %s — %d players from last %d games",
-                     team_name, len(player_ids), games_counted)
-        else:
+        if games_counted < 3:
             log.debug("Proxy lineup: %s — only %d games found, skipping", team_name, games_counted)
+            continue
+
+        # Remove currently injured players so the proxy reflects the active roster
+        il_ids: set[int] = set()
+        try:
+            il_resp = session.get(
+                f"{MLB_API}/teams/{team_id}/roster",
+                params={"rosterType": "injured_list", "season": date.today().year},
+                timeout=10,
+            )
+            il_resp.raise_for_status()
+            for entry in il_resp.json().get("roster", []):
+                pid = entry.get("person", {}).get("id")
+                if pid:
+                    il_ids.add(pid)
+        except Exception as exc:
+            log.debug("IL roster fetch failed for %s: %s", team_name, exc)
+
+        active_ids = player_ids - il_ids
+        if il_ids:
+            log.info("Proxy lineup: %s — removed %d IL player(s), %d active remain",
+                     team_name, len(player_ids & il_ids), len(active_ids))
+        result[team_name] = list(active_ids)
+        log.info("Proxy lineup: %s — %d players from last %d games",
+                 team_name, len(active_ids), games_counted)
 
     return result
 
