@@ -57,9 +57,11 @@ function setupNav() {
       document.getElementById('props-view').hidden    = currentView !== 'props';
       document.getElementById('record-view').hidden   = currentView !== 'record';
       document.getElementById('backtest-view').hidden = currentView !== 'backtest';
+      document.getElementById('support-view').hidden  = currentView !== 'support';
       if (currentView === 'record')   Promise.all([loadBacktest(), loadPropsHistory()]).then(renderRecordView);
       if (currentView === 'backtest') Promise.all([loadBacktest(), loadPropsHistory()]).then(renderBacktestView);
       if (currentView === 'props')    loadPicks().then(renderPropsView);
+      if (currentView === 'support')  renderSupportView();
     });
   });
 }
@@ -2204,4 +2206,31 @@ function renderLast5Row(p) {
   }
 
   return '';
+}
+
+
+// ── Support view ──────────────────────────────────────────────────────────────
+
+function renderSupportView() {
+  document.getElementById('support-view').innerHTML = `
+    <div class="support-wrap">
+
+      <div class="support-section">
+        <h2 class="support-section-title">Model Methodology</h2>
+        <p class="support-body">
+          The model scores each starting pitcher on a 0–1 scale using eight Statcast metrics
+          (xERA, barrel% against, Stuff+, whiff rate, chase rate, K%, BB%, xBA against), then
+          does the same for each lineup using six hitting metrics (xwOBA, xSLG, barrel%,
+          hard-hit%, average exit velocity, walk/strikeout rates). Those two pitcher scores and
+          two lineup scores are combined — pitching weighted at 80%, lineup at 65% of run
+          suppression/production — against a league baseline of 4.1 runs per team to produce a
+          predicted run total for each side. Win probability is derived from the pitcher and
+          lineup differentials plus a home-field prior (52.5%), then passed through a
+          Platt-scaling calibration fitted on 13,000+ historical games to correct for systematic
+          over/under-confidence. When a Vegas closing total is available, the model uses it as a
+          soft anchor for its run prediction rather than ignoring market information entirely.
+        </p>
+      </div>
+
+    </div>`;
 }

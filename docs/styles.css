@@ -2492,3 +2492,29 @@ header {
   .ea-right { text-align: left; width: 100%; }
   .ea-bet-row { justify-content: flex-start; }
 }
+
+/* ── Support view ─────────────────────────────────────────────────────────── */
+.support-wrap {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+.support-section {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px 28px;
+  margin-bottom: 20px;
+}
+.support-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 14px;
+}
+.support-body {
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text-muted);
+  margin: 0;
+}
