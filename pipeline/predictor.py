@@ -227,9 +227,6 @@ def _predicted_runs(
         # captures post-line-set conditions Vegas couldn't price.
         home_runs = base * (1.0 + home_off_edge * 0.15 - away_pitch_edge * 0.20) * weather_mult
         away_runs = base * (1.0 + away_off_edge * 0.15 - home_pitch_edge * 0.20) * weather_mult
-        # Model underpredicts by ~0.35 runs/game every year; UNDER wins 52-53% consistently
-        home_runs *= 0.97
-        away_runs *= 0.97
     else:
         home_runs = LEAGUE_AVG_RUNS * (1.0 + home_off_edge * _LINEUP_WEIGHT - away_pitch_edge * _PITCHER_WEIGHT) * park_mult * weather_mult
         away_runs = LEAGUE_AVG_RUNS * (1.0 + away_off_edge * _LINEUP_WEIGHT - home_pitch_edge * _PITCHER_WEIGHT) * park_mult * weather_mult
