@@ -1368,8 +1368,95 @@ header {
 /* ── Backtest view ───────────────────────────────────────────────────────── */
 .backtest-wrap { padding: 12px 14px 32px; max-width: 900px; margin: 0 auto; }
 
+/* Intro callout */
+.bt-intro {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-muted);
+}
+.bt-intro strong { color: var(--text); }
+
+/* Section rule */
+.bt-rule { border: none; border-top: 1px solid var(--border); margin: 28px 0 0; }
+
+/* Section intro paragraph */
+.bt-section-intro {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-muted);
+  margin: 0 0 14px;
+}
+
+/* Away tier × pitcher grid */
+.bt-away-grid-wrap { overflow-x: auto; }
+.bt-away-grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 0;
+}
+.bt-away-grid thead th {
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.bt-away-tier-col { text-align: left; width: 36%; }
+.bt-away-sp-col   { text-align: center; }
+.bt-col-sp        { color: rgba(52,211,153,.75) !important; }
+.bt-away-grid tbody tr { border-bottom: 1px solid rgba(255,255,255,.04); }
+.bt-away-grid tbody tr:last-child { border-bottom: none; }
+.bt-away-grid tbody td { padding: 12px 14px; vertical-align: middle; }
+.bt-away-elite-row { background: rgba(34,197,94,.03); }
+.bt-away-tier-label {
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.bt-tier-meta {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.bt-cell-inner { text-align: center; }
+.bt-cell-roi   { font-size: 16px; font-weight: 800; line-height: 1.1; }
+.bt-cell-roi.pos { color: var(--green-light); }
+.bt-cell-roi.neg { color: #f87171; }
+.bt-cell-detail {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 3px;
+}
+.bt-cell-elite {
+  background: rgba(34,197,94,.07);
+  border-left: 2px solid rgba(52,211,153,.5) !important;
+}
+.bt-cell-elite .bt-cell-roi { font-size: 20px; }
+.bt-signal-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.7;
+  padding: 12px 16px;
+  background: rgba(34,197,94,.04);
+  border: 1px solid rgba(34,197,94,.14);
+  border-radius: var(--radius-sm);
+  margin-top: 14px;
+}
+.bt-signal-note strong { color: var(--text); }
+
 /* Narrative backtest layout */
-.bt-narrative-header { margin: 28px 0 10px; }
+.bt-narrative-header { margin: 24px 0 8px; }
 .bt-narrative-header:first-child { margin-top: 4px; }
 .bt-narrative-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
 .bt-narrative-sub   { font-size: 12px; color: var(--text-dim); }
@@ -1846,6 +1933,11 @@ header {
   /* Narrative backtest: stack on mobile */
   .bt-live-grid { grid-template-columns: 1fr 1fr; }
   .bt-two-col   { grid-template-columns: 1fr; }
+  /* Away grid: tighten padding on mobile */
+  .bt-away-grid thead th,
+  .bt-away-grid tbody td { padding: 8px 8px; }
+  .bt-cell-roi { font-size: 14px; }
+  .bt-cell-elite .bt-cell-roi { font-size: 16px; }
   /* Game log: hide Season + Edge columns on narrow */
   .bt-table th:nth-child(1),
   .bt-table td:nth-child(1) { display: none; }

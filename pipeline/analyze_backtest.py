@@ -380,6 +380,88 @@ def main() -> None:
         u_s   = f"{b['ml_units']:+.1f}" if b["ml_bets"] else "  n/a"
         print(f"{label:<30} {b['n']:>6,} {wr:>7.1%} {u_s:>8} {roi_s:>8}")
 
+    # ──────────────────────────────────────────────────────────────
+    # 7. AWAY EDGE TIER x PITCHER ADVANTAGE (the new breakdown)
+    # ──────────────────────────────────────────────────────────────
+    print("\n[7] AWAY EDGE TIERS x PITCHER ADVANTAGE\n")
+    print("model_edge_ml < 0 means model favors away team over Vegas line.")
+    print("pitcher_score_diff < -0.05 means away SP is meaningfully better.\n")
+
+    away_tiers = [
+        ("0% to -3%",   lambda e: -0.03 <= e < 0),
+        ("-3% to -6%",  lambda e: -0.06 <= e < -0.03),
+        ("-6% to -10%", lambda e: -0.10 <= e < -0.06),
+        ("-10%+",       lambda e: e < -0.10),
+    ]
+
+    # pitcher_score_diff = home - away; < -0.05 = away pitcher advantage
+    def away_pitcher_adv(g: dict) -> bool:
+        ph = g.get("pitcher_score_home", 0.5)
+        pa = g.get("pitcher_score_away", 0.5)
+        return (ph - pa) < -0.05
+
+    # Build cells: away_tier x pitcher_adv
+    cells: dict[tuple, dict] = {}
+    for tier_label, _ in away_tiers:
+        for pitcher_label in ("SP Adv", "No SP Adv"):
+            cells[(tier_label, pitcher_label)] = {"n": 0, "wins": 0, "ml_bets": 0, "ml_units": 0.0}
+
+    away_games = [g for g in games if g.get("model_edge_ml") is not None and g["model_edge_ml"] < 0 and g.get("bet_side")]
+    for g in away_games:
+        edge = g["model_edge_ml"]
+        sp_adv = away_pitcher_adv(g)
+        pitcher_label = "SP Adv" if sp_adv else "No SP Adv"
+        for tier_label, cond in away_tiers:
+            if cond(edge):
+                c = cells[(tier_label, pitcher_label)]
+                c["n"] += 1
+                c["wins"] += int(bool(g.get("bet_won")))
+                res = _ml_result(g)
+                if res is not None:
+                    payout, won = res
+                    c["ml_bets"] += 1
+                    c["ml_units"] += payout if won else -1.0
+                break
+
+    # Print: two sub-tables side by side
+    print(f"{'Away Edge Tier':<14}  {'--- WITH Away SP Advantage ---':^40}  {'--- WITHOUT Away SP Advantage ---':^40}")
+    print(f"{'':14}  {'Bets':>5} {'Win%':>6} {'Units':>7} {'ROI%':>7}  {'Bets':>5} {'Win%':>6} {'Units':>7} {'ROI%':>7}")
+    print("-" * 96)
+
+    for tier_label, _ in away_tiers:
+        a = cells[(tier_label, "SP Adv")]
+        b = cells[(tier_label, "No SP Adv")]
+
+        def fmt_cell(c: dict) -> str:
+            if c["ml_bets"] == 0:
+                return f"{'n/a':>5} {'n/a':>6} {'n/a':>7} {'n/a':>7}"
+            wr  = c["wins"] / c["ml_bets"]
+            roi = c["ml_units"] / c["ml_bets"] * 100
+            u   = c["ml_units"]
+            return f"{c['ml_bets']:>5} {wr:>6.1%} {u:>+7.1f} {roi:>+7.1f}"
+
+        print(f"{tier_label:<14}  {fmt_cell(a)}  {fmt_cell(b)}")
+
+    # Row totals per tier
+    print("-" * 96)
+    print(f"\n{'Away Edge Tier':<14}  {'--- ALL GAMES (SP adv + no adv) ---':^40}")
+    print(f"{'':14}  {'Bets':>5} {'Win%':>6} {'Units':>7} {'ROI%':>7}")
+    print("-" * 48)
+    for tier_label, _ in away_tiers:
+        tot = {"n": 0, "wins": 0, "ml_bets": 0, "ml_units": 0.0}
+        for pk in ("SP Adv", "No SP Adv"):
+            c = cells[(tier_label, pk)]
+            tot["n"]       += c["n"]
+            tot["wins"]    += c["wins"]
+            tot["ml_bets"] += c["ml_bets"]
+            tot["ml_units"]+= c["ml_units"]
+        if tot["ml_bets"] == 0:
+            print(f"{tier_label:<14}  {'n/a':>5} {'n/a':>6} {'n/a':>7} {'n/a':>7}")
+        else:
+            wr  = tot["wins"] / tot["ml_bets"]
+            roi = tot["ml_units"] / tot["ml_bets"] * 100
+            print(f"{tier_label:<14}  {tot['ml_bets']:>5} {wr:>6.1%} {tot['ml_units']:>+7.1f} {roi:>+7.1f}")
+
     print("\n" + "=" * 70)
     print("Analysis complete.\n")
 
