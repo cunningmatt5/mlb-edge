@@ -322,32 +322,34 @@ def _fetch_savant_batter_splits(season: int, split: str) -> pd.DataFrame:
 
 
 def _fetch_all_active_rosters(season: int) -> dict[str, list[int]]:
-    """Return {full_team_name: [pitcher_mlbam_id, ...]} via one bulk MLB Stats API call.
+    """Return {full_team_name: [pitcher_mlbam_id, ...]} for all 30 MLB teams.
 
-    Uses /teams?hydrate=roster(type=active) to get all 30 teams in a single request.
+    Makes one request per team using the /teams/{id}/roster endpoint with
+    rosterType=active (same endpoint confirmed working in schedule.py).
     Filters to position.code == '1' (pitchers only).
     """
-    try:
-        resp = requests.get(
-            f"{MLB_STATS_BASE}/teams",
-            params={"sportId": 1, "season": season, "hydrate": "roster(type=active)"},
-            headers=_HEADERS,
-            timeout=30,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as exc:
-        log.warning("Active roster bulk fetch failed: %s", exc)
-        return {}
-
+    session = requests.Session()
     result: dict[str, list[int]] = {}
-    for team in data.get("teams", []):
-        full_name = team.get("name", "")
-        if not full_name:
+
+    for full_name, team_id in _MLB_TEAM_IDS.items():
+        if full_name == "Athletics":
+            continue  # duplicate entry — Sacramento Athletics already keyed as "Athletics"
+        try:
+            resp = session.get(
+                f"{MLB_STATS_BASE}/teams/{team_id}/roster",
+                params={"rosterType": "active", "season": season},
+                headers=_HEADERS,
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:
+            log.debug("Roster fetch failed for %s (%d): %s", full_name, team_id, exc)
             continue
+
         pitcher_ids = [
             entry["person"]["id"]
-            for entry in team.get("roster", [])
+            for entry in data.get("roster", [])
             if entry.get("position", {}).get("code") == "1" and entry.get("person", {}).get("id")
         ]
         if pitcher_ids:
