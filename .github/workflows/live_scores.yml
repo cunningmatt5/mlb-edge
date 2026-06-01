@@ -2,7 +2,7 @@ name: Live Score Updates
 
 on:
   schedule:
-    - cron: '*/5 * * * *'   # every 5 minutes
+    - cron: '*/10 * * * *'   # every 10 minutes
   workflow_dispatch:
 
 # Cancel any queued run — always use the freshest score fetch

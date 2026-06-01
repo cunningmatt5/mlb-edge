@@ -2,7 +2,7 @@ name: MLB Morning Games
 
 on:
   schedule:
-    - cron: '*/15 * * * *'   # every 15 min
+    - cron: '*/30 * * * *'   # every 30 min
   workflow_dispatch:
 
 # Prevent two runs from stepping on each other — queue, don't cancel
