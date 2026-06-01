@@ -68,7 +68,8 @@ _HEADERS = {
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     )
 }
-ROLLING_DAYS = 21
+ROLLING_DAYS        = 21   # pitcher rolling window (days)
+ROLLING_DAYS_BATTER = 30   # batter rolling window (days)
 TIMEOUT = 45
 
 
@@ -150,9 +151,18 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
     for mlbam_id in sp_ids:
         _merge_pitcher_last_start(cache[mlbam_id], mlbam_id, season)
 
-    # --- Batter recent game logs (last 5 games: H, HR, K per game) ---
+    # --- Batter recent game logs (last 20 games: H, HR, K + rolling rates) ---
     for mlbam_id in batter_ids:
         _merge_batter_game_log(cache[mlbam_id], mlbam_id, season)
+
+    # --- 30-day rolling Statcast for batters (contact%, hard-hit%, barrel%, K%/BB%) ---
+    start_30d = (today - timedelta(days=ROLLING_DAYS_BATTER)).strftime("%Y-%m-%d")
+    end_dt    = today.strftime("%Y-%m-%d")
+    log.info("Fetching 30-day rolling Statcast for %d batters...", len(batter_ids))
+    for mlbam_id in batter_ids:
+        if mlbam_id in cache:
+            _merge_rolling_batter(cache[mlbam_id], mlbam_id, start_30d, end_dt)
+            _blend_batter_rolling(cache[mlbam_id])
 
     # --- Team bullpen aggregates (stored under "bullpen:{full_team_name}" keys) ---
     bullpen_by_team = _build_team_bullpen_cache(season)
@@ -899,8 +909,12 @@ def _merge_pitcher_last_start(entry: dict, mlbam_id: int, season: int) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _merge_batter_game_log(entry: dict, mlbam_id: int, season: int, n: int = 5) -> None:
-    """Fetch last n game log entries for a batter and store per-game H/HR/K arrays."""
+def _merge_batter_game_log(entry: dict, mlbam_id: int, season: int, n: int = 20) -> None:
+    """Fetch last n game log entries for a batter.
+
+    Stores per-game H/HR/K arrays (last 10 for display) and rolling rate stats
+    (last n games) for K%, BB%, and H-rate used in 60/40 blending.
+    """
     try:
         url = (
             f"{MLB_STATS_BASE}/people/{mlbam_id}/stats"
@@ -918,11 +932,121 @@ def _merge_batter_game_log(entry: dict, mlbam_id: int, season: int, n: int = 5) 
             return
         # API returns chronological order (oldest first); take last n for most recent games
         recent = splits[-n:]
-        entry["recent_h_games"]  = [int(s["stat"].get("hits", 0))      for s in recent]
-        entry["recent_hr_games"] = [int(s["stat"].get("homeRuns", 0))   for s in recent]
-        entry["recent_k_games"]  = [int(s["stat"].get("strikeOuts", 0)) for s in recent]
+
+        # Per-game display arrays (last 10 games)
+        display = recent[-10:]
+        entry["recent_h_games"]  = [int(s["stat"].get("hits", 0))      for s in display]
+        entry["recent_hr_games"] = [int(s["stat"].get("homeRuns", 0))   for s in display]
+        entry["recent_k_games"]  = [int(s["stat"].get("strikeOuts", 0)) for s in display]
+
+        # Rolling rate stats over last n games (used for 60/40 blend)
+        total_pa = sum(int(s["stat"].get("plateAppearances", 0)) for s in recent)
+        total_ab = sum(int(s["stat"].get("atBats",           0)) for s in recent)
+        total_k  = sum(int(s["stat"].get("strikeOuts",       0)) for s in recent)
+        total_bb = sum(int(s["stat"].get("baseOnBalls",      0)) for s in recent)
+        total_h  = sum(int(s["stat"].get("hits",             0)) for s in recent)
+
+        entry["recent_pa_n"] = total_pa
+        if total_pa >= 30:
+            entry["k_pct_recent"]   = round(total_k  / total_pa, 4)
+            entry["bb_pct_recent"]  = round(total_bb / total_pa, 4)
+        if total_ab >= 30:
+            entry["h_rate_recent"]  = round(total_h  / total_ab, 4)
     except Exception as exc:
         log.debug("Batter game log fetch failed for %d: %s", mlbam_id, exc)
+
+
+# ---------------------------------------------------------------------------
+# 30-day rolling Statcast for batters
+# ---------------------------------------------------------------------------
+
+
+def _merge_rolling_batter(entry: dict, mlbam_id: int, start: str, end: str) -> None:
+    """Fetch 30-day pitch-level Statcast for a batter and aggregate contact/power metrics."""
+    try:
+        from pybaseball import statcast_batter
+        df = statcast_batter(start_dt=start, end_dt=end, player_id=mlbam_id)
+        if df is None or df.empty:
+            return
+        agg = _aggregate_batter_pitch_data(df)
+        if agg:
+            entry.update(agg)
+            log.debug("Rolling batter Statcast merged for %d: %s", mlbam_id, list(agg))
+    except Exception as exc:
+        log.debug("Rolling batter stats failed for %d: %s", mlbam_id, exc)
+
+
+def _aggregate_batter_pitch_data(df: "pd.DataFrame") -> dict:
+    """Aggregate 30-day pitch-level Statcast into per-batter metrics.
+
+    Returns a dict with _30d suffixed keys for barrel_pct, hard_hit_pct,
+    contact_pct, k_pct, bb_pct, and pa_30d (sample size).
+    """
+    result: dict = {}
+
+    # Contact rate: 1 − (swinging strikes / total swings)
+    swing_descs = {"swinging_strike", "swinging_strike_blocked", "foul",
+                   "foul_tip", "hit_into_play", "hit_into_play_score"}
+    miss_descs  = {"swinging_strike", "swinging_strike_blocked"}
+    if "description" in df.columns:
+        swings    = df["description"].isin(swing_descs)
+        misses    = df["description"].isin(miss_descs)
+        total_sw  = int(swings.sum())
+        if total_sw >= 20:
+            result["contact_pct_30d"] = round(float(1 - misses.sum() / total_sw), 4)
+
+    # Hard-hit % and barrel % from batted balls with recorded launch_speed
+    if "launch_speed" in df.columns:
+        bip   = df["launch_speed"].notna()
+        n_bip = int(bip.sum())
+        if n_bip >= 15:
+            hh = int((df.loc[bip, "launch_speed"] >= 95).sum())
+            result["hard_hit_pct_30d"] = round(float(hh / n_bip), 4)
+            if "barrel" in df.columns:
+                barrels = float(df.loc[bip, "barrel"].fillna(0).sum())
+                result["barrel_pct_30d"] = round(barrels / n_bip, 4)
+
+    # K% and BB% from terminal plate-appearance events
+    if "events" in df.columns:
+        terminal = df["events"].dropna()
+        n_pa     = len(terminal)
+        if n_pa >= 30:
+            ks  = int(terminal.isin(["strikeout", "strikeout_double_play"]).sum())
+            bbs = int(terminal.isin(["walk", "intent_walk"]).sum())
+            result["k_pct_30d"]  = round(ks  / n_pa, 4)
+            result["bb_pct_30d"] = round(bbs / n_pa, 4)
+            result["pa_30d"]     = n_pa
+
+    return result
+
+
+def _blend_batter_rolling(entry: dict) -> None:
+    """Apply 60/40 season/rolling blend for batters with ≥50 PA in the rolling window.
+
+    Modifies entry in-place so all downstream scorers automatically use blended values.
+    Sets entry['rolling_blended'] = True as a transparency flag for raw_scores.
+    """
+    pa = entry.get("pa_30d", 0)
+    if pa < 50:
+        return
+
+    pairs = [
+        ("barrel_pct",   "barrel_pct_30d"),
+        ("hard_hit_pct", "hard_hit_pct_30d"),
+        ("contact_pct",  "contact_pct_30d"),
+        ("k_pct",        "k_pct_30d"),
+        ("bb_pct",       "bb_pct_30d"),
+    ]
+    blended_any = False
+    for season_key, rolling_key in pairs:
+        s = entry.get(season_key)
+        r = entry.get(rolling_key)
+        if s is not None and r is not None:
+            entry[season_key] = round(0.60 * s + 0.40 * r, 4)
+            blended_any = True
+
+    if blended_any:
+        entry["rolling_blended"] = True
 
 
 # ---------------------------------------------------------------------------
