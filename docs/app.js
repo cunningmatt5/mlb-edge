@@ -58,7 +58,7 @@ function setupNav() {
       document.getElementById('record-view').hidden   = currentView !== 'record';
       document.getElementById('backtest-view').hidden = currentView !== 'backtest';
       if (currentView === 'record')   Promise.all([loadBacktest(), loadPropsHistory()]).then(renderRecordView);
-      if (currentView === 'backtest') loadBacktest().then(renderBacktestView);
+      if (currentView === 'backtest') Promise.all([loadBacktest(), loadPropsHistory()]).then(renderBacktestView);
       if (currentView === 'props')    loadPicks().then(renderPropsView);
     });
   });
@@ -1703,138 +1703,6 @@ function shortName(name) {
 
 // ── Backtest segmentation ─────────────────────────────────────────────────────
 
-function renderSegmentation(seg) {
-  if (!seg || !seg.by_edge_bucket || !seg.by_edge_bucket.length) return '';
-
-  const fmtRoi = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
-  const fmtUnits = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + 'u';
-  const roiCls = v => v == null ? '' : v >= 0 ? 'seg-pos' : 'seg-neg';
-
-  // --- Callout box ---
-  const strongAway = seg.by_edge_bucket.find(b => b.label && b.label.startsWith('Strong Away'));
-  const strongHome = seg.by_edge_bucket.find(b => b.label && b.label.startsWith('Strong Home'));
-  const liveRoi = ''; // summary shown in ROI section above
-  const calloutHtml = strongAway ? `
-<div class="seg-callout">
-  <div class="seg-callout-title">Where the Model Has a Historical Edge</div>
-  <div class="seg-callout-body">Profitable zone: <strong>Away picks when |model edge| ≥ 10%</strong> (${fmtRoi(strongAway.roi_pct)} ROI, ${strongAway.n?.toLocaleString()} bets, 2021–2025).
-  All other moneyline buckets are breakeven or negative.
-  Strong Home edge (≥+10%) shows ${fmtRoi(strongHome?.roi_pct)} ROI — Vegas efficiently prices home favorites, agreement is noise.
-  Totals: model anchors to Vegas closing total (avg deviation &lt;0.1 runs), no independent O/U edge exists.</div>
-</div>` : '';
-
-  // --- Edge bucket table ---
-  const edgeRows = seg.by_edge_bucket.map(b => {
-    const isProfitable = (b.roi_pct ?? 0) >= 0;
-    const isStrongAway = b.label?.startsWith('Strong Away');
-    const isStrongHome = b.label?.startsWith('Strong Home');
-    const rowCls = isStrongAway ? 'seg-row-highlight-pos' : isStrongHome ? 'seg-row-highlight-neg' : '';
-    const barW = Math.min(Math.abs(b.roi_pct ?? 0) * 4, 100);
-    const barHtml = `<div class="roi-bar-wrap"><div class="roi-bar ${isProfitable ? 'roi-bar-pos' : 'roi-bar-neg'}" style="width:${barW}%"></div><span class="roi-bar-val ${roiCls(b.roi_pct)}">${fmtRoi(b.roi_pct)}</span></div>`;
-    return `<tr class="${rowCls}">
-      <td class="seg-label">${b.label ?? '—'}</td>
-      <td class="seg-n">${b.n?.toLocaleString() ?? '—'}</td>
-      <td class="seg-wr">${b.win_rate != null ? (b.win_rate * 100).toFixed(1) + '%' : '—'}</td>
-      <td class="seg-units ${roiCls(b.units)}">${fmtUnits(b.units)}</td>
-      <td class="seg-roi-cell">${barHtml}</td>
-    </tr>`;
-  }).join('');
-
-  // --- Year-over-year table ---
-  const yearRows = (seg.by_year || []).map(b => `<tr>
-    <td class="seg-year">${b.year}</td>
-    <td class="seg-n">${b.n?.toLocaleString() ?? '—'}</td>
-    <td class="seg-wr">${b.win_rate != null ? (b.win_rate * 100).toFixed(1) + '%' : '—'}</td>
-    <td class="seg-units ${roiCls(b.units)}">${fmtUnits(b.units)}</td>
-    <td class="${roiCls(b.roi_pct)} seg-roi-val">${fmtRoi(b.roi_pct)}</td>
-  </tr>`).join('');
-
-  // --- Calibration table ---
-  const calRows = (seg.calibration || []).map(b => {
-    const gapCls = (b.gap ?? 0) >= 0.03 ? 'cal-gap-big' : (b.gap ?? 0) >= 0 ? 'cal-gap-pos' : 'cal-gap-neg';
-    const note = b.bin === '65%+' ? ' ⚡' : '';
-    return `<tr>
-      <td class="seg-bin">${b.bin ?? '—'}${note}</td>
-      <td class="seg-n">${b.n?.toLocaleString() ?? '—'}</td>
-      <td>${b.model_mean != null ? (b.model_mean * 100).toFixed(1) + '%' : '—'}</td>
-      <td>${b.actual_win_rate != null ? (b.actual_win_rate * 100).toFixed(1) + '%' : '—'}</td>
-      <td class="${gapCls}">${b.gap != null ? (b.gap >= 0 ? '+' : '') + (b.gap * 100).toFixed(1) + '%' : '—'}</td>
-    </tr>`;
-  }).join('');
-
-  // --- Combo section (away edge + pitcher advantage) ---
-  let comboHtml = '';
-  if (seg.by_combo && seg.by_combo.overall && seg.by_combo.overall.n > 0) {
-    const co = seg.by_combo.overall;
-    const comboYearRows = (seg.by_combo.by_year || []).map(b => {
-      const isWarn = !b.live && b.year >= 2024 && (b.roi_pct ?? 0) < 5;
-      const isLive = !!b.live;
-      const rowCls = isLive ? 'yr-live' : isWarn ? 'yr-warn' : '';
-      const yearLabel = b.year + (isWarn && b.year === 2025 ? ' ⚠' : '') + (isLive ? ' 🟢' : '');
-      return `<tr class="${rowCls}">
-        <td class="seg-year">${yearLabel}</td>
-        <td class="seg-n">${b.n?.toLocaleString() ?? '—'}${isLive ? '<span class="live-tag">live</span>' : ''}</td>
-        <td class="seg-wr">${b.win_rate != null ? (b.win_rate * 100).toFixed(1) + '%' : '—'}</td>
-        <td class="seg-units ${roiCls(b.units)}">${fmtUnits(b.units)}</td>
-        <td class="${roiCls(b.roi_pct)} seg-roi-val">${fmtRoi(b.roi_pct)}</td>
-      </tr>`;
-    }).join('');
-
-    comboHtml = `
-  <div class="combo-section">
-    <div class="bt-section-title">Elite Away Signal: Edge + Pitcher Advantage <span class="bt-count">(model_edge ≤ −10% AND pitcher diff &lt; −0.05)</span></div>
-    <div class="combo-summary">
-      Overall: <strong class="seg-pos">${fmtRoi(co.roi_pct)} ROI</strong> across <strong>${co.n?.toLocaleString()}</strong> bets (${co.win_rate != null ? (co.win_rate*100).toFixed(1)+'% win rate' : ''}).
-      Signal requires <em>both</em> conditions — away-edge alone yields ≈−2% ROI.
-    </div>
-    <div class="bt-table-wrap">
-      <table class="seg-table combo-decay-table">
-        <thead><tr><th>Year</th><th>Bets</th><th>Win%</th><th>Units</th><th>ROI</th></tr></thead>
-        <tbody>${comboYearRows}</tbody>
-      </table>
-    </div>
-    <div class="combo-decay-note">⚠ Signal has weakened in 2024–2025. Monitor live 2026 performance before increasing bet sizing.</div>
-  </div>`;
-  }
-
-  return `
-<div class="seg-section">
-  ${calloutHtml}
-
-  <div class="bt-section-title">ROI by Model Edge Direction <span class="bt-count">(2021–2025, bet in model's direction)</span></div>
-  <div class="bt-table-wrap seg-edge-wrap">
-    <table class="seg-table">
-      <thead><tr><th>Edge Bucket</th><th>Bets</th><th>Win%</th><th>Units</th><th>ROI</th></tr></thead>
-      <tbody>${edgeRows}</tbody>
-    </table>
-  </div>
-
-  ${comboHtml}
-
-  <div class="seg-two-col">
-    <div>
-      <div class="bt-section-title">Year-over-Year Performance <span class="bt-count">(|edge| ≥ 5%)</span></div>
-      <div class="bt-table-wrap">
-        <table class="seg-table seg-yr-table">
-          <thead><tr><th>Year</th><th>Bets</th><th>Win%</th><th>Units</th><th>ROI</th></tr></thead>
-          <tbody>${yearRows}</tbody>
-        </table>
-      </div>
-    </div>
-    <div>
-      <div class="bt-section-title">Calibration: Predicted vs. Actual <span class="bt-count">(⚡ = underconfident)</span></div>
-      <div class="bt-table-wrap">
-        <table class="seg-table seg-cal-table">
-          <thead><tr><th>Confidence</th><th>Games</th><th>Model</th><th>Actual</th><th>Gap</th></tr></thead>
-          <tbody>${calRows}</tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</div>`;
-}
-
-
 // ── Backtest view ─────────────────────────────────────────────────────────────
 
 function renderBacktestView() {
@@ -1845,122 +1713,196 @@ function renderBacktestView() {
     return;
   }
 
-  const { stats, games = [], ev_stats, roi_stats, segmentation } = backtestData;
+  const { stats, games = [], roi_stats, segmentation } = backtestData;
   if (!stats) {
     el.innerHTML = `<div class="empty-state"><p>No backtest stats found in data.</p></div>`;
     return;
   }
 
-  const pct = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
-  const signedPct = v => v != null ? (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%' : '—';
+  const fmtRoi   = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+  const fmtUnits = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2);
+  const pct      = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
+  const roiCls   = v => v == null ? '' : v >= 0 ? 'roi-pos' : 'roi-neg';
+  const segCls   = v => v == null ? '' : v >= 0 ? 'seg-pos' : 'seg-neg';
 
-  // ── Hero strip ────────────────────────────────────────────────────────────
-  const hasVegas = ev_stats && ev_stats.n_with_lines > 0;
-  const vegasN = ev_stats?.n_with_lines;
-  const vegasNStr = vegasN != null ? vegasN.toLocaleString() : '—';
-  const brierModel = ev_stats?.brier_score != null ? ev_stats.brier_score.toFixed(4) : '—';
-  const avgEdge = ev_stats?.ml_edge_mean != null ? signedPct(ev_stats.ml_edge_mean) : '—';
-  const avgEdgeCls = (ev_stats?.ml_edge_mean ?? 0) >= 0 ? 'hero-green' : 'hero-red';
-  const totalDecided = (stats.total_decided || stats.total || 0).toLocaleString();
-
-  const heroCards = [
-    { val: vegasNStr,                        label: 'Games w/ Vegas Lines',    sub: null },
-    { val: pct(stats.win_pct_overall),       label: 'Model Win Rate',          sub: null },
-    { val: brierModel,                       label: 'Model Brier Score',       sub: 'Vegas baseline: 0.2229' },
-    { val: avgEdge,                          label: 'Avg Model Edge vs Vegas', sub: null, cls: avgEdgeCls },
-    { val: totalDecided,                     label: 'Total Games Graded',      sub: null },
-  ].map(c => `
-    <div class="bt-hero-card">
-      <div class="bt-hero-val${c.cls ? ' ' + c.cls : ''}">${c.val}</div>
-      <div class="bt-hero-label">${c.label}</div>
-      ${c.sub ? `<div class="bt-hero-sub">${c.sub}</div>` : ''}
-    </div>`).join('');
-
-  // ── Vegas Edge Analysis ───────────────────────────────────────────────────
-  let edgeSection = '';
-  if (hasVegas && ev_stats.by_edge_bucket) {
-    const eb = ev_stats.by_edge_bucket;
-    const buckets = [
-      { key: 'negative',  label: 'Model Picks Away',    desc: 'Model rates home below Vegas — away team pick', cls: 'edge-green', badge: 'badge-green', badgeText: 'Best Zone' },
-      { key: '0_to_3pct', label: '0–3% Home Edge',      desc: 'Slight model advantage on home team',           cls: 'edge-amber', badge: 'badge-amber', badgeText: 'Marginal' },
-      { key: '3_to_6pct', label: '3–6% Home Edge',      desc: 'Moderate model advantage on home team',         cls: 'edge-amber', badge: 'badge-amber', badgeText: 'Marginal' },
-      { key: '6pct_plus', label: '6%+ Home Edge',       desc: 'Large model confidence — historically wrong',   cls: 'edge-red',   badge: 'badge-red',   badgeText: 'Caution' },
-    ];
-    const cards = buckets.map(b => {
-      const d = eb[b.key] || {};
-      const wr = d.win_rate != null ? (d.win_rate * 100).toFixed(1) + '%' : '—';
-      const n = d.n != null ? d.n.toLocaleString() : '—';
-      return `<div class="edge-card ${b.cls}">
-        <div class="edge-card-label">${b.label}</div>
-        <div class="edge-rate">${wr}</div>
-        <div class="edge-n">${n} games</div>
-        <div class="edge-desc">${b.desc}</div>
-        <span class="edge-badge ${b.badge}">${b.badgeText}</span>
+  // ── SECTION 1: 2026 Live Performance ─────────────────────────────────────
+  const roi = roi_stats || {};
+  let liveSection = '';
+  if (roi.ml_bets > 0 || roi.total_bets > 0) {
+    liveSection = `
+      <div class="bt-narrative-header">
+        <div class="bt-narrative-title">2026 Live Performance</div>
+        <div class="bt-narrative-sub">Current season · flat-bet on predicted winner · vs. Pinnacle closing lines</div>
+      </div>
+      <div class="bt-live-grid">
+        <div class="bt-live-card">
+          <div class="bt-live-val ${roiCls(roi.ml_roi_pct)}">${fmtRoi(roi.ml_roi_pct)}</div>
+          <div class="bt-live-label">Moneyline ROI</div>
+          <div class="bt-live-sub">${fmtUnits(roi.ml_units_won)} units · ${roi.ml_bets ?? 0} bets</div>
+        </div>
+        <div class="bt-live-card">
+          <div class="bt-live-val ${roiCls(roi.total_roi_pct)}">${fmtRoi(roi.total_roi_pct)}</div>
+          <div class="bt-live-label">Totals ROI</div>
+          <div class="bt-live-sub">${fmtUnits(roi.total_units_won)} units · ${roi.total_bets ?? 0} bets</div>
+        </div>
+        <div class="bt-live-card">
+          <div class="bt-live-val">${pct(stats.win_pct_overall)}</div>
+          <div class="bt-live-label">Win Rate</div>
+          <div class="bt-live-sub">${(stats.total_correct ?? 0).toLocaleString()} / ${(stats.total_decided ?? 0).toLocaleString()} games</div>
+        </div>
       </div>`;
-    }).join('');
-    edgeSection = `
-      <div class="bt-section-title">Vegas Edge Analysis <span class="bt-count">(pick win rate by model edge vs closing line)</span></div>
-      <div class="edge-bucket-grid">${cards}</div>`;
   }
 
-  // ── Calibration curve ─────────────────────────────────────────────────────
-  let calSection = '';
-  if (hasVegas && ev_stats.calibration_curve?.length) {
-    const calRows = ev_stats.calibration_curve.map(row => {
-      const delta = row.actual_win_rate != null && row.model_prob_mean != null
-        ? row.actual_win_rate - row.model_prob_mean : null;
-      const deltaTxt = delta != null ? (delta >= 0 ? '+' : '') + (delta * 100).toFixed(2) + '%' : '—';
-      const deltaCls = delta == null ? '' : delta >= 0 ? 'delta-pos' : 'delta-neg';
-      return `<tr>
-        <td>${row.bin ?? '—'}</td>
-        <td>${row.n?.toLocaleString() ?? '—'}</td>
-        <td>${row.model_prob_mean != null ? (row.model_prob_mean * 100).toFixed(1) + '%' : '—'}</td>
-        <td>${row.actual_win_rate != null ? (row.actual_win_rate * 100).toFixed(1) + '%' : '—'}</td>
-        <td class="${deltaCls}">${deltaTxt}</td>
+  // ── SECTION 2: Where the Edge Comes From ─────────────────────────────────
+  let pitcherHtml = '';
+  if (segmentation?.by_pitcher_diff?.length) {
+    const rows = segmentation.by_pitcher_diff.map(b => {
+      const isStrong = b.label?.startsWith('Strong Away');
+      return `<tr${isStrong ? ' class="seg-row-highlight-pos"' : ''}>
+        <td class="seg-label">${b.label ?? '—'}</td>
+        <td class="seg-n">${b.n?.toLocaleString() ?? '—'}</td>
+        <td>${b.win_rate != null ? (b.win_rate * 100).toFixed(1) + '%' : '—'}</td>
+        <td class="${segCls(b.roi_pct)}">${fmtRoi(b.roi_pct)}</td>
       </tr>`;
     }).join('');
-    calSection = `
-      <div class="bt-section-title">Model Calibration — Predicted vs. Actual <span class="bt-count">(${vegasNStr} games with Vegas lines)</span></div>
-      <div class="bt-table-wrap" style="margin-bottom:16px">
-        <table class="bt-cal-table">
-          <thead><tr><th>Prob Bin</th><th>Games</th><th>Model Avg</th><th>Actual Win Rate</th><th>Delta</th></tr></thead>
-          <tbody>${calRows}</tbody>
-        </table>
+    pitcherHtml = `
+      <div>
+        <div class="bt-subsection-title">Pitcher Signal ROI <span class="bt-count">(bet follows pitcher advantage)</span></div>
+        <div class="bt-table-wrap">
+          <table class="seg-table">
+            <thead><tr><th>Matchup</th><th>Bets</th><th>Win%</th><th>ROI</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
       </div>`;
   }
 
-  // ── Confidence tier table ─────────────────────────────────────────────────
+  let comboHtml = '';
+  if (segmentation?.by_combo?.overall?.n > 0) {
+    const co = segmentation.by_combo.overall;
+    const yearRows = (segmentation.by_combo.by_year || []).map(b => {
+      const isLive = !!b.live;
+      const isWeak = !isLive && (b.roi_pct ?? 0) < 0;
+      return `<tr class="${isLive ? 'yr-live' : isWeak ? 'yr-warn' : ''}">
+        <td>${b.year}${isLive ? ' <span class="live-tag">live</span>' : ''}</td>
+        <td>${b.n?.toLocaleString() ?? '—'}</td>
+        <td>${b.win_rate != null ? (b.win_rate * 100).toFixed(1) + '%' : '—'}</td>
+        <td class="${segCls(b.roi_pct)}">${fmtRoi(b.roi_pct)}</td>
+      </tr>`;
+    }).join('');
+    comboHtml = `
+      <div>
+        <div class="bt-subsection-title">Elite Away Signal <span class="bt-count">(away edge ≥10% + pitcher advantage)</span></div>
+        <div class="bt-combo-kpi ${segCls(co.roi_pct)}">${fmtRoi(co.roi_pct)} ROI · ${co.n?.toLocaleString()} bets · ${pct(co.win_rate)} win rate</div>
+        <div class="bt-table-wrap">
+          <table class="seg-table">
+            <thead><tr><th>Year</th><th>Bets</th><th>Win%</th><th>ROI</th></tr></thead>
+            <tbody>${yearRows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  let edgeSection = '';
+  if (pitcherHtml || comboHtml) {
+    edgeSection = `
+      <div class="bt-narrative-header">
+        <div class="bt-narrative-title">Where the Edge Comes From</div>
+        <div class="bt-narrative-sub">Historical analysis · 2021–2025 Pinnacle closing lines</div>
+      </div>
+      <div class="bt-two-col">${pitcherHtml}${comboHtml}</div>`;
+  }
+
+  // ── SECTION 3: Model Accuracy ─────────────────────────────────────────────
   const tierLabels = { '50_55': '50–55%', '55_60': '55–60%', '60_65': '60–65%', '65_plus': '65%+' };
   const confRows = Object.entries(stats.win_pct_by_confidence || {}).map(([key, t]) => {
-    const base = t.pct != null ? t.pct - 0.5 : null;
-    const baseTxt = base != null ? (base >= 0 ? '+' : '') + (base * 100).toFixed(1) + '%' : '—';
-    const baseCls = base == null ? '' : base >= 0 ? 'baseline-pos' : 'baseline-neg';
     const pctTxt = t.pct != null ? (t.pct * 100).toFixed(1) + '%' : '—';
-    const pctCls = (t.pct ?? 0) >= 0.55 ? 'tier-pct tier-pct-good' : (t.pct ?? 0) >= 0.5 ? 'tier-pct tier-pct-ok' : 'tier-pct tier-pct-bad';
+    const pctCls = (t.pct ?? 0) >= 0.60 ? 'tier-pct-good' : (t.pct ?? 0) >= 0.53 ? 'tier-pct-ok' : '';
+    const vs = t.pct != null ? ((t.pct - 0.5) >= 0 ? '+' : '') + ((t.pct - 0.5) * 100).toFixed(1) + '%' : '—';
+    const vsCls = (t.pct ?? 0) >= 0.5 ? 'seg-pos' : 'seg-neg';
     return `<tr>
       <td><strong>${tierLabels[key] || key}</strong></td>
-      <td>${t.total ?? '—'}</td>
-      <td>${t.correct ?? '—'}</td>
+      <td>${(t.total ?? 0).toLocaleString()}</td>
       <td class="${pctCls}">${pctTxt}</td>
-      <td class="${baseCls}">${baseTxt}</td>
+      <td class="${vsCls}">${vs}</td>
     </tr>`;
   }).join('');
 
-  // ── Signal accuracy ───────────────────────────────────────────────────────
-  const sigAcc = stats.signal_accuracy || {};
-  const pit = sigAcc.pitcher    || {};
-  const cmp = sigAcc.comps      || {};
-  const tot = sigAcc.totals_dir || {};
+  // Year-over-year win rate computed from games array
+  const byYr = {};
+  for (const g of games) {
+    const yr = g.season || g.date?.slice(0, 4);
+    if (!yr) continue;
+    if (!byYr[yr]) byYr[yr] = { n: 0, correct: 0 };
+    if (g.actual_winner && g.actual_winner !== 'tie') {
+      byYr[yr].n++;
+      if (g.correct) byYr[yr].correct++;
+    }
+  }
+  const yrRows = Object.keys(byYr).sort().map(yr => {
+    const y = byYr[yr];
+    const wr = y.n > 0 ? (y.correct / y.n * 100).toFixed(1) + '%' : '—';
+    const wrf = y.n > 0 ? y.correct / y.n : 0;
+    const wrCls = wrf >= 0.56 ? 'tier-pct-good' : wrf >= 0.53 ? 'tier-pct-ok' : '';
+    const isLive = parseInt(yr) === 2026;
+    return `<tr${isLive ? ' class="yr-live"' : ''}>
+      <td><strong>${yr}${isLive ? ' <span class="live-tag">live</span>' : ''}</strong></td>
+      <td>${y.n.toLocaleString()}</td>
+      <td class="${wrCls}">${wr}</td>
+    </tr>`;
+  }).join('');
 
-  // ── Game log ──────────────────────────────────────────────────────────────
-  const rows = games.slice(0, 200).map(g => {
+  const accuracySection = `
+    <div class="bt-narrative-header">
+      <div class="bt-narrative-title">Model Accuracy</div>
+      <div class="bt-narrative-sub">${(stats.total_decided ?? 0).toLocaleString()} decided games across all seasons</div>
+    </div>
+    <div class="bt-two-col">
+      <div>
+        <div class="bt-subsection-title">By Confidence Tier</div>
+        <div class="bt-table-wrap">
+          <table class="seg-table">
+            <thead><tr><th>Confidence</th><th>Games</th><th>Win Rate</th><th>vs. 50%</th></tr></thead>
+            <tbody>${confRows}</tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <div class="bt-subsection-title">Year-over-Year Win Rate</div>
+        <div class="bt-table-wrap">
+          <table class="seg-table">
+            <thead><tr><th>Season</th><th>Games</th><th>Win Rate</th></tr></thead>
+            <tbody>${yrRows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+
+  // ── SECTION 4: Props ──────────────────────────────────────────────────────
+  const propCounts = {};
+  for (const p of (propsHistData || [])) {
+    if (p.hit != null) propCounts[p.bet_type] = (propCounts[p.bet_type] || 0) + 1;
+  }
+  const hasEnoughProps = Object.values(propCounts).some(v => v >= 30);
+  const propsSection = `
+    <div class="bt-narrative-header">
+      <div class="bt-narrative-title">Props Performance</div>
+    </div>
+    ${hasEnoughProps ? renderPropsPerformance() : `
+    <div class="bt-props-holding">
+      <div class="bt-props-msg">Building data — tracking since May 31, 2026</div>
+      <div class="bt-props-sub">Hit-rate analysis by signal band appears once we have 30+ resolved picks per prop type (est. mid-June).</div>
+    </div>`}`;
+
+  // ── SECTION 5: Game Log ───────────────────────────────────────────────────
+  const logRows = games.slice(0, 200).map(g => {
     const winnerTeam = g.predicted_winner === 'home' ? g.home_team : g.away_team;
     const actualTeam = g.actual_winner === 'home' ? g.home_team : g.away_team;
     const conf = Math.round(Math.max(g.home_win_pct, g.away_win_pct) * 100);
     const rowClass = g.correct ? 'row-hit' : g.actual_winner === 'tie' ? '' : 'row-miss';
     const icon = g.actual_winner === 'tie' ? '—' : (g.correct ? '✓' : '✗');
     const dateFmt = g.date ? g.date.slice(5).replace('-', '/') : '—';
-    const edgeVal = g.model_edge_ml != null ? g.model_edge_ml : null;
+    const edgeVal = g.model_edge_ml;
     const edgeTxt = edgeVal != null ? (edgeVal >= 0 ? '+' : '') + (edgeVal * 100).toFixed(1) + '%' : '—';
     const edgeCls = edgeVal == null ? '' : edgeVal >= 0 ? 'edge-pos' : 'edge-neg';
     return `<tr class="${rowClass}">
@@ -1974,79 +1916,22 @@ function renderBacktestView() {
     </tr>`;
   }).join('');
 
-  // ── ROI section ───────────────────────────────────────────────────────────
-  const roiHtml = (() => {
-    const roi = roi_stats;
-    if (!roi || (!roi.ml_bets && !roi.total_bets)) return '';
-    const fmtRoi = v => v != null ? (v >= 0 ? '+' : '') + v.toFixed(2) + '%' : '—';
-    const fmtUnits = v => v != null ? (v >= 0 ? '+' : '') + v.toFixed(2) : '—';
-    const roiCls = v => v == null ? '' : v >= 0 ? 'roi-pos' : 'roi-neg';
-    return `
-      <div class="bt-section-title">ROI — Live Lines <span class="bt-count">(from records with Pinnacle lines stored)</span></div>
-      <div class="roi-grid">
-        <div class="roi-card">
-          <span class="roi-label">Moneyline ROI</span>
-          <span class="roi-val ${roiCls(roi.ml_roi_pct)}">${fmtRoi(roi.ml_roi_pct)}</span>
-          <span class="roi-sub">${fmtUnits(roi.ml_units_won)} units · ${roi.ml_bets ?? 0} bets</span>
-        </div>
-        <div class="roi-card">
-          <span class="roi-label">Totals ROI</span>
-          <span class="roi-val ${roiCls(roi.total_roi_pct)}">${fmtRoi(roi.total_roi_pct)}</span>
-          <span class="roi-sub">${fmtUnits(roi.total_units_won)} units · ${roi.total_bets ?? 0} bets</span>
-        </div>
-      </div>`;
-  })();
-
   el.innerHTML = `
     <div class="backtest-wrap">
-
-      <div class="bt-hero-grid">${heroCards}</div>
-
+      ${liveSection}
       ${edgeSection}
-
-      ${calSection}
-
-      <div class="bt-section-title">Win % by Confidence Tier</div>
-      <div class="bt-table-wrap" style="margin-bottom:16px">
-        <table class="bt-conf-table">
-          <thead><tr><th>Confidence</th><th>Games</th><th>Correct</th><th>Win Rate</th><th>vs. Baseline</th></tr></thead>
-          <tbody>${confRows}</tbody>
-        </table>
+      ${accuracySection}
+      ${propsSection}
+      <div class="bt-narrative-header">
+        <div class="bt-narrative-title">Game Log</div>
+        <div class="bt-narrative-sub">${games.length.toLocaleString()} games · most recent first</div>
       </div>
-
-      <div class="bt-section-title">Signal Accuracy</div>
-      <div class="signal-accuracy-grid">
-        <div class="sig-acc-card">
-          <span class="sig-acc-label">Pitcher Edge</span>
-          <span class="sig-acc-pct">${pct(pit.pct)}</span>
-          <span class="sig-acc-sub">${pit.correct ?? 0}/${pit.total ?? 0} games</span>
-        </div>
-        <div class="sig-acc-card">
-          <span class="sig-acc-label">Comps Match</span>
-          <span class="sig-acc-pct">${pct(cmp.pct)}</span>
-          <span class="sig-acc-sub">${cmp.correct ?? 0}/${cmp.total ?? 0} games</span>
-        </div>
-        <div class="sig-acc-card">
-          <span class="sig-acc-label">Totals Direction</span>
-          <span class="sig-acc-pct">${pct(tot.pct)}</span>
-          <span class="sig-acc-sub">${tot.correct ?? 0}/${tot.total ?? 0} games</span>
-        </div>
-      </div>
-
-      ${roiHtml}
-
-      ${renderSegmentation(segmentation)}
-
-      <div class="bt-section-title">Game Log <span class="bt-count">(${games.length} games, most recent first)</span></div>
       <div class="bt-table-wrap">
         <table class="bt-table">
-          <thead>
-            <tr><th>Season</th><th>Date</th><th>Matchup</th><th>Predicted</th><th>Actual</th><th>Edge</th><th></th></tr>
-          </thead>
-          <tbody>${rows}</tbody>
+          <thead><tr><th>Season</th><th>Date</th><th>Matchup</th><th>Predicted</th><th>Actual</th><th>Edge</th><th></th></tr></thead>
+          <tbody>${logRows}</tbody>
         </table>
       </div>
-
     </div>`;
 }
 
