@@ -241,29 +241,34 @@ def fetch_recent_lineup_ids(tbd_games: list[dict], days: int = 14) -> dict[str, 
             log.debug("Proxy lineup: %s — only %d games found, skipping", team_name, games_counted)
             continue
 
-        # Remove currently injured players so the proxy reflects the active roster
-        il_ids: set[int] = set()
+        # Keep only players on the current 26-man active roster — this filters out
+        # both IL players and optioned/DFA'd players in a single reliable call.
+        active_roster_ids: set[int] = set()
         try:
-            il_resp = session.get(
+            ar_resp = session.get(
                 f"{MLB_API}/teams/{team_id}/roster",
-                params={"rosterType": "injured_list", "season": date.today().year},
+                params={"rosterType": "active", "season": date.today().year},
                 timeout=10,
             )
-            il_resp.raise_for_status()
-            for entry in il_resp.json().get("roster", []):
+            ar_resp.raise_for_status()
+            for entry in ar_resp.json().get("roster", []):
                 pid = entry.get("person", {}).get("id")
                 if pid:
-                    il_ids.add(pid)
+                    active_roster_ids.add(pid)
         except Exception as exc:
-            log.debug("IL roster fetch failed for %s: %s", team_name, exc)
+            log.debug("Active roster fetch failed for %s — using full proxy pool: %s", team_name, exc)
 
-        active_ids = player_ids - il_ids
-        if il_ids:
-            log.info("Proxy lineup: %s — removed %d IL player(s), %d active remain",
-                     team_name, len(player_ids & il_ids), len(active_ids))
-        result[team_name] = list(active_ids)
+        if active_roster_ids:
+            filtered = player_ids & active_roster_ids
+            removed  = len(player_ids) - len(filtered)
+            if removed:
+                log.info("Proxy lineup: %s — filtered %d non-active player(s), %d remain",
+                         team_name, removed, len(filtered))
+            player_ids = filtered
+
+        result[team_name] = list(player_ids)
         log.info("Proxy lineup: %s — %d players from last %d games",
-                 team_name, len(active_ids), games_counted)
+                 team_name, len(player_ids), games_counted)
 
     return result
 
