@@ -534,9 +534,27 @@ def build_game(
     home_sp_out = _format_sp_stats(home_sp, home_sp_name)
     away_sp_out = _format_sp_stats(away_sp, away_sp_name)
 
-    home_lineup_ids     = game.get("home_lineup", [])
-    away_lineup_ids     = game.get("away_lineup", [])
-    lineup_status       = "official" if (home_lineup_ids or away_lineup_ids) else "tbd"
+    home_lineup_ids = game.get("home_lineup", [])
+    away_lineup_ids = game.get("away_lineup", [])
+    _proxy_used = False
+    if not home_lineup_ids:
+        _home_proxy = game.get("home_lineup_proxy", [])
+        if _home_proxy:
+            home_lineup_ids = _home_proxy
+            _proxy_used = True
+    if not away_lineup_ids:
+        _away_proxy = game.get("away_lineup_proxy", [])
+        if _away_proxy:
+            away_lineup_ids = _away_proxy
+            _proxy_used = True
+
+    if _proxy_used:
+        lineup_status = "proxy"
+    elif home_lineup_ids or away_lineup_ids:
+        lineup_status = "official"
+    else:
+        lineup_status = "tbd"
+
     home_lineup_players = [cache[b] for b in home_lineup_ids if b in cache]
     away_lineup_players = [cache[b] for b in away_lineup_ids if b in cache]
 

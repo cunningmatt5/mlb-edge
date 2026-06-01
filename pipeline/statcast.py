@@ -1177,6 +1177,8 @@ def _collect_batter_ids(games: list[dict]) -> list[int]:
     for g in games:
         ids.update(g.get("home_lineup", []))
         ids.update(g.get("away_lineup", []))
+        ids.update(g.get("home_lineup_proxy", []))
+        ids.update(g.get("away_lineup_proxy", []))
     return list(ids)
 
 

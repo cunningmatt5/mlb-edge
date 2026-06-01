@@ -656,11 +656,16 @@ function vegasEdgeStripHTML(g) {
 
 // ── Lineup status (collapsed card) — batter highlights moved to expanded lineup section ──
 function lineupStatusHTML(g) {
-  const isOfficial = g.lineup_status !== 'tbd';
-  const statusChip = isOfficial
-    ? `<span class="lineup-chip official">✓ Official</span>`
-    : `<span class="lineup-chip tbd">Lineups TBD</span>`;
-  return `<div class="lineup-status-row"><div class="ls-center">${statusChip}</div></div>`;
+  const status = g.lineup_status;
+  let chip;
+  if (status === 'official') {
+    chip = `<span class="lineup-chip official">✓ Official</span>`;
+  } else if (status === 'proxy') {
+    chip = `<span class="lineup-chip proxy">~ Recent history</span>`;
+  } else {
+    chip = `<span class="lineup-chip tbd">Lineups TBD</span>`;
+  }
+  return `<div class="lineup-status-row"><div class="ls-center">${chip}</div></div>`;
 }
 
 function getNotableBatters(lineup, maxShow = 3) {

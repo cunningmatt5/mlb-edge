@@ -21,7 +21,7 @@ from pipeline.odds import (
     load_opening_lines, save_opening_lines, record_opening_lines, compute_line_movement,
 )
 from pipeline.predictor import build_game
-from pipeline.schedule import fetch_schedule
+from pipeline.schedule import fetch_schedule, fetch_recent_lineup_ids
 from pipeline.standings import fetch_team_records
 from pipeline.statcast import build_player_cache
 from pipeline.weather import fetch_game_weather
@@ -54,6 +54,17 @@ def main(dry_run: bool = False) -> None:
     log.info("Fetching weather for %d games...", len(games))
     for game in games:
         game["weather"] = fetch_game_weather(game.get("venue", ""), game.get("gameTime", ""))
+
+    # For games with TBD lineups, fetch each team's last 10 completed lineups as a proxy
+    tbd_games = [g for g in games if not g.get("home_lineup") or not g.get("away_lineup")]
+    if tbd_games:
+        log.info("Fetching proxy lineups for %d games with TBD lineups...", len(tbd_games))
+        proxy_map = fetch_recent_lineup_ids(tbd_games)
+        for g in games:
+            if not g.get("home_lineup"):
+                g["home_lineup_proxy"] = proxy_map.get(g.get("homeTeam", ""), [])
+            if not g.get("away_lineup"):
+                g["away_lineup_proxy"] = proxy_map.get(g.get("awayTeam", ""), [])
 
     log.info("Building player cache for %d games...", len(games))
     cache = build_player_cache(games)

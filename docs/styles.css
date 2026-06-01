@@ -590,6 +590,11 @@ header {
   color: var(--amber);
 }
 
+.lineup-chip.proxy {
+  background: rgba(99,102,241,.12);
+  color: #a5b4fc;
+}
+
 /* Prediction strip */
 .pred-strip {
   display: grid;

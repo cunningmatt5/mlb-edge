@@ -174,3 +174,76 @@ def _extract_hp_umpire(raw: dict) -> str:
     return ""
 
 
+def fetch_recent_lineup_ids(tbd_games: list[dict], days: int = 14) -> dict[str, list[int]]:
+    """Return {team_name: [player_id, ...]} using each team's last 10 completed game lineups.
+
+    Called when some games have TBD lineups so the model can use a proxy instead of
+    the 0.5 neutral default. Skips teams with fewer than 3 games found (too little data).
+    """
+    today = date.today()
+    start = (today - timedelta(days=days)).strftime("%Y-%m-%d")
+    end   = (today - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # Collect unique (team_id, team_name) pairs for teams with missing lineups
+    teams: dict[int, str] = {}
+    for g in tbd_games:
+        if not g.get("home_lineup"):
+            tid = g.get("homeTeamId")
+            if tid:
+                teams[tid] = g.get("homeTeam", "")
+        if not g.get("away_lineup"):
+            tid = g.get("awayTeamId")
+            if tid:
+                teams[tid] = g.get("awayTeam", "")
+
+    result: dict[str, list[int]] = {}
+    session = requests.Session()
+
+    for team_id, team_name in teams.items():
+        try:
+            resp = session.get(
+                f"{MLB_API}/schedule",
+                params={
+                    "sportId":   1,
+                    "teamId":    team_id,
+                    "startDate": start,
+                    "endDate":   end,
+                    "hydrate":   "lineups",
+                },
+                timeout=10,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:
+            log.debug("Proxy lineup fetch failed for %s: %s", team_name, exc)
+            continue
+
+        # Gather all Final games, sort most-recent first, take up to 10
+        all_games: list[tuple[str, dict]] = []
+        for day in data.get("dates", []):
+            for raw in day.get("games", []):
+                if raw.get("status", {}).get("abstractGameState") == "Final":
+                    all_games.append((day.get("date", ""), raw))
+        all_games.sort(key=lambda x: x[0], reverse=True)
+
+        player_ids: set[int] = set()
+        games_counted = 0
+        for _, raw in all_games[:10]:
+            lineups  = raw.get("lineups", {})
+            home_tid = raw.get("teams", {}).get("home", {}).get("team", {}).get("id")
+            players  = lineups.get("homePlayers" if home_tid == team_id else "awayPlayers", [])
+            ids      = [p["id"] for p in players if "id" in p]
+            if ids:
+                player_ids.update(ids)
+                games_counted += 1
+
+        if games_counted >= 3:
+            result[team_name] = list(player_ids)
+            log.info("Proxy lineup: %s — %d players from last %d games",
+                     team_name, len(player_ids), games_counted)
+        else:
+            log.debug("Proxy lineup: %s — only %d games found, skipping", team_name, games_counted)
+
+    return result
+
+
