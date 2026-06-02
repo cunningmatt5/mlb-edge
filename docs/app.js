@@ -57,10 +57,12 @@ function setupNav() {
       document.getElementById('props-view').hidden    = currentView !== 'props';
       document.getElementById('record-view').hidden   = currentView !== 'record';
       document.getElementById('backtest-view').hidden = currentView !== 'backtest';
+      document.getElementById('simulate-view').hidden = currentView !== 'simulate';
       document.getElementById('support-view').hidden  = currentView !== 'support';
       if (currentView === 'record')   Promise.all([loadBacktest(), loadPropsHistory()]).then(renderRecordView);
       if (currentView === 'backtest') Promise.all([loadBacktest(), loadPropsHistory()]).then(renderBacktestView);
       if (currentView === 'props')    loadPicks().then(renderPropsView);
+      if (currentView === 'simulate') loadGames().then(renderSimulateView);
       if (currentView === 'support')  renderSupportView();
     });
   });
@@ -2181,6 +2183,474 @@ function renderBacktestView() {
         </table>
       </div>
     </div>`;
+}
+
+// ── Monte Carlo Simulation Tab ────────────────────────────────────────────────
+
+// 2024 MLB league averages — fallbacks when per-player stats are null
+const MC_LEAGUE = {
+  k_pct: 0.224, bb_pct: 0.084,
+  hr_per_bip: 0.032, babip: 0.299,
+  single_of_hit: 0.535, double_of_hit: 0.285, triple_of_hit: 0.018,
+  pitcher_k_pct: 0.224, pitcher_bb_pct: 0.084,
+};
+
+// Log5 formula: combine batter rate + pitcher rate relative to league average
+function mcLog5(b, p, L) {
+  if (!L || L <= 0 || L >= 1) return Math.max(0.01, Math.min(0.98, (b + p) / 2));
+  const num = b * p / L;
+  const den = num + (1 - b) * (1 - p) / (1 - L);
+  return Math.max(0.01, Math.min(0.98, num / den));
+}
+
+// Sample from normal distribution using Box-Muller
+function mcRandn(mean, std) {
+  const u = Math.random(), v = Math.random();
+  const n = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  return mean + std * n;
+}
+
+// Clamp a value between lo and hi
+function mcClamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// Derive HR rate per PA from batter's barrel_pct or hard_hit_pct proxy
+function mcHrRate(batter, parkFactor) {
+  const pf = (parkFactor || 100) / 100;
+  if (batter.barrel_pct != null) return mcClamp(batter.barrel_pct * 0.50 * pf, 0.005, 0.12);
+  if (batter.hard_hit_pct != null) return mcClamp(batter.hard_hit_pct * 0.08 * pf, 0.005, 0.10);
+  return MC_LEAGUE.hr_per_bip * pf;
+}
+
+// Advance baserunner state (8-state bitmask: bit0=1B, bit1=2B, bit2=3B)
+// Returns { state, outs, runs }
+function mcAdvance(state, outs, outcome) {
+  let runs = 0;
+  const on1 = !!(state & 1), on2 = !!(state & 2), on3 = !!(state & 4);
+  switch (outcome) {
+    case 'K':
+      return { state, outs: outs + 1, runs: 0 };
+    case 'OUT':
+      // flyout — runner on 3rd scores (sac fly), others hold
+      runs += on3 ? 1 : 0;
+      return { state: state & ~4, outs: outs + 1, runs };
+    case 'BB': {
+      // force advance only if bases are loaded or base being forced
+      let ns = state;
+      if (on1 && on2) { runs += on3 ? 1 : 0; ns = 0b111 & ~4 | (on3 ? 0 : 4); }
+      else if (on1)   { ns = state | 2; }
+      else             { ns = state | 1; }
+      ns = ns | 1; // batter to 1st
+      return { state: ns & 0b111, outs, runs };
+    }
+    case 'S': {
+      // single: batter to 1B; runner on 3B scores; 2B to 3B; 1B to 2B (50% chance scores from 2B)
+      runs += on3 ? 1 : 0;
+      const score2 = on2 && Math.random() < 0.50;
+      runs += score2 ? 1 : 0;
+      let ns = 1; // batter on 1B
+      if (on1) ns |= 2;              // prev 1B to 2B
+      if (on2 && !score2) ns |= 4;   // prev 2B to 3B if didn't score
+      return { state: ns & 0b111, outs, runs };
+    }
+    case 'D': {
+      // double: batter to 2B; all runners on 2B/3B score; runner on 1B to 3B
+      runs += on3 ? 1 : 0;
+      runs += on2 ? 1 : 0;
+      let ns = 2; // batter on 2B
+      if (on1) ns |= 4;
+      return { state: ns & 0b111, outs, runs };
+    }
+    case 'T': {
+      // triple: batter to 3B; all runners score
+      runs += on1 ? 1 : 0;
+      runs += on2 ? 1 : 0;
+      runs += on3 ? 1 : 0;
+      return { state: 4, outs, runs };
+    }
+    case 'HR': {
+      runs += 1 + (on1 ? 1 : 0) + (on2 ? 1 : 0) + (on3 ? 1 : 0);
+      return { state: 0, outs, runs };
+    }
+    default:
+      return { state, outs: outs + 1, runs: 0 };
+  }
+}
+
+// Simulate one half-inning. Returns runs scored.
+function mcHalfInning(lineup, lineupPos, pitcher, isRelief, parkFactor) {
+  let outs = 0, runs = 0, state = 0;
+  let pos = lineupPos;
+
+  while (outs < 3) {
+    const batter = lineup[pos % lineup.length];
+    pos++;
+
+    // Apply per-batter and per-pitcher performance noise (pre-sampled per sim)
+    const bK  = mcClamp((batter.k_pct  ?? MC_LEAGUE.k_pct)  * batter._noise, 0.05, 0.55);
+    const bBB = mcClamp((batter.bb_pct ?? MC_LEAGUE.bb_pct)  * batter._noise, 0.02, 0.30);
+    const pK  = mcClamp((pitcher.k_pct ?? MC_LEAGUE.pitcher_k_pct) * pitcher._noise, 0.05, 0.55);
+    const pBB = mcClamp((pitcher.bb_pct ?? MC_LEAGUE.pitcher_bb_pct) * pitcher._noise, 0.02, 0.30);
+
+    const pStrikeout = mcLog5(bK, pK, MC_LEAGUE.k_pct);
+    const pWalk      = mcLog5(bBB, pBB, MC_LEAGUE.bb_pct);
+    const hrRate     = mcHrRate(batter, parkFactor) * pitcher._noise;
+
+    const roll = Math.random();
+    let outcome;
+    if (roll < pStrikeout) {
+      outcome = 'K';
+    } else if (roll < pStrikeout + pWalk) {
+      outcome = 'BB';
+    } else {
+      const bipRoll = Math.random();
+      if (bipRoll < hrRate / (1 - pStrikeout - pWalk + 0.001)) {
+        outcome = 'HR';
+      } else if (bipRoll < MC_LEAGUE.babip) {
+        // hit — determine type
+        const hitRoll = Math.random();
+        if (hitRoll < MC_LEAGUE.single_of_hit)                                  outcome = 'S';
+        else if (hitRoll < MC_LEAGUE.single_of_hit + MC_LEAGUE.double_of_hit)   outcome = 'D';
+        else if (hitRoll < MC_LEAGUE.single_of_hit + MC_LEAGUE.double_of_hit + MC_LEAGUE.triple_of_hit) outcome = 'T';
+        else outcome = 'S'; // fallback
+      } else {
+        outcome = 'OUT';
+      }
+    }
+
+    const adv = mcAdvance(state, outs, outcome);
+    state = adv.state; outs = adv.outs; runs += adv.runs;
+  }
+
+  return { runs, nextLineupPos: pos };
+}
+
+// Simulate one full game (9 innings each side). Returns { homeRuns, awayRuns }
+function mcSimulateOneGame(game, scenario) {
+  const parkFactor = game.park_run_factor || 100;
+  const homeSp = game.home_sp || {}, awaySp = game.away_sp || {};
+  const sig = game.prediction?.model_signals || {};
+  const homeLineup = (game.home_lineup || []).filter(b => b.xwoba != null || b.hard_hit_pct != null);
+  const awayLineup = (game.away_lineup || []).filter(b => b.xwoba != null || b.hard_hit_pct != null);
+
+  // Fallback mini-lineup if no data (9 league-avg batters)
+  const leagueAvgBatter = { xwoba: 0.318, k_pct: 0.224, bb_pct: 0.084, hard_hit_pct: 0.37 };
+  const hl = homeLineup.length >= 3 ? homeLineup : Array(9).fill(leagueAvgBatter);
+  const al = awayLineup.length >= 3 ? awayLineup : Array(9).fill(leagueAvgBatter);
+
+  // Build pitcher stat objects from games.json SP season data
+  const spNoise = () => mcClamp(mcRandn(1.0, 0.20), 0.5, 1.6);
+  const bNoise  = () => mcClamp(mcRandn(1.0, 0.15), 0.5, 1.5);
+
+  const homeSpStats = {
+    k_pct:  homeSp.season?.k_pct  ?? MC_LEAGUE.pitcher_k_pct,
+    bb_pct: homeSp.season?.bb_pct ?? MC_LEAGUE.pitcher_bb_pct,
+    _noise: spNoise(),
+  };
+  const awaySpStats = {
+    k_pct:  awaySp.season?.k_pct  ?? MC_LEAGUE.pitcher_k_pct,
+    bb_pct: awaySp.season?.bb_pct ?? MC_LEAGUE.pitcher_bb_pct,
+    _noise: spNoise(),
+  };
+
+  // Bullpen fallback to SP stats if no bullpen data
+  const homeBpStats = {
+    k_pct:  sig.bullpen_k_pct_home  ?? homeSpStats.k_pct * 0.9,
+    bb_pct: sig.bullpen_bb_pct_home ?? homeSpStats.bb_pct * 1.1,
+    _noise: spNoise(),
+  };
+  const awayBpStats = {
+    k_pct:  sig.bullpen_k_pct_away  ?? awaySpStats.k_pct * 0.9,
+    bb_pct: sig.bullpen_bb_pct_away ?? awaySpStats.bb_pct * 1.1,
+    _noise: spNoise(),
+  };
+
+  // Apply scenario modifier to home or away SP
+  const applyScenario = (spStats) => {
+    const s = { ...spStats };
+    if (scenario === 'cold_sp_home' || scenario === 'cold_sp_away') {
+      s.k_pct  = s.k_pct  * 0.78;
+      s.bb_pct = s.bb_pct * 1.35;
+    } else if (scenario === 'sharp_sp_home' || scenario === 'sharp_sp_away') {
+      s.k_pct  = s.k_pct  * 1.22;
+      s.bb_pct = s.bb_pct * 0.75;
+    }
+    return s;
+  };
+
+  const effectiveHomeSp = (scenario === 'cold_sp_home' || scenario === 'sharp_sp_home')
+    ? applyScenario(homeSpStats) : homeSpStats;
+  const effectiveAwaySp = (scenario === 'cold_sp_away' || scenario === 'sharp_sp_away')
+    ? applyScenario(awaySpStats) : awaySpStats;
+
+  // Assign per-batter noise once per sim
+  const withNoise = lineup => lineup.map(b => ({ ...b, _noise: bNoise() }));
+  const homeL = withNoise(hl);
+  const awayL = withNoise(al);
+
+  // SP pitches ~24 PAs (randomized); bullpen after
+  const spThreshold = Math.round(24 + (Math.random() - 0.5) * 6);
+
+  function simTeamInnings(lineup, sp, bp, isAway) {
+    let runs = 0, pos = 0, totalPa = 0;
+    for (let inn = 0; inn < 9; inn++) {
+      const pitcher = totalPa < spThreshold ? sp : bp;
+      const result = mcHalfInning(lineup, pos, pitcher, totalPa >= spThreshold, parkFactor);
+      runs += result.runs;
+      pos = result.nextLineupPos % lineup.length;
+      totalPa += 3; // approximate: 3 outs per inning
+    }
+    return runs;
+  }
+
+  // Home team bats against away SP/BP; away team bats against home SP/BP
+  const awayRuns = simTeamInnings(awayL, effectiveAwaySp, awayBpStats, true);
+  const homeRuns = simTeamInnings(homeL, effectiveHomeSp, homeBpStats, false);
+
+  return { homeRuns, awayRuns };
+}
+
+// Run N simulations and return aggregated results
+function mcSimulateGame(game, nSims, scenario) {
+  scenario = scenario || 'normal';
+  const homeScores = [], awayScores = [];
+
+  for (let i = 0; i < nSims; i++) {
+    const { homeRuns, awayRuns } = mcSimulateOneGame(game, scenario);
+    homeScores.push(homeRuns);
+    awayScores.push(awayRuns);
+  }
+
+  const homeWins = homeScores.filter((h, i) => h > awayScores[i]).length;
+  const homeWinPct = homeWins / nSims;
+
+  // 95% CI using Wilson score interval for proportions
+  const z = 1.96;
+  const ci = z * Math.sqrt((homeWinPct * (1 - homeWinPct)) / nSims);
+
+  // Over/under probability
+  const ouLine = game.odds?.total;
+  const overProb = ouLine != null
+    ? homeScores.filter((h, i) => (h + awayScores[i]) > ouLine).length / nSims
+    : null;
+
+  // Score distributions (0–9+ buckets)
+  function buildDist(scores) {
+    const counts = Array(11).fill(0);
+    scores.forEach(s => counts[Math.min(s, 10)]++);
+    return counts.map((c, i) => ({ runs: i === 10 ? '10+' : i, pct: c / nSims }));
+  }
+
+  // Most likely specific score
+  const scoreCounts = {};
+  homeScores.forEach((h, i) => {
+    const key = `${h}-${awayScores[i]}`;
+    scoreCounts[key] = (scoreCounts[key] || 0) + 1;
+  });
+  const modeEntry = Object.entries(scoreCounts).sort((a, b) => b[1] - a[1])[0];
+  const [modeHome, modeAway] = modeEntry[0].split('-').map(Number);
+  const modePct = modeEntry[1] / nSims;
+
+  // Median and mean scores
+  const sorted = [...homeScores].sort((a, b) => a - b);
+  const medianHome = sorted[Math.floor(nSims / 2)];
+  const meanHome = homeScores.reduce((s, v) => s + v, 0) / nSims;
+  const sortedAway = [...awayScores].sort((a, b) => a - b);
+  const medianAway = sortedAway[Math.floor(nSims / 2)];
+  const meanAway = awayScores.reduce((s, v) => s + v, 0) / nSims;
+
+  return {
+    homeWinPct: Math.round(homeWinPct * 1000) / 10,
+    awayWinPct: Math.round((1 - homeWinPct) * 1000) / 10,
+    winCI: Math.round(ci * 1000) / 10,
+    overProb: overProb != null ? Math.round(overProb * 1000) / 10 : null,
+    underProb: overProb != null ? Math.round((1 - overProb) * 1000) / 10 : null,
+    homeDist: buildDist(homeScores),
+    awayDist: buildDist(awayScores),
+    mostLikelyHome: modeHome, mostLikelyAway: modeAway, modePct: Math.round(modePct * 1000) / 10,
+    meanHome: meanHome.toFixed(1), meanAway: meanAway.toFixed(1),
+    medianHome, medianAway,
+    nSims,
+  };
+}
+
+// Render an SVG score distribution bar chart
+function mcRenderChart(homeDist, awayDist, homeAbbr, awayAbbr) {
+  const W = 280, H = 80, barW = 11, gap = 2, leftPad = 6;
+  const maxPct = Math.max(...homeDist.map(d => d.pct), ...awayDist.map(d => d.pct), 0.001);
+  const scale = (H - 14) / maxPct;
+  const buckets = homeDist.length;
+
+  const bars = homeDist.map((hd, i) => {
+    const ad = awayDist[i];
+    const hH = Math.round(hd.pct * scale);
+    const aH = Math.round(ad.pct * scale);
+    const x = leftPad + i * (barW * 2 + gap);
+    const label = hd.runs;
+    return `
+      <rect x="${x}" y="${H - 12 - hH}" width="${barW}" height="${hH}" fill="#3b82f6" opacity="0.85">
+        <title>${homeAbbr} ${label} runs: ${(hd.pct*100).toFixed(1)}%</title>
+      </rect>
+      <rect x="${x + barW}" y="${H - 12 - aH}" width="${barW}" height="${aH}" fill="#94a3b8" opacity="0.75">
+        <title>${awayAbbr} ${label} runs: ${(ad.pct*100).toFixed(1)}%</title>
+      </rect>
+      <text x="${x + barW}" y="${H - 2}" text-anchor="middle" font-size="8" fill="#64748b">${label}</text>
+    `;
+  }).join('');
+
+  const legendX = W - 90;
+  return `<svg width="${W}" height="${H}" class="sim-chart-svg">
+    ${bars}
+    <rect x="${legendX}" y="4" width="8" height="8" fill="#3b82f6" opacity="0.85"/>
+    <text x="${legendX + 11}" y="12" font-size="9" fill="#94a3b8">${homeAbbr} (home)</text>
+    <rect x="${legendX}" y="16" width="8" height="8" fill="#94a3b8" opacity="0.75"/>
+    <text x="${legendX + 11}" y="24" font-size="9" fill="#94a3b8">${awayAbbr} (away)</text>
+  </svg>`;
+}
+
+// Render the Simulate tab
+function renderSimulateView() {
+  const el = document.getElementById('simulate-view');
+  if (!el) return;
+  const games = (gamesData?.games || []).filter(g => (g.game_status || 'preview') === 'preview');
+
+  if (!games.length) {
+    el.innerHTML = `<div class="sim-empty">No games scheduled today.</div>`;
+    return;
+  }
+
+  const dateStr = gamesData?.date || '';
+
+  const cards = games.map(g => {
+    const pk = g.gamePk;
+    const homeSp = g.home_sp?.name || 'TBD';
+    const awaySp = g.away_sp?.name || 'TBD';
+    const homeXera = g.home_sp?.season?.xera?.toFixed(2) ?? '—';
+    const awayXera = g.away_sp?.season?.xera?.toFixed(2) ?? '—';
+    const ouLine = g.odds?.total;
+    const ouText = ouLine != null ? `O/U ${ouLine}` : 'No line';
+    const timeStr = g.game_time_et || '';
+    const homeAbbr = abbrev(g.home_team), awayAbbr = abbrev(g.away_team);
+
+    return `
+<div class="sim-card" id="sim-card-${pk}">
+  <div class="sim-game-hdr">
+    <div class="sim-matchup">
+      <span class="sim-away">${awayAbbr}</span>
+      <span class="sim-at">@</span>
+      <span class="sim-home">${homeAbbr}</span>
+    </div>
+    <div class="sim-meta">${timeStr}</div>
+    <div class="sim-pitchers">${awaySp} <span class="sim-xera">${awayXera}</span> vs ${homeSp} <span class="sim-xera">${homeXera}</span> xERA</div>
+    <div class="sim-ou-pre">${ouText}</div>
+  </div>
+  <div class="sim-controls">
+    <button class="sim-run-btn" onclick="mcRunSim(${pk})">&#9654; Run 10,000 Simulations</button>
+  </div>
+  <div class="sim-results" id="sim-results-${pk}" hidden></div>
+</div>`;
+  }).join('');
+
+  el.innerHTML = `
+<div class="sim-header">
+  <div class="sim-title">Game Simulations</div>
+  <div class="sim-subtitle">Full plate-appearance Monte Carlo · ${dateStr}</div>
+  <div class="sim-legend">
+    <span class="sim-legend-item"><span class="sim-swatch home"></span>Home team</span>
+    <span class="sim-legend-item"><span class="sim-swatch away"></span>Away team</span>
+  </div>
+</div>
+${cards}`;
+}
+
+// Called when user clicks "Run Simulation" on a specific game
+function mcRunSim(pk, scenario) {
+  scenario = scenario || 'normal';
+  const game = (gamesData?.games || []).find(g => g.gamePk === pk);
+  if (!game) return;
+
+  const btn = document.querySelector(`#sim-card-${pk} .sim-run-btn`);
+  if (btn) { btn.textContent = 'Simulating…'; btn.disabled = true; }
+
+  // Use setTimeout to allow the DOM to update before blocking JS runs
+  setTimeout(() => {
+    const result = mcSimulateGame(game, 10000, scenario);
+    mcRenderResults(pk, game, result, scenario);
+    if (btn) { btn.textContent = '↺ Re-run Simulation'; btn.disabled = false; }
+  }, 16);
+}
+
+function mcRenderResults(pk, game, r, scenario) {
+  const el = document.getElementById(`sim-results-${pk}`);
+  if (!el) return;
+
+  const homeAbbr = abbrev(game.home_team), awayAbbr = abbrev(game.away_team);
+  const ouLine = game.odds?.total;
+
+  const ouHtml = ouLine != null ? `
+    <div class="sim-ou-row">
+      <span class="sim-ou-label">O/U ${ouLine}:</span>
+      <span class="sim-ou-val ${r.overProb > 52 ? 'over' : r.underProb > 52 ? 'under' : ''}"
+        >OVER ${r.overProb}%</span>
+      <span class="sim-ou-sep">/</span>
+      <span class="sim-ou-val ${r.underProb > 52 ? 'under' : r.overProb > 52 ? 'over' : ''}"
+        >UNDER ${r.underProb}%</span>
+    </div>` : '';
+
+  // Compare vs. model's prediction
+  const modelHomePct = game.prediction?.home_win_pct != null
+    ? Math.round(game.prediction.home_win_pct * 10) / 10 : null;
+  const modelDiff = modelHomePct != null
+    ? Math.round((r.homeWinPct - modelHomePct) * 10) / 10 : null;
+  const modelDiffHtml = modelDiff != null ? `
+    <div class="sim-model-diff">
+      Model: ${homeAbbr} ${modelHomePct}%
+      <span class="sim-diff-val ${modelDiff > 0 ? 'pos' : modelDiff < 0 ? 'neg' : ''}">
+        (MC ${modelDiff > 0 ? '+' : ''}${modelDiff}pp vs model)
+      </span>
+    </div>` : '';
+
+  const scenarioLabels = {
+    normal:       'Normal',
+    cold_sp_home: `Cold SP (${homeAbbr})`,
+    sharp_sp_home:`Sharp SP (${homeAbbr})`,
+    cold_sp_away: `Cold SP (${awayAbbr})`,
+    sharp_sp_away:`Sharp SP (${awayAbbr})`,
+  };
+
+  const scenarioBtns = Object.entries(scenarioLabels).map(([sc, lbl]) =>
+    `<button class="sim-scenario-btn ${sc === scenario ? 'active' : ''}"
+       onclick="mcRunSim(${pk}, '${sc}')">${lbl}</button>`
+  ).join('');
+
+  el.hidden = false;
+  el.innerHTML = `
+<div class="sim-win-strip">
+  <div class="sim-win-side away">
+    <div class="sim-win-pct">${r.awayWinPct}%</div>
+    <div class="sim-win-label">${awayAbbr} wins</div>
+  </div>
+  <div class="sim-win-ci">±${r.winCI}%</div>
+  <div class="sim-win-side home">
+    <div class="sim-win-pct">${r.homeWinPct}%</div>
+    <div class="sim-win-label">${homeAbbr} wins</div>
+  </div>
+</div>
+${modelDiffHtml}
+<div class="sim-chart-section">
+  <div class="sim-chart-title">Score distribution (${r.nSims.toLocaleString()} simulations)</div>
+  <div class="sim-chart-wrap">
+    ${mcRenderChart(r.homeDist, r.awayDist, homeAbbr, awayAbbr)}
+  </div>
+  <div class="sim-chart-note">
+    Avg: ${homeAbbr} ${r.meanHome} — ${awayAbbr} ${r.meanAway} &nbsp;·&nbsp;
+    Most likely: ${homeAbbr} ${r.mostLikelyHome}, ${awayAbbr} ${r.mostLikelyAway} (${r.modePct}%)
+  </div>
+</div>
+${ouHtml}
+<div class="sim-scenarios">
+  <div class="sim-scenarios-label">Scenarios:</div>
+  ${scenarioBtns}
+</div>`;
 }
 
 function escapeHtml(str) {
