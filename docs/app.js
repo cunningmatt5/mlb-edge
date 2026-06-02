@@ -2590,7 +2590,7 @@ function renderSimulateView() {
     <div class="sim-ou-pre">${ouText}</div>
   </div>
   <div class="sim-controls">
-    <button class="sim-run-btn" onclick="mcRunSim(${pk})">&#9654; Run 10,000 Simulations</button>
+    <button class="sim-run-btn" onclick="mcRunSim(${pk})">&#9654; Run 100,000 Simulations</button>
   </div>
   <div class="sim-results" id="sim-results-${pk}" hidden></div>
 </div>`;
@@ -2615,7 +2615,7 @@ function mcRunSim(pk, scenario) {
 
   // Use setTimeout to allow the DOM to update before blocking JS runs
   setTimeout(() => {
-    const result = mcSimulateGame(game, 10000, scenario);
+    const result = mcSimulateGame(game, 100000, scenario);
     mcRenderResults(pk, game, result, scenario);
     if (btn) { btn.textContent = '↺ Re-run Simulation'; btn.disabled = false; }
   }, 16);
