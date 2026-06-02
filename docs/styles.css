@@ -1415,6 +1415,12 @@ header {
 .pv-sub  { display: block; font-size: 10px; color: var(--text-dim); font-weight: 400; }
 .pv-star { color: #f59e0b; margin-right: 3px; font-size: 12px; }
 .pv-empty { text-align: center; color: var(--text-dim); padding: 24px; }
+.pv-exceptional {
+  color: #a5b4fc !important;
+  background: rgba(99, 102, 241, 0.13);
+  border-radius: 4px;
+  font-weight: 700;
+}
 
 /* Intro callout */
 .bt-intro {

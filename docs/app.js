@@ -2307,7 +2307,7 @@ function renderPitcherView() {
 
   const fmtRoi = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
   const fmtWr  = v => v == null ? '—' : (v * 100).toFixed(1) + '%';
-  const roiCls = v => v == null ? '' : v >= 0 ? 'seg-pos' : 'seg-neg';
+  const roiCls = v => v == null ? '' : v >= 10 ? 'pv-exceptional' : v >= 0 ? 'seg-pos' : 'seg-neg';
 
   function _renderTable() {
     const search = _pvSearch.trim().toLowerCase();
@@ -2396,8 +2396,8 @@ function renderPitcherView() {
         <input type="text" id="pv-search" class="pv-search" placeholder="Search pitcher…" value="${_pvSearch}">
         <select id="pv-min-starts" class="pv-select">
           <option value="20" ${_pvMinStarts === 20 ? 'selected' : ''}>≥ 20 starts</option>
-          <option value="30" ${_pvMinStarts === 30 ? 'selected' : ''}>≥ 30 starts</option>
-          <option value="50" ${_pvMinStarts === 50 ? 'selected' : ''}>≥ 50 starts</option>
+          <option value="40" ${_pvMinStarts === 40 ? 'selected' : ''}>≥ 40 starts</option>
+          <option value="60" ${_pvMinStarts === 60 ? 'selected' : ''}>≥ 60 starts</option>
         </select>
         <span id="pv-count" class="pv-count"></span>
       </div>
