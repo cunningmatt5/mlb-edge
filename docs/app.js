@@ -2295,6 +2295,7 @@ function renderBacktestView() {
 let _pvSort = { col: 'ml_roi', dir: -1 };
 let _pvMinStarts = 20;
 let _pvSearch = '';
+let _pvRegularOnly = true;
 
 function renderPitcherView() {
   const el = document.getElementById('pitcher-view');
@@ -2305,6 +2306,11 @@ function renderPitcherView() {
 
   const { pitchers = [], seasons = [], min_starts } = pitcherData;
 
+  // Compute regular-starter threshold: 35% of avg 2026 starts among active pitchers
+  const _active2026 = pitchers.filter(p => p.seasons.includes(2026));
+  const _avg2026 = _active2026.reduce((s, p) => s + (p.starts_2026 || 0), 0) / Math.max(_active2026.length, 1);
+  const _regularThreshold = Math.floor(_avg2026 * 0.35); // e.g. floor(8.4 * 0.35) = 2
+
   const fmtRoi    = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
   const fmtWr     = v => v == null ? '—' : (v * 100).toFixed(1) + '%';
   const roiCls    = v => v == null ? '' : v >= 30 ? 'pv-exceptional' : v >= 0 ? 'seg-pos' : 'seg-neg';
@@ -2313,6 +2319,7 @@ function renderPitcherView() {
   function _renderTable() {
     const search = _pvSearch.trim().toLowerCase();
     let filtered = pitchers.filter(p => p.ml.n >= _pvMinStarts && p.seasons.includes(2026));
+    if (_pvRegularOnly) filtered = filtered.filter(p => (p.starts_2026 || 0) > _regularThreshold);
     if (search) filtered = filtered.filter(p => p.name.toLowerCase().includes(search));
 
     const colKey = _pvSort.col;
@@ -2399,10 +2406,14 @@ function renderPitcherView() {
       <div class="pv-controls">
         <input type="text" id="pv-search" class="pv-search" placeholder="Search pitcher…" value="${_pvSearch}">
         <select id="pv-min-starts" class="pv-select">
-          <option value="20" ${_pvMinStarts === 20 ? 'selected' : ''}>≥ 20 starts</option>
-          <option value="40" ${_pvMinStarts === 40 ? 'selected' : ''}>≥ 40 starts</option>
-          <option value="60" ${_pvMinStarts === 60 ? 'selected' : ''}>≥ 60 starts</option>
+          <option value="20" ${_pvMinStarts === 20 ? 'selected' : ''}>≥ 20 career GS</option>
+          <option value="40" ${_pvMinStarts === 40 ? 'selected' : ''}>≥ 40 career GS</option>
+          <option value="60" ${_pvMinStarts === 60 ? 'selected' : ''}>≥ 60 career GS</option>
         </select>
+        <div class="pv-toggle" role="group" aria-label="Starter type">
+          <button class="pv-toggle-btn${_pvRegularOnly ? ' active' : ''}" data-pv="regular">Regular Starter</button>
+          <button class="pv-toggle-btn${!_pvRegularOnly ? ' active' : ''}" data-pv="all">All Starters</button>
+        </div>
         <span id="pv-count" class="pv-count"></span>
       </div>
       <div class="pv-table-wrap">
@@ -2411,20 +2422,25 @@ function renderPitcherView() {
           <tbody id="pv-tbody"></tbody>
         </table>
       </div>
-      <div class="bt-signal-note">GS = games started with Pinnacle closing lines available. ROI = profit per $1 risked. ML ROI bets on the pitcher's team regardless of side. Under ROI always bets the total UNDER.</div>
+      <div class="bt-signal-note">GS = career games started with Pinnacle closing lines available. 2026 GS = starts this season. Regular Starter = above 35% of the 2026 league-average start count (threshold: >${_regularThreshold} starts). ROI = profit per $1 risked.</div>
     </div>`;
 
-  // wire events
-  document.querySelectorAll('.pv-th').forEach(th => {
-    th.addEventListener('click', () => _thClick(th.dataset.col));
+  // Single delegated listener on the persistent container — survives innerHTML re-renders
+  el.addEventListener('click', e => {
+    const th = e.target.closest('.pv-th[data-col]');
+    if (th) { _thClick(th.dataset.col); return; }
+    const btn = e.target.closest('.pv-toggle-btn[data-pv]');
+    if (btn) {
+      _pvRegularOnly = btn.dataset.pv === 'regular';
+      el.querySelectorAll('.pv-toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.pv === btn.dataset.pv));
+      _renderTable();
+    }
   });
-  document.getElementById('pv-search').addEventListener('input', e => {
-    _pvSearch = e.target.value;
-    _renderTable();
+  el.addEventListener('change', e => {
+    if (e.target.id === 'pv-min-starts') { _pvMinStarts = parseInt(e.target.value); _renderTable(); }
   });
-  document.getElementById('pv-min-starts').addEventListener('change', e => {
-    _pvMinStarts = parseInt(e.target.value);
-    _renderTable();
+  el.addEventListener('input', e => {
+    if (e.target.id === 'pv-search') { _pvSearch = e.target.value; _renderTable(); }
   });
 
   _renderTable();
