@@ -1035,11 +1035,17 @@ def generate_pitcher_value(all_results: list[dict]) -> None:
                     "_ml_a_n": 0, "_ml_a_wins": 0, "_ml_a_units": 0.0,
                     # UNDER accumulators
                     "_un_n": 0, "_un_wins": 0, "_un_units": 0.0,
+                    # 2026-specific start counter
+                    "_starts_2026": 0,
                 }
             p = pitchers[sp_id]
             if season:
                 p["seasons"].add(season)
             p["team"] = team  # keep most-recent team name
+
+            # Count every 2026 appearance regardless of closing-line availability
+            if season == 2026:
+                p["_starts_2026"] += 1
 
             # ML ROI — requires both closing lines
             hml = r.get("home_ml")
@@ -1095,11 +1101,12 @@ def generate_pitcher_value(all_results: list[dict]) -> None:
         if p["_ml_n"] < MIN_STARTS:
             continue
         output_pitchers.append({
-            "id":      p["id"],
-            "name":    p["name"],
-            "team":    p["team"],
-            "seasons": sorted(p["seasons"]),
-            "ml":      {
+            "id":         p["id"],
+            "name":       p["name"],
+            "team":       p["team"],
+            "seasons":    sorted(p["seasons"]),
+            "starts_2026": p["_starts_2026"],
+            "ml":         {
                 **_stats(p["_ml_n"], p["_ml_wins"], p["_ml_units"]),
                 "home": _stats(p["_ml_h_n"], p["_ml_h_wins"], p["_ml_h_units"]),
                 "away": _stats(p["_ml_a_n"], p["_ml_a_wins"], p["_ml_a_units"]),

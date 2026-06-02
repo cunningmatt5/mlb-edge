@@ -2320,7 +2320,8 @@ function renderPitcherView() {
       let av, bv;
       if (colKey === 'name')     { av = a.name;           bv = b.name; return _pvSort.dir * av.localeCompare(bv); }
       if (colKey === 'team')     { av = a.team;           bv = b.team; return _pvSort.dir * av.localeCompare(bv); }
-      if (colKey === 'starts')   { av = a.ml.n;           bv = b.ml.n; }
+      if (colKey === 'starts')    { av = a.ml.n;              bv = b.ml.n; }
+      if (colKey === 'starts_26') { av = a.starts_2026 ?? 0;  bv = b.starts_2026 ?? 0; }
       if (colKey === 'ml_roi')   { av = a.ml.roi_pct;     bv = b.ml.roi_pct; }
       if (colKey === 'ml_wr')    { av = a.ml.win_rate;    bv = b.ml.win_rate; }
       if (colKey === 'h_roi')    { av = a.ml.home.roi_pct;  bv = b.ml.home.roi_pct; }
@@ -2340,6 +2341,7 @@ function renderPitcherView() {
         <td class="pv-name">${star}${p.name}</td>
         <td class="pv-team">${abbrev(p.team)}</td>
         <td class="pv-n">${p.ml.n}</td>
+        <td class="pv-n">${p.starts_2026 ?? 0}</td>
         <td class="pv-roi ${baseRoiCls(p.ml.roi_pct)}">${fmtRoi(p.ml.roi_pct)}<br>${homeN}</td>
         <td class="pv-wr">${fmtWr(p.ml.win_rate)}</td>
         <td class="pv-roi ${roiCls(p.ml.home.roi_pct)}">${fmtRoi(p.ml.home.roi_pct)}</td>
@@ -2349,7 +2351,7 @@ function renderPitcherView() {
       </tr>`;
     }).join('');
 
-    document.getElementById('pv-tbody').innerHTML = rows || '<tr><td colspan="9" class="pv-empty">No pitchers match filters.</td></tr>';
+    document.getElementById('pv-tbody').innerHTML = rows || '<tr><td colspan="10" class="pv-empty">No pitchers match filters.</td></tr>';
     document.getElementById('pv-count').textContent = `${filtered.length} pitchers`;
   }
 
@@ -2367,8 +2369,9 @@ function renderPitcherView() {
   const cols = [
     { col: 'name',   label: 'Pitcher' },
     { col: 'team',   label: 'Team' },
-    { col: 'starts', label: 'GS' },
-    { col: 'ml_roi', label: 'ML ROI' },
+    { col: 'starts',    label: 'GS' },
+    { col: 'starts_26', label: '2026 GS' },
+    { col: 'ml_roi',    label: 'ML ROI' },
     { col: 'ml_wr',  label: 'ML Win%' },
     { col: 'h_roi',  label: 'Home ROI' },
     { col: 'a_roi',  label: 'Away ROI' },
