@@ -2312,7 +2312,7 @@ function renderPitcherView() {
 
   function _renderTable() {
     const search = _pvSearch.trim().toLowerCase();
-    let filtered = pitchers.filter(p => p.ml.n >= _pvMinStarts);
+    let filtered = pitchers.filter(p => p.ml.n >= _pvMinStarts && p.seasons.includes(2026));
     if (search) filtered = filtered.filter(p => p.name.toLowerCase().includes(search));
 
     const colKey = _pvSort.col;
