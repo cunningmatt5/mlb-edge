@@ -671,6 +671,48 @@ def build_game(
             + bullpen_score(away_bullpen) * 0.40, 4
         )
 
+    # Opener/bulk SP detection: when last_start_ip < 3.5, pitcher was likely an opener
+    # or bulk reliever — blend 55% toward league-avg (0.50) so their season stats don't
+    # inflate the signal for a non-traditional outing.
+    _OPENER_IP_THRESHOLD = 3.5
+    _OPENER_SCORE_BLEND  = 0.55
+    home_opener_risk = bool(
+        home_sp.get("last_start_ip") is not None
+        and home_sp["last_start_ip"] < _OPENER_IP_THRESHOLD
+    )
+    away_opener_risk = bool(
+        away_sp.get("last_start_ip") is not None
+        and away_sp["last_start_ip"] < _OPENER_IP_THRESHOLD
+    )
+    if home_opener_risk:
+        home_pitcher_score = round(
+            home_pitcher_score * (1 - _OPENER_SCORE_BLEND) + 0.50 * _OPENER_SCORE_BLEND, 4
+        )
+    if away_opener_risk:
+        away_pitcher_score = round(
+            away_pitcher_score * (1 - _OPENER_SCORE_BLEND) + 0.50 * _OPENER_SCORE_BLEND, 4
+        )
+
+    # K-strength × K-vulnerability: when facing an elite-K SP (k_pct > 0.265),
+    # discount lineup score up to 5% based on per-batter strikeout vulnerability vs that hand.
+    _K_ELITE_SP = 0.265
+    _K_VULN_CAP = 0.05
+
+    def _k_vuln_discount(lineup_players, sp_k_pct, sp_throws):
+        if not sp_k_pct or sp_k_pct < _K_ELITE_SP or not lineup_players:
+            return 1.0
+        hand = 'l' if sp_throws == 'L' else 'r'
+        k_field = f"k_pct_vs_{hand}"
+        lineup_k = sum(b.get(k_field, b.get("k_pct", 0.224)) for b in lineup_players) / len(lineup_players)
+        k_excess = max(0.0, (lineup_k - 0.224) / 0.224)
+        discount = min(_K_VULN_CAP, k_excess * _K_VULN_CAP)
+        return round(1.0 - discount, 4)
+
+    home_k_mult = _k_vuln_discount(home_lineup_players, away_sp.get("k_pct", 0), away_sp_throws or "R")
+    away_k_mult = _k_vuln_discount(away_lineup_players, home_sp.get("k_pct", 0), home_sp_throws or "R")
+    home_lineup_score = round(home_lineup_score * home_k_mult, 4)
+    away_lineup_score = round(away_lineup_score * away_k_mult, 4)
+
     home_win_pct, away_win_pct = _win_probability(
         home_pitcher_score, away_pitcher_score,
         home_lineup_score, away_lineup_score,
@@ -695,6 +737,14 @@ def build_game(
             if abs(_ump_ml_logit) > 0.001:
                 home_win_pct = round(_sigmoid(_logit(home_win_pct) + _ump_ml_logit), 4)
                 away_win_pct = round(1.0 - home_win_pct, 4)
+
+    # Line movement: sharp-money signal as small post-hoc logit adjustment.
+    # ml_move > 0 = line moved toward home; < 0 = moved toward away.
+    # Weight 0.35: a 5pp implied-prob shift produces ~0.4pp win-probability change.
+    _lm = (game.get("line_movement") or {}).get("ml_move")
+    if _lm is not None:
+        home_win_pct = round(_sigmoid(_logit(home_win_pct) + _lm * 0.35), 4)
+        away_win_pct = round(1.0 - home_win_pct, 4)
 
     # Flag when model and Vegas both agree strongly on home — signal is dampened
     # (edge_mult 0.25 vs 0.5). Surfaces in UI so users weight picks accordingly.
@@ -837,6 +887,9 @@ def build_game(
                 "last_start_pitches_away":  away_sp.get("last_start_pitches"),
                 "umpire":                   umpire_name or None,
                 "consensus_suppressed":     consensus_suppressed,
+                "opener_risk_home":         home_opener_risk,
+                "opener_risk_away":         away_opener_risk,
+                "line_move_ml":             _lm,
             },
         },
     }
