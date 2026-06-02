@@ -3,9 +3,10 @@
 // ── Data sources ─────────────────────────────────────────────────────────────
 const GAMES_URL    = './games.json';
 const HISTORY_URL  = './history.json';
-const BACKTEST_URL = './backtest.json';
-const PICKS_URL      = './picks.json';
-const PROPS_HIST_URL = './props_history.json';
+const BACKTEST_URL      = './backtest.json';
+const PICKS_URL         = './picks.json';
+const PROPS_HIST_URL    = './props_history.json';
+const PITCHER_VALUE_URL = './pitcher_value.json';
 
 // ── Team logo map (ESPN CDN abbreviations) ────────────────────────────────────
 const TEAM_LOGO = {
@@ -29,10 +30,11 @@ const TEAM_LOGO = {
 
 // ── App state ─────────────────────────────────────────────────────────────────
 let gamesData    = null;
-let historyData  = [];
-let backtestData = null;
-let picksData      = null;
-let propsHistData  = null;
+let historyData   = [];
+let backtestData  = null;
+let picksData     = null;
+let propsHistData = null;
+let pitcherData   = null;
 let expandedPk   = null;
 let currentView  = 'games';
 let lastCheckedAt = null;
@@ -57,10 +59,12 @@ function setupNav() {
       document.getElementById('props-view').hidden    = currentView !== 'props';
       document.getElementById('record-view').hidden   = currentView !== 'record';
       document.getElementById('backtest-view').hidden = currentView !== 'backtest';
+      document.getElementById('pitcher-view').hidden  = currentView !== 'pitcher';
       document.getElementById('simulate-view').hidden = currentView !== 'simulate';
       document.getElementById('support-view').hidden  = currentView !== 'support';
       if (currentView === 'record')   Promise.all([loadBacktest(), loadPropsHistory()]).then(renderRecordView);
       if (currentView === 'backtest') Promise.all([loadBacktest(), loadPropsHistory()]).then(renderBacktestView);
+      if (currentView === 'pitcher')  loadPitcherData().then(renderPitcherView);
       if (currentView === 'props')    loadPicks().then(renderPropsView);
       if (currentView === 'simulate') loadGames().then(renderSimulateView);
       if (currentView === 'support')  renderSupportView();
@@ -112,6 +116,16 @@ async function loadPropsHistory() {
     if (r.ok) propsHistData = await r.json();
   } catch {
     propsHistData = null;
+  }
+}
+
+async function loadPitcherData() {
+  if (pitcherData) return;
+  try {
+    const r = await fetch(PITCHER_VALUE_URL + '?v=' + Date.now());
+    if (r.ok) pitcherData = await r.json();
+  } catch {
+    pitcherData = null;
   }
 }
 
@@ -2274,6 +2288,142 @@ function renderBacktestView() {
         </table>
       </div>
     </div>`;
+}
+
+// ── Pitcher Value Tab ─────────────────────────────────────────────────────────
+
+let _pvSort = { col: 'ml_roi', dir: -1 };
+let _pvMinStarts = 20;
+let _pvSearch = '';
+
+function renderPitcherView() {
+  const el = document.getElementById('pitcher-view');
+  if (!pitcherData) {
+    el.innerHTML = `<div class="empty-state"><p>Pitcher value data not available. Run the pipeline to generate it.</p></div>`;
+    return;
+  }
+
+  const { pitchers = [], seasons = [], min_starts } = pitcherData;
+
+  const fmtRoi = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+  const fmtWr  = v => v == null ? '—' : (v * 100).toFixed(1) + '%';
+  const roiCls = v => v == null ? '' : v >= 0 ? 'seg-pos' : 'seg-neg';
+
+  function _renderTable() {
+    const search = _pvSearch.trim().toLowerCase();
+    let filtered = pitchers.filter(p => p.ml.n >= _pvMinStarts);
+    if (search) filtered = filtered.filter(p => p.name.toLowerCase().includes(search));
+
+    const colKey = _pvSort.col;
+    filtered.sort((a, b) => {
+      let av, bv;
+      if (colKey === 'name')     { av = a.name;           bv = b.name; return _pvSort.dir * av.localeCompare(bv); }
+      if (colKey === 'team')     { av = a.team;           bv = b.team; return _pvSort.dir * av.localeCompare(bv); }
+      if (colKey === 'starts')   { av = a.ml.n;           bv = b.ml.n; }
+      if (colKey === 'ml_roi')   { av = a.ml.roi_pct;     bv = b.ml.roi_pct; }
+      if (colKey === 'ml_wr')    { av = a.ml.win_rate;    bv = b.ml.win_rate; }
+      if (colKey === 'h_roi')    { av = a.ml.home.roi_pct;  bv = b.ml.home.roi_pct; }
+      if (colKey === 'a_roi')    { av = a.ml.away.roi_pct;  bv = b.ml.away.roi_pct; }
+      if (colKey === 'un_roi')   { av = a.under.roi_pct;  bv = b.under.roi_pct; }
+      if (colKey === 'un_wr')    { av = a.under.win_rate; bv = b.under.win_rate; }
+      av = av ?? -999; bv = bv ?? -999;
+      return _pvSort.dir * (av - bv);
+    });
+
+    const rows = filtered.map(p => {
+      const star = (p.ml.roi_pct >= 5 && p.ml.n >= 30) ? '<span class="pv-star" title="Consistent edge: ML ROI ≥ +5% with 30+ starts">★</span>' : '';
+      const homeN = p.ml.home.n ? `<span class="pv-sub">${p.ml.home.n}</span>` : '';
+      const awayN = p.ml.away.n ? `<span class="pv-sub">${p.ml.away.n}</span>` : '';
+      const unN   = p.under.n   ? `<span class="pv-sub">${p.under.n}</span>`   : '';
+      return `<tr>
+        <td class="pv-name">${star}${p.name}</td>
+        <td class="pv-team">${abbrev(p.team)}</td>
+        <td class="pv-n">${p.ml.n}</td>
+        <td class="pv-roi ${roiCls(p.ml.roi_pct)}">${fmtRoi(p.ml.roi_pct)}<br>${homeN}</td>
+        <td class="pv-wr">${fmtWr(p.ml.win_rate)}</td>
+        <td class="pv-roi ${roiCls(p.ml.home.roi_pct)}">${fmtRoi(p.ml.home.roi_pct)}</td>
+        <td class="pv-roi ${roiCls(p.ml.away.roi_pct)}">${fmtRoi(p.ml.away.roi_pct)}</td>
+        <td class="pv-roi ${roiCls(p.under.roi_pct)}">${fmtRoi(p.under.roi_pct)}${unN}</td>
+        <td class="pv-wr">${fmtWr(p.under.win_rate)}</td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('pv-tbody').innerHTML = rows || '<tr><td colspan="9" class="pv-empty">No pitchers match filters.</td></tr>';
+    document.getElementById('pv-count').textContent = `${filtered.length} pitchers`;
+  }
+
+  function _thClick(col) {
+    if (_pvSort.col === col) _pvSort.dir *= -1;
+    else { _pvSort.col = col; _pvSort.dir = -1; }
+    document.querySelectorAll('.pv-th').forEach(th => {
+      const isSorted = th.dataset.col === col;
+      th.classList.toggle('pv-th-asc', isSorted && _pvSort.dir === 1);
+      th.classList.toggle('pv-th-desc', isSorted && _pvSort.dir === -1);
+    });
+    _renderTable();
+  }
+
+  const cols = [
+    { col: 'name',   label: 'Pitcher' },
+    { col: 'team',   label: 'Team' },
+    { col: 'starts', label: 'GS' },
+    { col: 'ml_roi', label: 'ML ROI' },
+    { col: 'ml_wr',  label: 'ML Win%' },
+    { col: 'h_roi',  label: 'Home ROI' },
+    { col: 'a_roi',  label: 'Away ROI' },
+    { col: 'un_roi', label: 'Under ROI' },
+    { col: 'un_wr',  label: 'Under Win%' },
+  ];
+
+  const thead = cols.map(c => {
+    const active = _pvSort.col === c.col;
+    const cls = ['pv-th', active ? (_pvSort.dir === -1 ? 'pv-th-desc' : 'pv-th-asc') : ''].join(' ');
+    return `<th class="${cls}" data-col="${c.col}">${c.label}</th>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="pv-wrap">
+      <div class="pv-header">
+        <div class="bt-narrative-title">Pitcher Value</div>
+        <div class="bt-narrative-sub">Historical ROI betting team ML or UNDER · ${seasons.join(', ')} · Pinnacle closing lines</div>
+      </div>
+      <p class="bt-section-intro">
+        Each row shows what would have happened if you flat-bet $1 on the pitcher's team to win (ML ROI) or bet the
+        game UNDER every time they started (Under ROI). <strong>★</strong> marks pitchers with
+        sustained ML edge — ≥5% ROI over 30+ starts. Sort any column to surface the strongest edges.
+      </p>
+      <div class="pv-controls">
+        <input type="text" id="pv-search" class="pv-search" placeholder="Search pitcher…" value="${_pvSearch}">
+        <select id="pv-min-starts" class="pv-select">
+          <option value="20" ${_pvMinStarts === 20 ? 'selected' : ''}>≥ 20 starts</option>
+          <option value="30" ${_pvMinStarts === 30 ? 'selected' : ''}>≥ 30 starts</option>
+          <option value="50" ${_pvMinStarts === 50 ? 'selected' : ''}>≥ 50 starts</option>
+        </select>
+        <span id="pv-count" class="pv-count"></span>
+      </div>
+      <div class="pv-table-wrap">
+        <table class="pv-table">
+          <thead><tr>${thead}</tr></thead>
+          <tbody id="pv-tbody"></tbody>
+        </table>
+      </div>
+      <div class="bt-signal-note">GS = games started with Pinnacle closing lines available. ROI = profit per $1 risked. ML ROI bets on the pitcher's team regardless of side. Under ROI always bets the total UNDER.</div>
+    </div>`;
+
+  // wire events
+  document.querySelectorAll('.pv-th').forEach(th => {
+    th.addEventListener('click', () => _thClick(th.dataset.col));
+  });
+  document.getElementById('pv-search').addEventListener('input', e => {
+    _pvSearch = e.target.value;
+    _renderTable();
+  });
+  document.getElementById('pv-min-starts').addEventListener('change', e => {
+    _pvMinStarts = parseInt(e.target.value);
+    _renderTable();
+  });
+
+  _renderTable();
 }
 
 // ── Monte Carlo Simulation Tab ────────────────────────────────────────────────

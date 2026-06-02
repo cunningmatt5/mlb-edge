@@ -31,7 +31,8 @@ SEASONS = [2021, 2022, 2023, 2024, 2025, 2026]
 
 DOCS_DIR     = Path(__file__).parent.parent / "docs"
 SEASONS_DIR  = Path(__file__).parent.parent / "data" / "seasons"
-OUTPUT_PATH  = DOCS_DIR / "backtest.json"
+OUTPUT_PATH         = DOCS_DIR / "backtest.json"
+PITCHER_VALUE_PATH  = DOCS_DIR / "pitcher_value.json"
 
 
 # ---------------------------------------------------------------------------
@@ -295,6 +296,11 @@ def score_game(
         "gamePk":            game["gamePk"],
         "home_team":         game["home_team"],
         "away_team":         game["away_team"],
+        "home_sp_id":        game.get("home_sp_id"),
+        "home_sp_name":      game.get("home_sp_name", ""),
+        "away_sp_id":        game.get("away_sp_id"),
+        "away_sp_name":      game.get("away_sp_name", ""),
+        "venue":             game.get("venue", ""),
         "home_win_pct":      home_win_pct,
         "away_win_pct":      away_win_pct,
         "predicted_winner":  predicted_winner,
@@ -995,6 +1001,135 @@ def compute_roi_from_history() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Pitcher value (per-SP historical ML + UNDER ROI)
+# ---------------------------------------------------------------------------
+
+def generate_pitcher_value(all_results: list[dict]) -> None:
+    """Aggregate per-pitcher historical ROI and write docs/pitcher_value.json."""
+    from datetime import datetime, timezone
+
+    pitchers: dict[int, dict] = {}
+
+    for r in all_results:
+        season = r.get("season")
+        actual_winner = r.get("actual_winner")
+        if actual_winner not in ("home", "away"):
+            continue
+
+        for side in ("home", "away"):
+            sp_id   = r.get(f"{side}_sp_id")
+            sp_name = r.get(f"{side}_sp_name", "")
+            team    = r.get(f"{side}_team", "")
+            if not sp_id or not sp_name:
+                continue
+
+            if sp_id not in pitchers:
+                pitchers[sp_id] = {
+                    "id":     sp_id,
+                    "name":   sp_name,
+                    "team":   team,
+                    "seasons": set(),
+                    # ML accumulators: total, home, away
+                    "_ml_n": 0, "_ml_wins": 0, "_ml_units": 0.0,
+                    "_ml_h_n": 0, "_ml_h_wins": 0, "_ml_h_units": 0.0,
+                    "_ml_a_n": 0, "_ml_a_wins": 0, "_ml_a_units": 0.0,
+                    # UNDER accumulators
+                    "_un_n": 0, "_un_wins": 0, "_un_units": 0.0,
+                }
+            p = pitchers[sp_id]
+            if season:
+                p["seasons"].add(season)
+            p["team"] = team  # keep most-recent team name
+
+            # ML ROI — requires both closing lines
+            hml = r.get("home_ml")
+            aml = r.get("away_ml")
+            if hml is not None and aml is not None:
+                ml = hml if side == "home" else aml
+                won = actual_winner == side
+                profit = _american_to_profit(ml)
+                if profit is not None:
+                    p["_ml_n"] += 1
+                    p["_ml_units"] += profit if won else -1.0
+                    if won:
+                        p["_ml_wins"] += 1
+                    if side == "home":
+                        p["_ml_h_n"] += 1
+                        p["_ml_h_units"] += profit if won else -1.0
+                        if won:
+                            p["_ml_h_wins"] += 1
+                    else:
+                        p["_ml_a_n"] += 1
+                        p["_ml_a_units"] += profit if won else -1.0
+                        if won:
+                            p["_ml_a_wins"] += 1
+
+            # UNDER ROI — requires closing total
+            ct  = r.get("closing_total")
+            tgo = r.get("total_went_over")
+            up  = r.get("under_price")
+            if ct is not None and tgo is not None:
+                price  = up if (up is not None) else -110
+                profit = _american_to_profit(price)
+                won    = not tgo
+                if profit is not None:
+                    p["_un_n"] += 1
+                    p["_un_units"] += profit if won else -1.0
+                    if won:
+                        p["_un_wins"] += 1
+
+    MIN_STARTS = 20
+
+    def _stats(n, wins, units):
+        if n == 0:
+            return {"n": 0, "wins": 0, "win_rate": None, "roi_pct": None}
+        return {
+            "n":        n,
+            "wins":     wins,
+            "win_rate": round(wins / n, 4),
+            "roi_pct":  round(units / n * 100, 2),
+        }
+
+    output_pitchers = []
+    for p in pitchers.values():
+        if p["_ml_n"] < MIN_STARTS:
+            continue
+        output_pitchers.append({
+            "id":      p["id"],
+            "name":    p["name"],
+            "team":    p["team"],
+            "seasons": sorted(p["seasons"]),
+            "ml":      {
+                **_stats(p["_ml_n"], p["_ml_wins"], p["_ml_units"]),
+                "home": _stats(p["_ml_h_n"], p["_ml_h_wins"], p["_ml_h_units"]),
+                "away": _stats(p["_ml_a_n"], p["_ml_a_wins"], p["_ml_a_units"]),
+            },
+            "under": _stats(p["_un_n"], p["_un_wins"], p["_un_units"]),
+        })
+
+    output_pitchers.sort(key=lambda x: x["ml"]["roi_pct"] or -99, reverse=True)
+
+    all_seasons = sorted(set(
+        s for r in all_results if r.get("season") for s in [r["season"]]
+    ))
+    payload = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "min_starts":   MIN_STARTS,
+        "seasons":      all_seasons,
+        "pitchers":     output_pitchers,
+    }
+
+    PITCHER_VALUE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(PITCHER_VALUE_PATH, "w", encoding="utf-8") as f:
+        json.dump(payload, f, separators=(",", ":"), default=_json_default)
+
+    log.info(
+        "Pitcher value: %d pitchers (>=%d ML starts) written to %s",
+        len(output_pitchers), MIN_STARTS, PITCHER_VALUE_PATH,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -1089,6 +1224,8 @@ def run_backtest(seasons: Optional[list[int]] = None) -> None:
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
     with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
         json.dump(output, f, separators=(",", ":"), default=_json_default)
+
+    generate_pitcher_value(all_results)
 
     correct = stats.get("total_correct", 0)
     n = stats.get("total_decided", 0)
