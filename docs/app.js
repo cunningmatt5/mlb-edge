@@ -2513,44 +2513,76 @@ function mcSimulateGame(game, nSims, scenario) {
 
 // Render an SVG score distribution bar chart
 function mcRenderChart(homeDist, awayDist, homeAbbr, awayAbbr) {
-  const VW = 340, VH = 130;
-  const topPad = 20, bottomPad = 24, sidePad = 6;
+  const TEAM_COLORS = {
+    ARI: '#A71930', ATL: '#CE1141', BAL: '#DF4601', BOS: '#BD3039',
+    CHC: '#1E6BC5', CWS: '#C0C0C0', CIN: '#C6011F', CLE: '#D4182E',
+    COL: '#8B5CF6', DET: '#FA7C2B', HOU: '#EB6E1F', KC:  '#C09A5B',
+    LAA: '#CE1126', LAD: '#3788C7', MIA: '#00A3E0', MIL: '#FFC52F',
+    MIN: '#D31145', NYM: '#FF5910', NYY: '#4A90D9', OAK: '#3EA843',
+    PHI: '#E81828', PIT: '#FDB827', SD:  '#C8941B', SF:  '#FD5A1E',
+    SEA: '#4DBDAF', STL: '#C41E3A', TB:  '#8FBCE6', TEX: '#2B6CB0',
+    TOR: '#1B8FC8', WSH: '#AB0003',
+  };
+  const COLOR_FAMILY = {
+    ARI: 'red',    ATL: 'red',    BAL: 'orange', BOS: 'red',
+    CHC: 'blue',   CWS: 'silver', CIN: 'red',    CLE: 'red',
+    COL: 'purple', DET: 'orange', HOU: 'orange', KC:  'gold',
+    LAA: 'red',    LAD: 'blue',   MIA: 'blue',   MIL: 'gold',
+    MIN: 'red',    NYM: 'orange', NYY: 'blue',   OAK: 'green',
+    PHI: 'red',    PIT: 'gold',   SD:  'brown',  SF:  'orange',
+    SEA: 'teal',   STL: 'red',    TB:  'blue',   TEX: 'blue',
+    TOR: 'blue',   WSH: 'red',
+  };
+
+  const homeColor = TEAM_COLORS[homeAbbr] || '#3b82f6';
+  let awayColor   = TEAM_COLORS[awayAbbr] || '#34d399';
+  if ((COLOR_FAMILY[homeAbbr] || homeColor) === (COLOR_FAMILY[awayAbbr] || awayColor)) {
+    awayColor = '#9ca3af';
+  }
+
+  const VW = 400, VH = 170;
+  const topPad = 34, bottomPad = 28, sidePad = 10;
   const chartH = VH - topPad - bottomPad;
   const maxPct = Math.max(...homeDist.map(d => d.pct), ...awayDist.map(d => d.pct), 0.001);
-  const scale = chartH / maxPct;
+  const scale  = chartH / maxPct;
   const buckets = homeDist.length;
-  const pairW = Math.floor((VW - sidePad * 2) / buckets);
-  const barW  = Math.max(5, Math.floor(pairW * 0.42));
-  const baseY = topPad + chartH;
+  const pairW  = (VW - sidePad * 2) / buckets;
+  const barW   = Math.max(4, Math.floor(pairW * 0.40));
+  const baseY  = topPad + chartH;
 
-  let bars = '';
+  let svg = '';
+
+  // Legend — top-left
+  svg += `<rect x="${sidePad}" y="10" width="10" height="10" fill="${homeColor}" rx="1"/>`;
+  svg += `<text x="${sidePad + 14}" y="19" font-size="10" fill="#cbd5e1" font-weight="500">${homeAbbr}</text>`;
+  svg += `<rect x="${sidePad + 52}" y="10" width="10" height="10" fill="${awayColor}" rx="1"/>`;
+  svg += `<text x="${sidePad + 66}" y="19" font-size="10" fill="#cbd5e1" font-weight="500">${awayAbbr}</text>`;
+
+  // Bars + labels
   for (let i = 0; i < buckets; i++) {
     const hd = homeDist[i], ad = awayDist[i];
     const hH  = Math.max(1, Math.round(hd.pct * scale));
     const aH  = Math.max(1, Math.round(ad.pct * scale));
     const x   = sidePad + i * pairW;
     const hX  = x;
-    const aX  = x + barW + 1;
+    const aX  = x + barW + 2;
     const lbl = i < buckets - 1 ? String(hd.runs) : `${hd.runs}+`;
 
-    bars += `<rect x="${hX}" y="${baseY - hH}" width="${barW}" height="${hH}" fill="#3b82f6" opacity="0.9" rx="1"><title>${homeAbbr} ${lbl} runs: ${(hd.pct*100).toFixed(1)}%</title></rect>`;
-    if (hd.pct >= 0.08)
-      bars += `<text x="${hX + barW/2}" y="${baseY - hH - 3}" text-anchor="middle" font-size="9" fill="#93c5fd">${(hd.pct*100).toFixed(0)}%</text>`;
+    svg += `<rect x="${hX.toFixed(1)}" y="${baseY - hH}" width="${barW}" height="${hH}" fill="${homeColor}" opacity="0.9" rx="1"><title>${homeAbbr} ${lbl} runs: ${(hd.pct*100).toFixed(1)}%</title></rect>`;
+    if (hd.pct >= 0.06)
+      svg += `<text x="${(hX + barW/2).toFixed(1)}" y="${baseY - hH - 4}" text-anchor="middle" font-size="9" fill="${homeColor}">${(hd.pct*100).toFixed(0)}%</text>`;
 
-    bars += `<rect x="${aX}" y="${baseY - aH}" width="${barW}" height="${aH}" fill="#34d399" opacity="0.85" rx="1"><title>${awayAbbr} ${lbl} runs: ${(ad.pct*100).toFixed(1)}%</title></rect>`;
-    if (ad.pct >= 0.08)
-      bars += `<text x="${aX + barW/2}" y="${baseY - aH - 3}" text-anchor="middle" font-size="9" fill="#6ee7b7">${(ad.pct*100).toFixed(0)}%</text>`;
+    svg += `<rect x="${aX.toFixed(1)}" y="${baseY - aH}" width="${barW}" height="${aH}" fill="${awayColor}" opacity="0.85" rx="1"><title>${awayAbbr} ${lbl} runs: ${(ad.pct*100).toFixed(1)}%</title></rect>`;
+    if (ad.pct >= 0.06)
+      svg += `<text x="${(aX + barW/2).toFixed(1)}" y="${baseY - aH - 4}" text-anchor="middle" font-size="9" fill="${awayColor}">${(ad.pct*100).toFixed(0)}%</text>`;
 
-    bars += `<text x="${x + pairW/2}" y="${baseY + 13}" text-anchor="middle" font-size="9" fill="#64748b">${lbl}</text>`;
+    svg += `<text x="${(x + pairW/2).toFixed(1)}" y="${baseY + 18}" text-anchor="middle" font-size="9" fill="#475569">${lbl}</text>`;
   }
 
-  bars += `<line x1="${sidePad}" y1="${baseY}" x2="${VW - sidePad}" y2="${baseY}" stroke="#1e293b" stroke-width="1"/>`;
-  bars += `<rect x="${sidePad}" y="5" width="8" height="8" fill="#3b82f6" opacity="0.9" rx="1"/>` +
-          `<text x="${sidePad + 11}" y="13" font-size="9" fill="#94a3b8">${homeAbbr}</text>` +
-          `<rect x="${sidePad + 42}" y="5" width="8" height="8" fill="#34d399" opacity="0.85" rx="1"/>` +
-          `<text x="${sidePad + 53}" y="13" font-size="9" fill="#94a3b8">${awayAbbr}</text>`;
+  // Baseline
+  svg += `<line x1="${sidePad}" y1="${baseY}" x2="${VW - sidePad}" y2="${baseY}" stroke="#334155" stroke-width="1"/>`;
 
-  return `<svg viewBox="0 0 ${VW} ${VH}" width="100%" height="auto" class="sim-chart-svg">${bars}</svg>`;
+  return `<svg viewBox="0 0 ${VW} ${VH}" width="100%" height="auto" class="sim-chart-svg">${svg}</svg>`;
 }
 
 // Render the Simulate tab
