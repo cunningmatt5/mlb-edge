@@ -164,6 +164,14 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
             _merge_rolling_batter(cache[mlbam_id], mlbam_id, start_30d, end_dt)
             _blend_batter_rolling(cache[mlbam_id])
 
+    # --- Avg IP per start for opener/bulk detection (season-level fallback) ---
+    for pid in sp_ids:
+        if pid in cache:
+            ip = cache[pid].get("ip") or 0
+            gs = cache[pid].get("gs") or 0
+            if gs > 0:
+                cache[pid]["avg_ip_per_start"] = round(ip / gs, 2)
+
     # --- Team bullpen aggregates (stored under "bullpen:{full_team_name}" keys) ---
     bullpen_by_team = _build_team_bullpen_cache(season, set(sp_ids))
     for full_name, bp_stats in bullpen_by_team.items():
@@ -226,6 +234,7 @@ def _merge_fg_pitching(entry: dict, df: pd.DataFrame, fg_id) -> None:
         "stuff_plus": g("Stuff+"),
         "era": g("ERA"),
         "ip": g("IP"),
+        "gs": g("GS"),
         # Plate discipline — used by walk_props
         "zone_pct": g("Zone%"),
         "f_strike_pct": g("F-Strike%"),

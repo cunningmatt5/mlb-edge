@@ -677,12 +677,14 @@ def build_game(
     _OPENER_IP_THRESHOLD = 3.5
     _OPENER_SCORE_BLEND  = 0.55
     home_opener_risk = bool(
-        home_sp.get("last_start_ip") is not None
-        and home_sp["last_start_ip"] < _OPENER_IP_THRESHOLD
+        (home_sp.get("last_start_ip") is not None and home_sp["last_start_ip"] < _OPENER_IP_THRESHOLD)
+        or (home_sp.get("last_start_ip") is None and home_sp.get("avg_ip_per_start") is not None
+            and home_sp["avg_ip_per_start"] < _OPENER_IP_THRESHOLD)
     )
     away_opener_risk = bool(
-        away_sp.get("last_start_ip") is not None
-        and away_sp["last_start_ip"] < _OPENER_IP_THRESHOLD
+        (away_sp.get("last_start_ip") is not None and away_sp["last_start_ip"] < _OPENER_IP_THRESHOLD)
+        or (away_sp.get("last_start_ip") is None and away_sp.get("avg_ip_per_start") is not None
+            and away_sp["avg_ip_per_start"] < _OPENER_IP_THRESHOLD)
     )
     if home_opener_risk:
         home_pitcher_score = round(

@@ -236,7 +236,9 @@ def build_historical_player_cache(season: int, player_ids: list[int]) -> dict:
         _fetch_fg_pitching,
         _fetch_savant_batter_batted_ball_stats,
         _fetch_savant_batter_expected_stats,
+        _fetch_savant_batter_splits,
         _fetch_savant_pitcher_stats,
+        _merge_batter_split,
         _merge_fg_batting,
         _merge_fg_pitching,
         _merge_savant_batter_batted_ball,
@@ -244,12 +246,14 @@ def build_historical_player_cache(season: int, player_ids: list[int]) -> dict:
         _merge_savant_pitcher,
     )
 
-    fg_pitch    = _fetch_fg_pitching(season)
-    fg_bat      = _fetch_fg_batting(season)
-    sav_pitch   = _fetch_savant_pitcher_stats(season)
-    sav_bat_exp = _fetch_savant_batter_expected_stats(season)
-    sav_bat_bb  = _fetch_savant_batter_batted_ball_stats(season)
-    crosswalk   = _build_crosswalk(player_ids)
+    fg_pitch        = _fetch_fg_pitching(season)
+    fg_bat          = _fetch_fg_batting(season)
+    sav_pitch       = _fetch_savant_pitcher_stats(season)
+    sav_bat_exp     = _fetch_savant_batter_expected_stats(season)
+    sav_bat_bb      = _fetch_savant_batter_batted_ball_stats(season)
+    sav_bat_vs_lhp  = _fetch_savant_batter_splits(season, "vs_lhp")
+    sav_bat_vs_rhp  = _fetch_savant_batter_splits(season, "vs_rhp")
+    crosswalk       = _build_crosswalk(player_ids)
 
     cache: dict[int, dict] = {}
     for pid in player_ids:
@@ -260,7 +264,17 @@ def build_historical_player_cache(season: int, player_ids: list[int]) -> dict:
         _merge_savant_pitcher(entry, sav_pitch, pid)
         _merge_savant_batter_expected(entry, sav_bat_exp, pid)
         _merge_savant_batter_batted_ball(entry, sav_bat_bb, pid)
+        _merge_batter_split(entry, sav_bat_vs_lhp, pid, "vs_lhp")
+        _merge_batter_split(entry, sav_bat_vs_rhp, pid, "vs_rhp")
         cache[pid] = entry
+
+    # Avg IP per start for opener/bulk detection (season-level fallback)
+    for pid in player_ids:
+        if pid in cache:
+            ip = cache[pid].get("ip") or 0
+            gs = cache[pid].get("gs") or 0
+            if gs > 0:
+                cache[pid]["avg_ip_per_start"] = round(ip / gs, 2)
 
     log.info("Historical player cache: %d entries for %d", len(cache), season)
     return cache
