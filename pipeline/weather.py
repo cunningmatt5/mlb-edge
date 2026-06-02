@@ -14,6 +14,9 @@ TIMEOUT = 10
 # True enclosed domes — weather never applies
 _DOMES = {"Tropicana Field", "Rogers Centre"}
 
+# Retractable roof stadiums — roof closes when cold (<58°F) or very windy (>20 mph)
+_RETRACTABLE_ROOFS = {"Chase Field", "Minute Maid Park", "American Family Field", "Globe Life Field"}
+
 # Stadium lat/lon and outfield orientation (degrees the outfield faces)
 # Wind "blowing out" = wind comes from behind home plate (opposite of of_dir)
 _STADIUMS: dict[str, dict] = {
@@ -86,6 +89,12 @@ def fetch_game_weather(venue: str, game_time_utc: str) -> Optional[dict]:
         temp_f     = _safe(hourly.get("temperature_2m", []), idx)
 
         blowing_out = _is_blowing_out(wind_dir, stadium["of_dir"]) if wind_dir is not None else None
+
+        # Retractable roof: treat as dome when cold or very windy
+        if venue in _RETRACTABLE_ROOFS:
+            if (temp_f is not None and temp_f < 58) or (wind_speed is not None and wind_speed > 20):
+                log.debug("Retractable roof closed heuristic for %s (temp=%.0f, wind=%.0f)", venue, temp_f or 0, wind_speed or 0)
+                return {"dome": True}
 
         return {
             "dome": False,

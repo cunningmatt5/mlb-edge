@@ -178,9 +178,10 @@ def main(dry_run: bool = False) -> None:
             from pipeline.analytics.total_bases     import score_total_bases_props as score_total_bases
             from pipeline.analytics.team_totals     import score_team_totals
             from pipeline.analytics.game_totals     import score_game_total
+            from pipeline.analytics.f5_totals       import score_f5_totals
             from pipeline.analytics.moneyline_f5    import score_moneyline_f5
 
-            _GAME_LEVEL_TYPES = {"TOTAL", "TEAM_TOTAL", "ML_F5"}
+            _GAME_LEVEL_TYPES = {"TOTAL", "TEAM_TOTAL", "F5_TOTAL", "ML_F5"}
 
             pick_games: list[dict] = []
             for game in games:  # original schedule dicts have SP IDs + lineup ID lists
@@ -191,6 +192,7 @@ def main(dry_run: bool = False) -> None:
                 all_picks += score_total_bases(game, cache)
                 all_picks += score_team_totals(game, cache)
                 all_picks += score_game_total(game, cache)
+                all_picks += score_f5_totals(game, cache)
                 all_picks += score_moneyline_f5(game, cache)
                 all_picks.sort(key=lambda p: p["signal"], reverse=True)
 

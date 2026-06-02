@@ -479,6 +479,43 @@ function vsVegasHTML(g) {
   return `<div class="vs-vegas-block">${sections.join('')}</div>`;
 }
 
+function keySignalsHTML(g) {
+  const sig = g.prediction?.model_signals || {};
+  const chips = [];
+
+  // SP mismatch: show away xERA first when away is better, home first otherwise
+  const hXera = g.home_sp?.season?.xera;
+  const aXera = g.away_sp?.season?.xera;
+  if (hXera != null && aXera != null && Math.abs(hXera - aXera) > 0.7) {
+    const awayBetter = aXera < hXera;
+    const label = awayBetter
+      ? `${aXera.toFixed(2)} vs ${hXera.toFixed(2)} xERA`
+      : `${hXera.toFixed(2)} vs ${aXera.toFixed(2)} xERA`;
+    chips.push(`<span class="key-sig-chip sp">${label}</span>`);
+  }
+
+  // Weather: only when modifier is meaningful (captures wind and cold)
+  const wm = sig.weather_modifier;
+  if (wm != null && Math.abs(wm) >= 0.5) {
+    const sign = wm > 0 ? '+' : '';
+    const dir  = wm > 0 ? 'out' : 'in';
+    chips.push(`<span class="key-sig-chip weather">Wind ${dir} ${sign}${wm.toFixed(1)}</span>`);
+  }
+
+  // Rest edge: one team ≥5 days rest and gap ≥2 days
+  const hr = sig.home_rest_days, ar = sig.away_rest_days;
+  if (hr != null && ar != null) {
+    const gap = hr - ar;
+    if (Math.abs(gap) >= 2 && (hr >= 5 || ar >= 5)) {
+      const who = gap > 0 ? g.home_team : g.away_team;
+      chips.push(`<span class="key-sig-chip rest">Rest: ${abbrev(who)} +${Math.abs(gap)}d</span>`);
+    }
+  }
+
+  if (!chips.length) return '';
+  return `<div class="key-sig-row">${chips.join('')}</div>`;
+}
+
 function gameCardHTML(g) {
   const hXera = g.home_sp?.season?.xera;
   const aXera = g.away_sp?.season?.xera;
@@ -532,6 +569,7 @@ function gameCardHTML(g) {
     ${lineupStatusHTML(g)}
     ${lineMovementHTML(g)}
     ${vegasEdgeStripHTML(g)}
+    ${keySignalsHTML(g)}
     ${statusStrip(g)}
   </div>
   <div class="game-card-body" hidden>
@@ -2683,14 +2721,15 @@ function abbrev(teamName) {
 // ── Props tab ─────────────────────────────────────────────────────────────────
 
 const BET_META = {
-  K_PROP:     { label: 'K',     color: '#7c3aed' },
-  HR_PROP:    { label: 'HR',    color: '#e11d48' },
-  HIT_PROP:   { label: 'HIT',   color: '#0284c7' },
-  TB_PROP:    { label: 'TB',    color: '#0891b2' },
-  TOTAL:      { label: 'TOT',   color: '#059669' },
-  TEAM_TOTAL: { label: 'T-TOT', color: '#047857' },
-  MONEYLINE:  { label: 'ML',    color: '#b45309' },
-  ML_F5:      { label: 'F5',    color: '#92400e' },
+  K_PROP:     { label: 'K',      color: '#7c3aed' },
+  HR_PROP:    { label: 'HR',     color: '#e11d48' },
+  HIT_PROP:   { label: 'HIT',    color: '#0284c7' },
+  TB_PROP:    { label: 'TB',     color: '#0891b2' },
+  TOTAL:      { label: 'TOT',    color: '#059669' },
+  TEAM_TOTAL: { label: 'T-TOT',  color: '#047857' },
+  F5_TOTAL:   { label: 'F5-TOT', color: '#0d9488' },
+  MONEYLINE:  { label: 'ML',     color: '#b45309' },
+  ML_F5:      { label: 'F5',     color: '#92400e' },
 };
 
 function renderPropsView() {
@@ -2751,7 +2790,7 @@ function renderPickGameCard(g) {
   const matchup = `${abbrev(g.away_team)} @ ${abbrev(g.home_team)}`;
 
   // Group picks by type, applying current filter
-  const typeOrder = ['K_PROP','HR_PROP','HIT_PROP','TB_PROP','TOTAL','TEAM_TOTAL','MONEYLINE','ML_F5'];
+  const typeOrder = ['K_PROP','HR_PROP','HIT_PROP','TB_PROP','TOTAL','TEAM_TOTAL','F5_TOTAL','MONEYLINE','ML_F5'];
   const grouped = {};
   for (const p of (g.picks || []).filter(filterPick)) {
     (grouped[p.bet_type] = grouped[p.bet_type] || []).push(p);
@@ -2789,7 +2828,7 @@ function betTypeLabel(t) {
   const labels = {
     K_PROP: 'Strikeouts', HR_PROP: 'Home Runs', HIT_PROP: 'Hits',
     TB_PROP: 'Total Bases', TOTAL: 'Game Total', TEAM_TOTAL: 'Team Totals',
-    MONEYLINE: 'Moneyline', ML_F5: 'First 5 Innings',
+    F5_TOTAL: 'First 5 Inn. Total', MONEYLINE: 'Moneyline', ML_F5: 'First 5 Innings',
   };
   return labels[t] || t;
 }
