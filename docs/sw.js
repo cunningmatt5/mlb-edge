@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'mlb-edge-v42';
+const CACHE_NAME = 'mlb-edge-v43';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -42,8 +42,10 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   const isJson = url.pathname.endsWith('.json');
 
-  if (isJson) {
-    // Network-first for all JSON data files — always fetch fresh, cache as fallback
+  const isStatic = url.pathname.endsWith('.js') || url.pathname.endsWith('.css');
+
+  if (isJson || isStatic) {
+    // Network-first for JSON data files and JS/CSS — always fetch fresh, cache as fallback
     event.respondWith(
       fetch(event.request)
         .then(res => {
@@ -56,7 +58,7 @@ self.addEventListener('fetch', event => {
         .catch(() => caches.match(event.request))
     );
   } else {
-    // Cache-first for static assets
+    // Cache-first for HTML, manifest, and other static assets
     event.respondWith(
       caches.match(event.request).then(cached => cached || fetch(event.request))
     );
