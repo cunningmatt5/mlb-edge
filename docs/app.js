@@ -2305,9 +2305,10 @@ function renderPitcherView() {
 
   const { pitchers = [], seasons = [], min_starts } = pitcherData;
 
-  const fmtRoi = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
-  const fmtWr  = v => v == null ? '—' : (v * 100).toFixed(1) + '%';
-  const roiCls = v => v == null ? '' : v >= 10 ? 'pv-exceptional' : v >= 0 ? 'seg-pos' : 'seg-neg';
+  const fmtRoi    = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+  const fmtWr     = v => v == null ? '—' : (v * 100).toFixed(1) + '%';
+  const roiCls    = v => v == null ? '' : v >= 30 ? 'pv-exceptional' : v >= 0 ? 'seg-pos' : 'seg-neg';
+  const baseRoiCls = v => v == null ? '' : v >= 0 ? 'seg-pos' : 'seg-neg';
 
   function _renderTable() {
     const search = _pvSearch.trim().toLowerCase();
@@ -2339,7 +2340,7 @@ function renderPitcherView() {
         <td class="pv-name">${star}${p.name}</td>
         <td class="pv-team">${abbrev(p.team)}</td>
         <td class="pv-n">${p.ml.n}</td>
-        <td class="pv-roi ${roiCls(p.ml.roi_pct)}">${fmtRoi(p.ml.roi_pct)}<br>${homeN}</td>
+        <td class="pv-roi ${baseRoiCls(p.ml.roi_pct)}">${fmtRoi(p.ml.roi_pct)}<br>${homeN}</td>
         <td class="pv-wr">${fmtWr(p.ml.win_rate)}</td>
         <td class="pv-roi ${roiCls(p.ml.home.roi_pct)}">${fmtRoi(p.ml.home.roi_pct)}</td>
         <td class="pv-roi ${roiCls(p.ml.away.roi_pct)}">${fmtRoi(p.ml.away.roi_pct)}</td>
