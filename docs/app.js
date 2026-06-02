@@ -2440,9 +2440,9 @@ function mcSimulateOneGame(game, scenario) {
     return runs;
   }
 
-  // Home team bats against away SP/BP; away team bats against home SP/BP
-  const awayRuns = simTeamInnings(awayL, effectiveAwaySp, awayBpStats, true);
-  const homeRuns = simTeamInnings(homeL, effectiveHomeSp, homeBpStats, false);
+  // Away lineup bats against HOME SP/BP; home lineup bats against AWAY SP/BP
+  const awayRuns = simTeamInnings(awayL, effectiveHomeSp, homeBpStats, true);
+  const homeRuns = simTeamInnings(homeL, effectiveAwaySp, awayBpStats, false);
 
   return { homeRuns, awayRuns };
 }
@@ -2513,36 +2513,44 @@ function mcSimulateGame(game, nSims, scenario) {
 
 // Render an SVG score distribution bar chart
 function mcRenderChart(homeDist, awayDist, homeAbbr, awayAbbr) {
-  const W = 280, H = 80, barW = 11, gap = 2, leftPad = 6;
+  const VW = 340, VH = 130;
+  const topPad = 20, bottomPad = 24, sidePad = 6;
+  const chartH = VH - topPad - bottomPad;
   const maxPct = Math.max(...homeDist.map(d => d.pct), ...awayDist.map(d => d.pct), 0.001);
-  const scale = (H - 14) / maxPct;
+  const scale = chartH / maxPct;
   const buckets = homeDist.length;
+  const pairW = Math.floor((VW - sidePad * 2) / buckets);
+  const barW  = Math.max(5, Math.floor(pairW * 0.42));
+  const baseY = topPad + chartH;
 
-  const bars = homeDist.map((hd, i) => {
-    const ad = awayDist[i];
-    const hH = Math.round(hd.pct * scale);
-    const aH = Math.round(ad.pct * scale);
-    const x = leftPad + i * (barW * 2 + gap);
-    const label = hd.runs;
-    return `
-      <rect x="${x}" y="${H - 12 - hH}" width="${barW}" height="${hH}" fill="#3b82f6" opacity="0.85">
-        <title>${homeAbbr} ${label} runs: ${(hd.pct*100).toFixed(1)}%</title>
-      </rect>
-      <rect x="${x + barW}" y="${H - 12 - aH}" width="${barW}" height="${aH}" fill="#94a3b8" opacity="0.75">
-        <title>${awayAbbr} ${label} runs: ${(ad.pct*100).toFixed(1)}%</title>
-      </rect>
-      <text x="${x + barW}" y="${H - 2}" text-anchor="middle" font-size="8" fill="#64748b">${label}</text>
-    `;
-  }).join('');
+  let bars = '';
+  for (let i = 0; i < buckets; i++) {
+    const hd = homeDist[i], ad = awayDist[i];
+    const hH  = Math.max(1, Math.round(hd.pct * scale));
+    const aH  = Math.max(1, Math.round(ad.pct * scale));
+    const x   = sidePad + i * pairW;
+    const hX  = x;
+    const aX  = x + barW + 1;
+    const lbl = i < buckets - 1 ? String(hd.runs) : `${hd.runs}+`;
 
-  const legendX = W - 90;
-  return `<svg width="${W}" height="${H}" class="sim-chart-svg">
-    ${bars}
-    <rect x="${legendX}" y="4" width="8" height="8" fill="#3b82f6" opacity="0.85"/>
-    <text x="${legendX + 11}" y="12" font-size="9" fill="#94a3b8">${homeAbbr} (home)</text>
-    <rect x="${legendX}" y="16" width="8" height="8" fill="#94a3b8" opacity="0.75"/>
-    <text x="${legendX + 11}" y="24" font-size="9" fill="#94a3b8">${awayAbbr} (away)</text>
-  </svg>`;
+    bars += `<rect x="${hX}" y="${baseY - hH}" width="${barW}" height="${hH}" fill="#3b82f6" opacity="0.9" rx="1"><title>${homeAbbr} ${lbl} runs: ${(hd.pct*100).toFixed(1)}%</title></rect>`;
+    if (hd.pct >= 0.08)
+      bars += `<text x="${hX + barW/2}" y="${baseY - hH - 3}" text-anchor="middle" font-size="9" fill="#93c5fd">${(hd.pct*100).toFixed(0)}%</text>`;
+
+    bars += `<rect x="${aX}" y="${baseY - aH}" width="${barW}" height="${aH}" fill="#34d399" opacity="0.85" rx="1"><title>${awayAbbr} ${lbl} runs: ${(ad.pct*100).toFixed(1)}%</title></rect>`;
+    if (ad.pct >= 0.08)
+      bars += `<text x="${aX + barW/2}" y="${baseY - aH - 3}" text-anchor="middle" font-size="9" fill="#6ee7b7">${(ad.pct*100).toFixed(0)}%</text>`;
+
+    bars += `<text x="${x + pairW/2}" y="${baseY + 13}" text-anchor="middle" font-size="9" fill="#64748b">${lbl}</text>`;
+  }
+
+  bars += `<line x1="${sidePad}" y1="${baseY}" x2="${VW - sidePad}" y2="${baseY}" stroke="#1e293b" stroke-width="1"/>`;
+  bars += `<rect x="${sidePad}" y="5" width="8" height="8" fill="#3b82f6" opacity="0.9" rx="1"/>` +
+          `<text x="${sidePad + 11}" y="13" font-size="9" fill="#94a3b8">${homeAbbr}</text>` +
+          `<rect x="${sidePad + 42}" y="5" width="8" height="8" fill="#34d399" opacity="0.85" rx="1"/>` +
+          `<text x="${sidePad + 53}" y="13" font-size="9" fill="#94a3b8">${awayAbbr}</text>`;
+
+  return `<svg viewBox="0 0 ${VW} ${VH}" width="100%" height="auto" class="sim-chart-svg">${bars}</svg>`;
 }
 
 // Render the Simulate tab
@@ -2592,10 +2600,6 @@ function renderSimulateView() {
 <div class="sim-header">
   <div class="sim-title">Game Simulations</div>
   <div class="sim-subtitle">Full plate-appearance Monte Carlo · ${dateStr}</div>
-  <div class="sim-legend">
-    <span class="sim-legend-item"><span class="sim-swatch home"></span>Home team</span>
-    <span class="sim-legend-item"><span class="sim-swatch away"></span>Away team</span>
-  </div>
 </div>
 ${cards}`;
 }
