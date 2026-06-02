@@ -2142,7 +2142,59 @@ function renderBacktestView() {
     </tr>`;
   }).join('');
 
-  const totalsSection = totalsYrRows ? `
+  const tsb = backtestData.totals_signal_backtest || {};
+  const tsbDir = tsb.by_direction || [];
+  const tsbTier = tsb.by_tier || [];
+  const tsbOverall = tsb.overall || {};
+  const tsbDirRows = ['OVER','UNDER'].map(d => {
+    const row = tsbDir.find(r => r.direction === d);
+    if (!row) return '';
+    const roiCl = (row.roi_pct >= 0) ? 'seg-pos' : 'seg-neg';
+    return `<tr>
+      <td><strong>${d}</strong></td>
+      <td>${row.n.toLocaleString()}</td>
+      <td>${row.win_rate != null ? (row.win_rate * 100).toFixed(1) + '%' : '—'}</td>
+      <td class="${roiCl}">${row.roi_pct != null ? (row.roi_pct >= 0 ? '+' : '') + row.roi_pct.toFixed(2) + '%' : '—'}</td>
+    </tr>`;
+  }).join('');
+  const tsbTierRows = tsbTier.map(row => {
+    const roiCl = (row.roi_pct >= 0) ? 'seg-pos' : 'seg-neg';
+    return `<tr>
+      <td><strong>${row.tier}</strong></td>
+      <td>${row.n.toLocaleString()}</td>
+      <td>${row.win_rate != null ? (row.win_rate * 100).toFixed(1) + '%' : '—'}</td>
+      <td class="${roiCl}">${row.roi_pct != null ? (row.roi_pct >= 0 ? '+' : '') + row.roi_pct.toFixed(2) + '%' : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const tsbYrNote = tsb.total_picks > 0
+    ? `Based on ${tsb.total_picks.toLocaleString()} signal picks from ${(tsb.by_year || []).map(r => r.year).join(', ')}.`
+    : '';
+
+  const signalRoiBlock = tsbDirRows ? `
+    <div class="bt-two-col" style="margin-top:12px">
+      <div>
+        <div class="bt-subsection-title">ROI by Direction</div>
+        <div class="bt-table-wrap">
+          <table class="seg-table">
+            <thead><tr><th>Direction</th><th>Picks</th><th>Win Rate</th><th>ROI</th></tr></thead>
+            <tbody>${tsbDirRows}</tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <div class="bt-subsection-title">ROI by Signal Strength</div>
+        <div class="bt-table-wrap">
+          <table class="seg-table">
+            <thead><tr><th>Signal Tier</th><th>Picks</th><th>Win Rate</th><th>ROI</th></tr></thead>
+            <tbody>${tsbTierRows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="bt-signal-note">${tsbYrNote} Signal scored using pitcher quality (xFIP/SIERA/barrel%) + park factor + lineup xwOBA where available. Weather and bullpen modifiers not applied historically.</div>` : '';
+
+  const totalsSection = (totalsYrRows || tsbDirRows) ? `
     <hr class="bt-rule">
     <div class="bt-narrative-header">
       <div class="bt-narrative-title">Totals: The UNDER Edge</div>
@@ -2153,12 +2205,13 @@ function renderBacktestView() {
       Our model has consistently predicted fewer runs than the Vegas line, and that lean has been
       correct 52–53% of the time every single season. UNDER bets generate small but steady returns.
     </p>
-    <div class="bt-table-wrap">
+    ${totalsYrRows ? `<div class="bt-table-wrap">
       <table class="seg-table">
         <thead><tr><th>Season</th><th>Over Bets</th><th>Over Accuracy</th><th>Under Bets</th><th>Under Accuracy</th></tr></thead>
         <tbody>${totalsYrRows}</tbody>
       </table>
-    </div>` : '';
+    </div>` : ''}
+    ${signalRoiBlock}` : '';
 
   // ── SECTION 6: Props ─────────────────────────────────────────────────────
   const propCounts = {};

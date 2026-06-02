@@ -159,6 +159,35 @@ def load_closing_lines(season: int) -> dict[int, dict]:
         return {}
 
 
+def load_full_historical_cache(season: int) -> dict:
+    """Load the full prior-season player_cache.pkl (pitchers + batters)."""
+    prior = season - 1
+    cache_path = SEASONS_DIR / str(prior) / "player_cache.pkl"
+    if not cache_path.exists():
+        log.debug("Full historical cache not found: %s", cache_path)
+        return {}
+    import pickle
+    log.info("Loading full historical cache: %s", cache_path)
+    with open(cache_path, "rb") as f:
+        return pickle.load(f)
+
+
+def load_season_lineups(season: int) -> dict[int, dict]:
+    """Load game_lineups.parquet for a season. Returns {game_pk: {"home": [...], "away": [...]}}."""
+    path = SEASONS_DIR / str(season) / "game_lineups.parquet"
+    if not path.exists():
+        return {}
+    df = pd.read_parquet(path)
+    lineups: dict[int, dict] = {}
+    for game_pk, grp in df.groupby("game_pk"):
+        lineups[int(game_pk)] = {
+            "home": grp[grp["side"] == "home"].sort_values("batting_order")["player_id"].tolist(),
+            "away": grp[grp["side"] == "away"].sort_values("batting_order")["player_id"].tolist(),
+        }
+    log.info("Lineups loaded for %d season: %d games", season, len(lineups))
+    return lineups
+
+
 def build_pitcher_cache(sp_ids: set[int], season: int) -> dict[int, dict]:
     """Build a pitcher-only cache using current-season Savant data."""
     from pipeline.statcast import (
@@ -762,6 +791,126 @@ def compute_segmentation(results: list[dict]) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Totals signal backtest (score_game_total() applied to historical games)
+# ---------------------------------------------------------------------------
+
+def _aggregate_totals_signal(picks: list[dict]) -> dict:
+    def _roi_subset(subset: list[dict]) -> dict:
+        units = 0.0
+        wins = 0
+        for p in subset:
+            bet_over = p["direction"] == "OVER"
+            went_over = p["total_went_over"]
+            won = (bet_over and went_over) or (not bet_over and not went_over)
+            price = p["over_price"] if bet_over else p["under_price"]
+            profit = _american_to_profit(price)
+            if profit is None:
+                continue
+            units += profit if won else -1.0
+            if won:
+                wins += 1
+        n = len(subset)
+        return {
+            "n":        n,
+            "wins":     wins,
+            "win_rate": round(wins / n, 4) if n else None,
+            "roi_pct":  round(units / n * 100, 2) if n else None,
+        }
+
+    tiers = [("5.0-5.9", 5.0, 6.0), ("6.0-6.4", 6.0, 6.5), ("6.5+", 6.5, 11.0)]
+    by_tier = []
+    for label, lo, hi in tiers:
+        sub = [p for p in picks if lo <= p["signal"] < hi]
+        if sub:
+            row = _roi_subset(sub)
+            row["tier"] = label
+            by_tier.append(row)
+
+    by_direction = []
+    for d in ("OVER", "UNDER"):
+        sub = [p for p in picks if p["direction"] == d]
+        if sub:
+            row = _roi_subset(sub)
+            row["direction"] = d
+            by_direction.append(row)
+
+    by_year = []
+    for yr in sorted(set(p["season"] for p in picks)):
+        sub = [p for p in picks if p["season"] == yr]
+        if sub:
+            row = _roi_subset(sub)
+            row["year"] = yr
+            by_year.append(row)
+
+    return {
+        "total_picks": len(picks),
+        "overall":     _roi_subset(picks),
+        "by_tier":     by_tier,
+        "by_direction": by_direction,
+        "by_year":     by_year,
+    }
+
+
+def compute_totals_signal_backtest(all_results: list[dict]) -> dict:
+    """Run score_game_total() on historical games and compute ROI by signal tier/direction/year."""
+    from pipeline.analytics.game_totals import score_game_total
+
+    by_season: dict[int, list] = {}
+    for r in all_results:
+        s = r.get("season")
+        if s:
+            by_season.setdefault(s, []).append(r)
+
+    picks_all: list[dict] = []
+
+    for season, results in sorted(by_season.items()):
+        full_cache = load_full_historical_cache(season)
+        lineups    = load_season_lineups(season)
+        if not full_cache:
+            log.warning("No full historical cache for %d — skipping totals signal pass", season)
+            continue
+
+        season_picks = 0
+        for r in results:
+            if r.get("closing_total") is None or r.get("total_went_over") is None:
+                continue
+
+            game_pk = r.get("gamePk")
+            lu = lineups.get(game_pk, {})
+
+            game_dict = {
+                "homeTeam":    r["home_team"],
+                "awayTeam":    r["away_team"],
+                "home_sp_id":  r.get("home_sp_id"),
+                "away_sp_id":  r.get("away_sp_id"),
+                "venue":       r.get("venue", ""),
+                "home_lineup": lu.get("home", []),
+                "away_lineup": lu.get("away", []),
+            }
+
+            try:
+                for pick in score_game_total(game_dict, full_cache):
+                    picks_all.append({
+                        "season":          season,
+                        "date":            r["date"],
+                        "signal":          pick["signal"],
+                        "direction":       pick["direction"],
+                        "closing_total":   r["closing_total"],
+                        "over_price":      r.get("over_price") or -110,
+                        "under_price":     r.get("under_price") or -110,
+                        "total_went_over": r["total_went_over"],
+                    })
+                    season_picks += 1
+            except Exception as exc:
+                log.debug("Totals signal score failed game %s: %s", game_pk, exc)
+
+        log.info("Totals signal %d: %d picks from %d eligible games", season, season_picks, len(results))
+
+    log.info("Totals signal backtest: %d total picks across all seasons", len(picks_all))
+    return _aggregate_totals_signal(picks_all)
+
+
+# ---------------------------------------------------------------------------
 # ROI tracking from live history records
 # ---------------------------------------------------------------------------
 
@@ -923,16 +1072,18 @@ def run_backtest(seasons: Optional[list[int]] = None) -> None:
     ev_stats     = compute_ev_stats(all_results)
     roi_stats    = compute_roi_from_history()
     segmentation = compute_segmentation(all_results)
+    totals_signal = compute_totals_signal_backtest(all_results)
 
     output = {
-        "seasons":      all_seasons,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "total_games":  len(all_results),
-        "stats":        stats,
-        "ev_stats":     ev_stats,
-        "roi_stats":    roi_stats,
-        "segmentation": segmentation,
-        "games":        all_results,
+        "seasons":                all_seasons,
+        "generated_at":           datetime.now(timezone.utc).isoformat(),
+        "total_games":            len(all_results),
+        "stats":                  stats,
+        "ev_stats":               ev_stats,
+        "roi_stats":              roi_stats,
+        "segmentation":           segmentation,
+        "totals_signal_backtest": totals_signal,
+        "games":                  all_results,
     }
 
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
