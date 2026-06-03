@@ -64,7 +64,7 @@ function setupNav() {
       document.getElementById('support-view').hidden  = currentView !== 'support';
       if (currentView === 'record')   Promise.all([loadBacktest(), loadPropsHistory()]).then(renderRecordView);
       if (currentView === 'backtest') Promise.all([loadBacktest(), loadPropsHistory()]).then(renderBacktestView);
-      if (currentView === 'pitcher')  loadPitcherData().then(renderPitcherView);
+      if (currentView === 'pitcher')  Promise.all([loadPitcherData(), loadGames()]).then(renderPitcherView);
       if (currentView === 'props')    loadPicks().then(renderPropsView);
       if (currentView === 'simulate') loadGames().then(renderSimulateView);
       if (currentView === 'support')  renderSupportView();
@@ -2311,11 +2311,12 @@ function renderPitcherView() {
   const _avg2026 = _active2026.reduce((s, p) => s + (p.starts_2026 || 0), 0) / Math.max(_active2026.length, 1);
   const _regularThreshold = Math.floor(_avg2026 * 0.35); // e.g. floor(8.4 * 0.35) = 2
 
-  // Today's scheduled starters from gamesData (loaded on startup)
+  // Today's scheduled starters + live team names from gamesData (refreshed on tab open)
   const _todaySpIds = new Set();
+  const _liveTeam   = new Map(); // pitcher id → current team (handles mid-season trades)
   for (const g of (gamesData?.games || [])) {
-    if (g.home_sp_id) _todaySpIds.add(g.home_sp_id);
-    if (g.away_sp_id) _todaySpIds.add(g.away_sp_id);
+    if (g.home_sp_id) { _todaySpIds.add(g.home_sp_id); _liveTeam.set(g.home_sp_id, g.home_team); }
+    if (g.away_sp_id) { _todaySpIds.add(g.away_sp_id); _liveTeam.set(g.away_sp_id, g.away_team); }
   }
 
   const fmtRoi    = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
@@ -2349,9 +2350,10 @@ function renderPitcherView() {
     const rows = filtered.map(p => {
       const star     = (p.ml.roi_pct >= 5 && p.ml.n >= 30) ? '<span class="pv-star" title="Consistent edge: ML ROI ≥ +5% with 30+ starts">★</span>' : '';
       const todayCls = _todaySpIds.has(p.id) ? ' pv-row-today' : '';
+      const teamName = _liveTeam.get(p.id) || p.team;
       return `<tr class="${todayCls}">
         <td class="pv-name">${star}${p.name}</td>
-        <td class="pv-team">${abbrev(p.team)}</td>
+        <td class="pv-team">${abbrev(teamName)}</td>
         <td class="pv-n">${p.ml.n}</td>
         <td class="pv-n">${p.starts_2026 ?? 0}</td>
         <td class="pv-roi ${baseRoiCls(p.ml.roi_pct)}">${fmtRoi(p.ml.roi_pct)}</td>
