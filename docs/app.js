@@ -2571,6 +2571,13 @@ function mcHalfInning(lineup, lineupPos, pitcher, isRelief, parkFactor) {
     const pWalk      = mcLog5(bBB, pBB, MC_LEAGUE.bb_pct);
     const hrRate     = mcHrRate(batter, parkFactor) * pitcher._noise;
 
+    // Effective BABIP: pitcher contact suppression (from pitcher_score) × batter contact quality (xwOBA)
+    // xwOBA 0.318 = league avg; higher → better contact → higher BABIP; lower → worse contact → lower BABIP
+    const pitcherBabipMult = pitcher._babip_mult ?? 1.0;
+    const batterBabipMult  = batter.xwoba != null
+      ? mcClamp(1 + 0.4 * (batter.xwoba / 0.318 - 1), 0.80, 1.20) : 1.0;
+    const effectiveBabip   = MC_LEAGUE.babip * pitcherBabipMult * batterBabipMult;
+
     const roll = Math.random();
     let outcome;
     if (roll < pStrikeout) {
@@ -2578,10 +2585,10 @@ function mcHalfInning(lineup, lineupPos, pitcher, isRelief, parkFactor) {
     } else if (roll < pStrikeout + pWalk) {
       outcome = 'BB';
     } else {
-      const bipRoll    = Math.random();
+      const bipRoll      = Math.random();
       const hrThreshold  = hrRate / (1 - pStrikeout - pWalk + 0.001);
-      // BABIP (0.299) is the hit rate on non-HR balls in play — additive with HR, not competing
-      const hitThreshold = hrThreshold + MC_LEAGUE.babip * (1 - hrThreshold);
+      // BABIP is the hit rate on non-HR balls in play — additive with HR, not competing
+      const hitThreshold = hrThreshold + effectiveBabip * (1 - hrThreshold);
       if (bipRoll < hrThreshold) {
         outcome = 'HR';
       } else if (bipRoll < hitThreshold) {
@@ -2620,30 +2627,44 @@ function mcSimulateOneGame(game, scenario) {
   const spNoise = () => mcClamp(mcRandn(1.0, 0.20), 0.5, 1.6);
   const bNoise  = () => mcClamp(mcRandn(1.0, 0.15), 0.5, 1.5);
 
+  // pitcher_score (0–1, 0.5 = avg) captures xERA, whiff%, chase%, barrel% against —
+  // all of which determine how many balls in play become hits (BABIP).
+  // Higher score → better contact suppression → lower BABIP against this pitcher.
+  const pitcherScoreToBabipMult = s =>
+    s != null ? mcClamp(1 + 0.5 * (0.5 - s), 0.75, 1.25) : 1.0;
+
+  // Bullpen: derive BABIP mult from bullpen xERA when available (league avg BP xERA ≈ 4.15)
+  const bpXeraToBabipMult = xera =>
+    xera != null ? mcClamp(1 + 0.4 * (xera - 4.15) / 4.15, 0.80, 1.20) : 1.0;
+
   const homeSpStats = {
-    k_pct:  homeSp.season?.k_pct  ?? MC_LEAGUE.pitcher_k_pct,
-    bb_pct: homeSp.season?.bb_pct ?? MC_LEAGUE.pitcher_bb_pct,
-    _noise: spNoise(),
+    k_pct:       homeSp.season?.k_pct  ?? MC_LEAGUE.pitcher_k_pct,
+    bb_pct:      homeSp.season?.bb_pct ?? MC_LEAGUE.pitcher_bb_pct,
+    _babip_mult: pitcherScoreToBabipMult(sig.pitcher_score_home),
+    _noise:      spNoise(),
   };
   const awaySpStats = {
-    k_pct:  awaySp.season?.k_pct  ?? MC_LEAGUE.pitcher_k_pct,
-    bb_pct: awaySp.season?.bb_pct ?? MC_LEAGUE.pitcher_bb_pct,
-    _noise: spNoise(),
+    k_pct:       awaySp.season?.k_pct  ?? MC_LEAGUE.pitcher_k_pct,
+    bb_pct:      awaySp.season?.bb_pct ?? MC_LEAGUE.pitcher_bb_pct,
+    _babip_mult: pitcherScoreToBabipMult(sig.pitcher_score_away),
+    _noise:      spNoise(),
   };
 
   // Bullpen fallback to SP stats if no bullpen data
   const homeBpStats = {
-    k_pct:  sig.bullpen_k_pct_home  ?? homeSpStats.k_pct * 0.9,
-    bb_pct: sig.bullpen_bb_pct_home ?? homeSpStats.bb_pct * 1.1,
-    _noise: spNoise(),
+    k_pct:       sig.bullpen_k_pct_home  ?? homeSpStats.k_pct * 0.9,
+    bb_pct:      sig.bullpen_bb_pct_home ?? homeSpStats.bb_pct * 1.1,
+    _babip_mult: bpXeraToBabipMult(sig.bullpen_xera_home),
+    _noise:      spNoise(),
   };
   const awayBpStats = {
-    k_pct:  sig.bullpen_k_pct_away  ?? awaySpStats.k_pct * 0.9,
-    bb_pct: sig.bullpen_bb_pct_away ?? awaySpStats.bb_pct * 1.1,
-    _noise: spNoise(),
+    k_pct:       sig.bullpen_k_pct_away  ?? awaySpStats.k_pct * 0.9,
+    bb_pct:      sig.bullpen_bb_pct_away ?? awaySpStats.bb_pct * 1.1,
+    _babip_mult: bpXeraToBabipMult(sig.bullpen_xera_away),
+    _noise:      spNoise(),
   };
 
-  // Apply scenario modifier to home or away SP
+  // Apply scenario modifier to home or away SP (preserve _babip_mult)
   const applyScenario = (spStats) => {
     const s = { ...spStats };
     if (scenario === 'cold_sp_home' || scenario === 'cold_sp_away') {
@@ -2700,7 +2721,13 @@ function mcSimulateGame(game, nSims, scenario) {
   }
 
   const homeWins = homeScores.filter((h, i) => h > awayScores[i]).length;
-  const homeWinPct = homeWins / nSims;
+  const rawHomeWinPct = homeWins / nSims;
+
+  // Apply weather and rest modifiers — model uses logit += weather*0.2 + rest; at p≈0.5, dp≈dlogit*0.25
+  const msig = game.prediction?.model_signals || {};
+  const weatherAdj = (msig.weather_modifier ?? 0) * 0.2 * 0.25;
+  const restAdj    = (msig.rest_modifier    ?? 0) * 0.25;
+  const homeWinPct = Math.max(0.05, Math.min(0.95, rawHomeWinPct + weatherAdj + restAdj));
 
   // 95% CI using Wilson score interval for proportions
   const z = 1.96;
@@ -2754,6 +2781,8 @@ function mcSimulateGame(game, nSims, scenario) {
 
 // Analyse what drives the gap between model and MC win probabilities.
 // Returns { gap, drivers[] } where gap = MC home% − model home%.
+// NOTE: MC now incorporates pitcher_score → BABIP, batter xwOBA → BABIP, and weather/rest.
+// Remaining gap is primarily the model's Vegas market anchor vs MC's pure Statcast approach.
 function mcBuildDrivers(game, r) {
   const pred   = game.prediction || {};
   const sig    = pred.model_signals || {};
@@ -2765,82 +2794,62 @@ function mcBuildDrivers(game, r) {
   const awayA = abbrev(game.away_team);
   const drivers = [];
 
-  // SP quality: model uses composite pitcher_score; MC uses K% directly
+  // Vegas market anchor — the primary structural reason model and MC diverge.
+  // Model starts from market-implied probability; MC starts from pure Statcast.
+  if (game.odds?.total != null) {
+    drivers.push({ type: 'market', label: 'Vegas anchor',
+      body: `Primary model uses market-implied odds (O/U ${game.odds.total}) as its baseline; MC is a pure Statcast simulation with no market information. This is the main expected source of any residual gap.` });
+  }
+
+  // SP quality: show whether pitcher_score (which now drives BABIP in MC) agrees with K-rate direction
   const pHome = sig.pitcher_score_home, pAway = sig.pitcher_score_away;
   const homeSp = game.home_sp || {}, awaySp = game.away_sp || {};
   const homeK = homeSp.season?.k_pct, awayK = awaySp.season?.k_pct;
-  if (pHome != null && pAway != null && homeK != null && awayK != null) {
-    const modelEdge = pHome - pAway;   // + = model thinks home pitcher better
-    const mcEdge    = homeK - awayK;   // + = home SP has higher K% (MC sees home advantage)
-    const agree = Math.sign(modelEdge) === Math.sign(mcEdge)
-               || (Math.abs(modelEdge) < 0.03 && Math.abs(mcEdge) < 0.02);
-    const favModel = modelEdge >= 0 ? homeA : awayA;
-    const favMC    = mcEdge    >= 0 ? homeA : awayA;
-    if (!agree) {
-      drivers.push({ type: 'disagree', label: 'SP quality',
-        body: `Model favors ${favModel} pitcher (score ${(pHome*100).toFixed(0)} vs ${(pAway*100).toFixed(0)}); MC's K-rate favors ${favMC} (${(homeK*100).toFixed(0)}% vs ${(awayK*100).toFixed(0)}%) — model score also weights xERA, whiff%, and chase%` });
-    } else if (Math.abs(modelEdge) >= 0.04 || Math.abs(mcEdge) >= 0.03) {
-      const bigK = Math.max(homeK, awayK), smallK = Math.min(homeK, awayK);
+  if (pHome != null && pAway != null) {
+    const modelEdge = pHome - pAway;  // + = model thinks home SP better
+    const favA = modelEdge >= 0 ? homeA : awayA;
+    const babipEffect = Math.abs(modelEdge) >= 0.03;
+    if (babipEffect) {
+      const kNote = homeK != null && awayK != null
+        ? `, K-rate ${(Math.max(homeK,awayK)*100).toFixed(0)}% vs ${(Math.min(homeK,awayK)*100).toFixed(0)}%`
+        : '';
       drivers.push({ type: 'agree', label: 'SP quality',
-        body: `Both inputs favor ${favModel} SP — model score ${(Math.max(pHome,pAway)*100).toFixed(0)} vs ${(Math.min(pHome,pAway)*100).toFixed(0)}, K-rate ${(bigK*100).toFixed(0)}% vs ${(smallK*100).toFixed(0)}%` });
+        body: `${favA} has the stronger pitcher profile (score ${(Math.max(pHome,pAway)*100).toFixed(0)} vs ${(Math.min(pHome,pAway)*100).toFixed(0)})${kNote} — reflected in MC via adjusted BABIP (pitcher_score encodes xERA, whiff%, and chase%)` });
     }
   }
 
-  // Lineup: model uses composite lineup_score; MC uses per-batter xwOBA directly
+  // Lineup: MC now uses per-batter xwOBA to adjust BABIP — confirm alignment with lineup_score
   const homeL = (game.home_lineup || []).filter(b => b.xwoba != null);
   const awayL = (game.away_lineup || []).filter(b => b.xwoba != null);
   const lHome = sig.lineup_score_home, lAway = sig.lineup_score_away;
   if (homeL.length >= 3 && awayL.length >= 3 && lHome != null && lAway != null) {
     const mcHomeX = homeL.reduce((s, b) => s + b.xwoba, 0) / homeL.length;
     const mcAwayX = awayL.reduce((s, b) => s + b.xwoba, 0) / awayL.length;
-    const mcEdge    = mcHomeX - mcAwayX;
+    const xwobaEdge = mcHomeX - mcAwayX;
     const modelEdge = lHome - lAway;
-    const agree = Math.sign(mcEdge) === Math.sign(modelEdge)
-               || (Math.abs(mcEdge) < 0.012 && Math.abs(modelEdge) < 0.025);
+    const agree = Math.sign(xwobaEdge) === Math.sign(modelEdge)
+               || (Math.abs(xwobaEdge) < 0.012 && Math.abs(modelEdge) < 0.025);
+    const favXwoba = xwobaEdge >= 0 ? homeA : awayA;
     const favModel = modelEdge >= 0 ? homeA : awayA;
-    const favMC    = mcEdge    >= 0 ? homeA : awayA;
-    if (!agree && (Math.abs(mcEdge) >= 0.015 || Math.abs(modelEdge) >= 0.03)) {
-      drivers.push({ type: 'disagree', label: 'Lineup strength',
-        body: `MC avg xwOBA: ${homeA} .${(mcHomeX*1000).toFixed(0)} vs ${awayA} .${(mcAwayX*1000).toFixed(0)} (favors ${favMC}); model lineup score: ${homeA} ${(lHome*100).toFixed(0)} vs ${awayA} ${(lAway*100).toFixed(0)} (favors ${favModel})` });
-    } else if (agree && (Math.abs(mcEdge) >= 0.015 || Math.abs(modelEdge) >= 0.03)) {
-      const bigX = Math.max(mcHomeX, mcAwayX), smallX = Math.min(mcHomeX, mcAwayX);
-      drivers.push({ type: 'agree', label: 'Lineup strength',
-        body: `Both inputs agree ${favMC} has the stronger lineup — avg xwOBA .${(bigX*1000).toFixed(0)} vs .${(smallX*1000).toFixed(0)}, model score ${(Math.max(lHome,lAway)*100).toFixed(0)} vs ${(Math.min(lHome,lAway)*100).toFixed(0)}` });
+    if (Math.abs(xwobaEdge) >= 0.015 || Math.abs(modelEdge) >= 0.03) {
+      if (agree) {
+        const bigX = Math.max(mcHomeX, mcAwayX);
+        drivers.push({ type: 'agree', label: 'Lineup strength',
+          body: `Both inputs favor ${favXwoba} offense — avg xwOBA .${(bigX*1000).toFixed(0)} vs .${(Math.min(mcHomeX,mcAwayX)*1000).toFixed(0)}, model lineup score ${(Math.max(lHome,lAway)*100).toFixed(0)} vs ${(Math.min(lHome,lAway)*100).toFixed(0)} — per-batter xwOBA now drives MC's BABIP` });
+      } else {
+        drivers.push({ type: 'disagree', label: 'Lineup strength',
+          body: `MC avg xwOBA favors ${favXwoba} (.${(Math.max(mcHomeX,mcAwayX)*1000).toFixed(0)} vs .${(Math.min(mcHomeX,mcAwayX)*1000).toFixed(0)}); model lineup score favors ${favModel} (${(Math.max(lHome,lAway)*100).toFixed(0)} vs ${(Math.min(lHome,lAway)*100).toFixed(0)}) — model also weights xSLG, barrel%, and avg EV beyond xwOBA` });
+      }
     }
   }
 
-  // Historical comps: model-only signal
-  if (sig.comps_home_win_rate != null && (sig.comps_count || 0) >= 10) {
-    const compsPct = sig.comps_home_win_rate * 100;
-    const diff = compsPct - 50;
-    if (Math.abs(diff) >= 5) {
-      const favA = diff > 0 ? homeA : awayA;
-      drivers.push({ type: 'model_only', label: 'Historical comps',
-        body: `${sig.comps_count} comparable matchups show ${Math.round(Math.abs(diff))}pp ${favA} lean (${compsPct.toFixed(0)}% home win rate) — MC runs from scratch with no pattern-matching` });
-    }
-  }
-
-  // Weather: model-only modifier
-  if (sig.weather_modifier != null && Math.abs(sig.weather_modifier) >= 0.025) {
-    const dir = sig.weather_modifier > 0 ? homeA : awayA;
-    drivers.push({ type: 'model_only', label: 'Weather',
-      body: `Model applies ${sig.weather_modifier > 0 ? '+' : ''}${(sig.weather_modifier*100).toFixed(1)}pp weather adjustment favoring ${dir} — MC does not factor conditions` });
-  }
-
-  // Rest days: model-only modifier
-  if (sig.rest_modifier != null && Math.abs(sig.rest_modifier) >= 0.015) {
-    const dir = sig.rest_modifier > 0 ? homeA : awayA;
-    drivers.push({ type: 'model_only', label: 'Rest days',
-      body: `${homeA} ${sig.home_rest_days ?? '?'}d rest vs ${awayA} ${sig.away_rest_days ?? '?'}d — model adjusts ${dir} by ${(Math.abs(sig.rest_modifier)*100).toFixed(1)}pp; MC ignores fatigue` });
-  }
-
-  // Recent SP form: ERA vs xERA deviation (model-only)
+  // Recent SP form: ERA vs xERA deviation — model-only regression signal
   const devH = sig.last_start_dev_home, devA = sig.last_start_dev_away;
   if (devH != null && devA != null && Math.abs((devH||0) - (devA||0)) >= 1.5) {
-    const homeFav = (devH||0) < (devA||0);   // negative = ERA below xERA = pitching better than expected
+    const homeFav = (devH||0) < (devA||0);
     const dir = homeFav ? homeA : awayA;
     drivers.push({ type: 'model_only', label: 'SP recent form',
-      body: `${homeA} SP last-start deviation ${devH > 0 ? '+' : ''}${devH?.toFixed(1)} runs vs ${awayA} ${devA > 0 ? '+' : ''}${devA?.toFixed(1)} — model weights recent ERA vs xERA as regression signal; MC uses season averages only` });
+      body: `${homeA} SP last-start deviation ${devH > 0 ? '+' : ''}${devH?.toFixed(1)} vs ${awayA} ${devA > 0 ? '+' : ''}${devA?.toFixed(1)} ERA-vs-xERA — model applies regression signal; MC uses season averages` });
   }
 
   return { gap, drivers };
@@ -2861,16 +2870,18 @@ function mcRenderComparison(game, r) {
   const absGap  = Math.abs(gap);
   const gapSign = gap > 0 ? '+' : '';
   const gapCls  = absGap < 1.5 ? 'neutral' : gap > 0 ? 'pos' : 'neg';
-  const gapText = absGap < 1.5 ? 'Closely aligned' : `MC ${gapSign}${gap.toFixed(1)}pp vs model`;
+  const gapText = absGap < 2.5 ? 'Closely aligned' : `MC ${gapSign}${gap.toFixed(1)}pp vs model`;
 
   const driverRows = drivers.length === 0
-    ? `<div class="sim-driver-empty">Simulation closely tracks the model — no material divergence in inputs.</div>`
+    ? `<div class="sim-driver-empty">Simulation closely tracks the model — no material divergence.</div>`
     : drivers.map(d => {
         const tagCls  = d.type === 'agree'      ? 'sim-dtag-agree'
                       : d.type === 'disagree'   ? 'sim-dtag-diverge'
+                      : d.type === 'market'     ? 'sim-dtag-market'
                       : 'sim-dtag-model';
         const tagText = d.type === 'agree'      ? 'Aligned'
                       : d.type === 'disagree'   ? 'Diverges'
+                      : d.type === 'market'     ? 'Market'
                       : 'Model only';
         return `<div class="sim-driver">
   <span class="sim-dtag ${tagCls}">${tagText}</span>
