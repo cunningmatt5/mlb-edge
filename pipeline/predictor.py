@@ -182,11 +182,19 @@ def _win_probability(
 
     logit_blend += park_modifier * 0.5 + weather_modifier * 0.2
 
-    # Last-start deviation: if home pitcher recently struggled, adjust down; away up
+    # Last-start deviation: if home pitcher recently struggled, adjust down; away up.
+    # Progressive weighting: small deviations are noise; large sustained streaks are real signal.
+    # <1 run: 0.03 (noise floor) | 1-2 runs: 0.07 (moderate form change) | ≥2 runs: 0.11 (real streak)
+    def _form_weight(dev: float) -> float:
+        a = abs(dev)
+        if a < 1.0: return 0.03
+        if a < 2.0: return 0.07
+        return 0.11
+
     if last_start_dev_home is not None:
-        logit_blend -= last_start_dev_home * 0.05
+        logit_blend -= last_start_dev_home * _form_weight(last_start_dev_home)
     if last_start_dev_away is not None:
-        logit_blend += last_start_dev_away * 0.05
+        logit_blend += last_start_dev_away * _form_weight(last_start_dev_away)
 
     home_pct = round(_sigmoid(logit_blend), 4)
     return home_pct, round(1.0 - home_pct, 4)
@@ -779,6 +787,14 @@ def build_game(
         pick_tier = "strong_away"
     # strong_home removed: hold-out data shows home picks lose money in every tested combination
 
+    # pick_signal: primary driver of the pick — surfaces in UI reasoning panel.
+    # pitcher is always confirmed for any pick_tier (pick_tier requires pitcher_score_diff ≤ -0.05).
+    # Signal is 'pitcher_lineup' when lineup also independently favors away; else 'pitcher'.
+    pick_signal: Optional[str] = None
+    if pick_tier in ("elite_away", "strong_away"):
+        lineup_diff = home_lineup_score - away_lineup_score  # negative = away lineup better
+        pick_signal = "pitcher_lineup" if lineup_diff < -0.03 else "pitcher"
+
     vegas_total: Optional[float] = odds_out.get("total") if odds_out else None
     pred_home, pred_away = _predicted_runs(
         home_lineup_score, away_lineup_score,
@@ -861,6 +877,7 @@ def build_game(
             "model_edge_ml":      model_edge_ml,
             "pitcher_score_diff": pitcher_score_diff,
             "pick_tier":          pick_tier,
+            "pick_signal":        pick_signal,
             "model_signals": {
                 "pitcher_score_home": round(home_pitcher_score, 3),
                 "pitcher_score_away": round(away_pitcher_score, 3),

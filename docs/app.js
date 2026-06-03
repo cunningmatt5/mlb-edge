@@ -221,11 +221,30 @@ function renderBestBetsSection(games) {
 
   const eliteCards = eliteGames.map(g => {
     const pred    = g.prediction || {};
+    const sig     = pred.model_signals || {};
     const odds    = g.odds || {};
     const awayPct = Math.round((1 - (pred.home_win_pct ?? 0.5)) * 100);
     const edgePct = pred.model_edge_ml != null ? (+(-pred.model_edge_ml * 100).toFixed(1)) : null;
     const awayMl  = odds.away_ml != null ? (odds.away_ml > 0 ? `+${odds.away_ml}` : String(odds.away_ml)) : null;
     const sl      = spLine(g.away_sp, g.away_sp?.name || abbrev(g.away_team), g.home_sp, g.home_sp?.name || abbrev(g.home_team));
+    // Lineup xwOBA line
+    const awyL  = (g.away_lineup || []).filter(b => b.xwoba != null);
+    const hmL   = (g.home_lineup  || []).filter(b => b.xwoba != null);
+    const awyX  = awyL.length >= 3 ? awyL.reduce((s, b) => s + b.xwoba, 0) / awyL.length : null;
+    const hmX   = hmL.length  >= 3 ? hmL.reduce((s, b)  => s + b.xwoba, 0) / hmL.length  : null;
+    const luLine = (awyX != null && hmX != null)
+      ? `Lineup: Away .${Math.round(awyX * 1000)} vs Home .${Math.round(hmX * 1000)} xwOBA`
+      : null;
+    // SP form note
+    const awyDev = sig.last_start_dev_away;
+    let formNote = '';
+    if (awyDev != null && Math.abs(awyDev) >= 1.0) {
+      const awySPName = g.away_sp?.name ? g.away_sp.name.split(',')[0] : 'Away SP';
+      formNote = awyDev > 0
+        ? ` · ${awySPName} +${awyDev.toFixed(1)} ERA above xERA (cold)`
+        : ` · ${awySPName} ${awyDev.toFixed(1)} ERA below xERA (hot)`;
+    }
+    const oddsQual = oddsQualityBadge(odds.away_ml);
     return `
 <div class="ea-card" onclick="toggleCard(${g.gamePk})">
   <div class="ea-left">
@@ -234,7 +253,8 @@ function renderBestBetsSection(games) {
       <span class="ea-at">@</span>
       <span class="ea-home-name">${abbrev(g.home_team)}</span>
     </div>
-    <div class="ea-sp-line">${sl}</div>
+    <div class="ea-sp-line">${sl}${formNote}</div>
+    ${luLine ? `<div class="ea-lu-line">${luLine}</div>` : ''}
   </div>
   <div class="ea-right">
     <div class="ea-bet-row">
@@ -242,7 +262,10 @@ function renderBestBetsSection(games) {
       ${awayMl ? `<span class="ea-ml">${awayMl}</span>` : ''}
       <span class="ea-win-pct">${awayPct}% win</span>
     </div>
-    ${edgePct != null ? `<div class="ea-edge-pill">Model +${edgePct}% vs Vegas</div>` : ''}
+    <div class="ea-bottom-row">
+      ${edgePct != null ? `<div class="ea-edge-pill">Model +${edgePct}% vs Vegas</div>` : ''}
+      ${oddsQual}
+    </div>
   </div>
 </div>`;
   }).join('');
@@ -600,6 +623,56 @@ function gameTier(homeWinPct) {
   return null;
 }
 
+// Returns a small "good/moderate/heavy-fav" badge for the away team odds.
+// Near-even or plus-money = highest historical ROI for Elite Away picks.
+function oddsQualityBadge(awayMl) {
+  if (awayMl == null) return '';
+  if (awayMl >= -130) return '<span class="odds-q odds-q-good">Good odds</span>';
+  if (awayMl >= -180) return '<span class="odds-q odds-q-mod">Moderate odds</span>';
+  return '<span class="odds-q odds-q-heavy">Heavy fav</span>';
+}
+
+// Compact 1-2 line reasoning panel for pick-tier games.
+// Surfaces the xERA matchup, lineup xwOBA edge, and SP form signal.
+function buildPickReasoning(g) {
+  const pred = g.prediction || {};
+  if (!pred.pick_tier) return '';
+  const sig   = pred.model_signals || {};
+  const awySp = g.away_sp || {};
+  const hmSp  = g.home_sp || {};
+
+  const awyXera = awySp.season?.xera;
+  const hmXera  = hmSp.season?.xera;
+  const spLine  = (awyXera != null && hmXera != null)
+    ? `xERA ${awyXera.toFixed(2)} vs ${hmXera.toFixed(2)}`
+    : null;
+
+  // Lineup xwOBA averages from actual lineup players
+  const awyL  = (g.away_lineup || []).filter(b => b.xwoba != null);
+  const hmL   = (g.home_lineup  || []).filter(b => b.xwoba != null);
+  const awyX  = awyL.length >= 3 ? awyL.reduce((s, b) => s + b.xwoba, 0) / awyL.length : null;
+  const hmX   = hmL.length  >= 3 ? hmL.reduce((s, b)  => s + b.xwoba, 0) / hmL.length  : null;
+  const luLine = (awyX != null && hmX != null)
+    ? `.${Math.round(awyX * 1000)} vs .${Math.round(hmX * 1000)} xwOBA`
+    : null;
+
+  // Form note for the away SP (positive dev = recently worse for the HOME pitcher — we care about AWAY dev)
+  const awyDev = sig.last_start_dev_away;
+  let formNote = '';
+  if (awyDev != null && Math.abs(awyDev) >= 1.0) {
+    const dir = awyDev > 0 ? `+${awyDev.toFixed(1)} (cold)` : `${awyDev.toFixed(1)} (hot)`;
+    const awySPName = awySp.name ? awySp.name.split(',')[0] : 'Away SP';
+    formNote = ` · ${awySPName} ${dir} last 3`;
+  }
+
+  const signal = pred.pick_signal === 'pitcher_lineup' ? 'SP + Lineup edge' : 'SP edge';
+  const parts = [signal];
+  if (spLine)  parts.push(spLine);
+  if (luLine)  parts.push(luLine);
+
+  return `<div class="pick-reasoning">${parts.join(' · ')}${formNote}</div>`;
+}
+
 function statusStrip(g) {
   const status = g.game_status || 'preview';
 
@@ -641,6 +714,8 @@ function statusStrip(g) {
     : pickTier === 'strong_away'
     ? `<span class="pick-tier-badge tier-strong-away">Strong Away</span>`
     : '';
+  const oddsQual    = pickTier ? oddsQualityBadge(g.odds?.away_ml) : '';
+  const pickReason  = buildPickReasoning(g);
   const scoreCenter = pred.predicted_away_runs != null ? `
   <span class="pred-score-est">
     <span class="pse-team">${abbrev(g.away_team)}</span>
@@ -657,7 +732,8 @@ function statusStrip(g) {
       <span class="pf-sep">—</span>
       <span class="${awayFav ? 'pf-dog' : 'pf-fav'}">${abbrev(g.home_team)} ${homePct}%</span>
     </div>
-    ${tierBadge}${pickTierBadge}
+    ${tierBadge}${pickTierBadge}${oddsQual}
+    ${pickReason}
   </div>
   ${scoreCenter}
   <span class="expand-arrow">▼</span>

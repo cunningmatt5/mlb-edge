@@ -2460,6 +2460,29 @@ header {
   color: #a5b4fc;
   border: 1px solid rgba(99,102,241,.3);
 }
+/* Pick reasoning line below badge */
+.pick-reasoning {
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  margin-top: 3px;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+}
+/* Odds quality badge */
+.odds-q {
+  display: inline-block;
+  font-size: 0.57rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.odds-q-good   { background: rgba(34,197,94,.14); color: #4ade80; border: 1px solid rgba(34,197,94,.25); }
+.odds-q-mod    { background: rgba(234,179,8,.10);  color: #fbbf24; border: 1px solid rgba(234,179,8,.22); }
+.odds-q-heavy  { background: rgba(248,113,113,.10); color: #f87171; border: 1px solid rgba(248,113,113,.22); }
 
 /* ── Best Bets callout (Today's Best Bets on Games tab) ─────────────────── */
 .bb-section { margin-bottom: 24px; }
@@ -2629,6 +2652,22 @@ header {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.ea-lu-line {
+  font-size: 10px;
+  color: var(--text-dim);
+  opacity: 0.75;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ea-bottom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .ea-right {
