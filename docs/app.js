@@ -2492,8 +2492,8 @@ function mcClamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 // Derive HR rate per PA from batter's barrel_pct or hard_hit_pct proxy
 function mcHrRate(batter, parkFactor) {
   const pf = (parkFactor || 100) / 100;
-  if (batter.barrel_pct != null) return mcClamp(batter.barrel_pct * 0.50 * pf, 0.005, 0.12);
-  if (batter.hard_hit_pct != null) return mcClamp(batter.hard_hit_pct * 0.08 * pf, 0.005, 0.10);
+  if (batter.barrel_pct != null)   return mcClamp(batter.barrel_pct  * 0.25 * pf, 0.005, 0.07);
+  if (batter.hard_hit_pct != null) return mcClamp(batter.hard_hit_pct * 0.06 * pf, 0.005, 0.06);
   return MC_LEAGUE.hr_per_bip * pf;
 }
 
@@ -2578,11 +2578,14 @@ function mcHalfInning(lineup, lineupPos, pitcher, isRelief, parkFactor) {
     } else if (roll < pStrikeout + pWalk) {
       outcome = 'BB';
     } else {
-      const bipRoll = Math.random();
-      if (bipRoll < hrRate / (1 - pStrikeout - pWalk + 0.001)) {
+      const bipRoll    = Math.random();
+      const hrThreshold  = hrRate / (1 - pStrikeout - pWalk + 0.001);
+      // BABIP (0.299) is the hit rate on non-HR balls in play — additive with HR, not competing
+      const hitThreshold = hrThreshold + MC_LEAGUE.babip * (1 - hrThreshold);
+      if (bipRoll < hrThreshold) {
         outcome = 'HR';
-      } else if (bipRoll < MC_LEAGUE.babip) {
-        // hit — determine type
+      } else if (bipRoll < hitThreshold) {
+        // non-HR hit — determine type
         const hitRoll = Math.random();
         if (hitRoll < MC_LEAGUE.single_of_hit)                                  outcome = 'S';
         else if (hitRoll < MC_LEAGUE.single_of_hit + MC_LEAGUE.double_of_hit)   outcome = 'D';
@@ -3258,6 +3261,25 @@ function renderSupportView() {
           Platt-scaling calibration fitted on 13,000+ historical games to correct for systematic
           over/under-confidence. When a Vegas closing total is available, the model uses it as a
           soft anchor for its run prediction rather than ignoring market information entirely.
+        </p>
+      </div>
+
+      <div class="support-section">
+        <h2 class="support-section-title">Monte Carlo Simulations</h2>
+        <p class="support-body">
+          The Monte Carlo simulation plays out your selected game 100,000 times from scratch,
+          stepping through every single at-bat using real Statcast data for each batter and
+          pitcher in the lineup. On each plate appearance, the model calculates the probability
+          of a strikeout, walk, or ball in play for that specific matchup — blending the batter's
+          tendencies, the pitcher's tendencies, and a league baseline using a formula called Log5.
+          If the ball is put in play, the model rolls for a home run based on the batter's barrel
+          rate and park factor, or otherwise determines whether it becomes a hit or an out using
+          real batting-average-on-balls-in-play rates, then advances baserunners around the
+          diamond accordingly. After 9 innings, one simulated score is recorded; after 100,000
+          games, the model counts how often each team won, tallies the full run-scoring
+          distribution, and compares total runs to the Vegas line to compute an over/under
+          probability. The percentages you see are empirical frequencies from a very large sample
+          of statistically rigorous plate appearances — not gut feelings or adjusted team ratings.
         </p>
       </div>
 
