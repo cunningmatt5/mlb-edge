@@ -2752,6 +2752,159 @@ function mcSimulateGame(game, nSims, scenario) {
   };
 }
 
+// Analyse what drives the gap between model and MC win probabilities.
+// Returns { gap, drivers[] } where gap = MC home% − model home%.
+function mcBuildDrivers(game, r) {
+  const pred   = game.prediction || {};
+  const sig    = pred.model_signals || {};
+  const modelHomePct = pred.home_win_pct != null ? pred.home_win_pct * 100 : null;
+  if (modelHomePct == null) return { gap: 0, drivers: [] };
+
+  const gap   = +(r.homeWinPct - modelHomePct).toFixed(1);
+  const homeA = abbrev(game.home_team);
+  const awayA = abbrev(game.away_team);
+  const drivers = [];
+
+  // SP quality: model uses composite pitcher_score; MC uses K% directly
+  const pHome = sig.pitcher_score_home, pAway = sig.pitcher_score_away;
+  const homeSp = game.home_sp || {}, awaySp = game.away_sp || {};
+  const homeK = homeSp.season?.k_pct, awayK = awaySp.season?.k_pct;
+  if (pHome != null && pAway != null && homeK != null && awayK != null) {
+    const modelEdge = pHome - pAway;   // + = model thinks home pitcher better
+    const mcEdge    = homeK - awayK;   // + = home SP has higher K% (MC sees home advantage)
+    const agree = Math.sign(modelEdge) === Math.sign(mcEdge)
+               || (Math.abs(modelEdge) < 0.03 && Math.abs(mcEdge) < 0.02);
+    const favModel = modelEdge >= 0 ? homeA : awayA;
+    const favMC    = mcEdge    >= 0 ? homeA : awayA;
+    if (!agree) {
+      drivers.push({ type: 'disagree', label: 'SP quality',
+        body: `Model favors ${favModel} pitcher (score ${(pHome*100).toFixed(0)} vs ${(pAway*100).toFixed(0)}); MC's K-rate favors ${favMC} (${(homeK*100).toFixed(0)}% vs ${(awayK*100).toFixed(0)}%) — model score also weights xERA, whiff%, and chase%` });
+    } else if (Math.abs(modelEdge) >= 0.04 || Math.abs(mcEdge) >= 0.03) {
+      const bigK = Math.max(homeK, awayK), smallK = Math.min(homeK, awayK);
+      drivers.push({ type: 'agree', label: 'SP quality',
+        body: `Both inputs favor ${favModel} SP — model score ${(Math.max(pHome,pAway)*100).toFixed(0)} vs ${(Math.min(pHome,pAway)*100).toFixed(0)}, K-rate ${(bigK*100).toFixed(0)}% vs ${(smallK*100).toFixed(0)}%` });
+    }
+  }
+
+  // Lineup: model uses composite lineup_score; MC uses per-batter xwOBA directly
+  const homeL = (game.home_lineup || []).filter(b => b.xwoba != null);
+  const awayL = (game.away_lineup || []).filter(b => b.xwoba != null);
+  const lHome = sig.lineup_score_home, lAway = sig.lineup_score_away;
+  if (homeL.length >= 3 && awayL.length >= 3 && lHome != null && lAway != null) {
+    const mcHomeX = homeL.reduce((s, b) => s + b.xwoba, 0) / homeL.length;
+    const mcAwayX = awayL.reduce((s, b) => s + b.xwoba, 0) / awayL.length;
+    const mcEdge    = mcHomeX - mcAwayX;
+    const modelEdge = lHome - lAway;
+    const agree = Math.sign(mcEdge) === Math.sign(modelEdge)
+               || (Math.abs(mcEdge) < 0.012 && Math.abs(modelEdge) < 0.025);
+    const favModel = modelEdge >= 0 ? homeA : awayA;
+    const favMC    = mcEdge    >= 0 ? homeA : awayA;
+    if (!agree && (Math.abs(mcEdge) >= 0.015 || Math.abs(modelEdge) >= 0.03)) {
+      drivers.push({ type: 'disagree', label: 'Lineup strength',
+        body: `MC avg xwOBA: ${homeA} .${(mcHomeX*1000).toFixed(0)} vs ${awayA} .${(mcAwayX*1000).toFixed(0)} (favors ${favMC}); model lineup score: ${homeA} ${(lHome*100).toFixed(0)} vs ${awayA} ${(lAway*100).toFixed(0)} (favors ${favModel})` });
+    } else if (agree && (Math.abs(mcEdge) >= 0.015 || Math.abs(modelEdge) >= 0.03)) {
+      const bigX = Math.max(mcHomeX, mcAwayX), smallX = Math.min(mcHomeX, mcAwayX);
+      drivers.push({ type: 'agree', label: 'Lineup strength',
+        body: `Both inputs agree ${favMC} has the stronger lineup — avg xwOBA .${(bigX*1000).toFixed(0)} vs .${(smallX*1000).toFixed(0)}, model score ${(Math.max(lHome,lAway)*100).toFixed(0)} vs ${(Math.min(lHome,lAway)*100).toFixed(0)}` });
+    }
+  }
+
+  // Historical comps: model-only signal
+  if (sig.comps_home_win_rate != null && (sig.comps_count || 0) >= 10) {
+    const compsPct = sig.comps_home_win_rate * 100;
+    const diff = compsPct - 50;
+    if (Math.abs(diff) >= 5) {
+      const favA = diff > 0 ? homeA : awayA;
+      drivers.push({ type: 'model_only', label: 'Historical comps',
+        body: `${sig.comps_count} comparable matchups show ${Math.round(Math.abs(diff))}pp ${favA} lean (${compsPct.toFixed(0)}% home win rate) — MC runs from scratch with no pattern-matching` });
+    }
+  }
+
+  // Weather: model-only modifier
+  if (sig.weather_modifier != null && Math.abs(sig.weather_modifier) >= 0.025) {
+    const dir = sig.weather_modifier > 0 ? homeA : awayA;
+    drivers.push({ type: 'model_only', label: 'Weather',
+      body: `Model applies ${sig.weather_modifier > 0 ? '+' : ''}${(sig.weather_modifier*100).toFixed(1)}pp weather adjustment favoring ${dir} — MC does not factor conditions` });
+  }
+
+  // Rest days: model-only modifier
+  if (sig.rest_modifier != null && Math.abs(sig.rest_modifier) >= 0.015) {
+    const dir = sig.rest_modifier > 0 ? homeA : awayA;
+    drivers.push({ type: 'model_only', label: 'Rest days',
+      body: `${homeA} ${sig.home_rest_days ?? '?'}d rest vs ${awayA} ${sig.away_rest_days ?? '?'}d — model adjusts ${dir} by ${(Math.abs(sig.rest_modifier)*100).toFixed(1)}pp; MC ignores fatigue` });
+  }
+
+  // Recent SP form: ERA vs xERA deviation (model-only)
+  const devH = sig.last_start_dev_home, devA = sig.last_start_dev_away;
+  if (devH != null && devA != null && Math.abs((devH||0) - (devA||0)) >= 1.5) {
+    const homeFav = (devH||0) < (devA||0);   // negative = ERA below xERA = pitching better than expected
+    const dir = homeFav ? homeA : awayA;
+    drivers.push({ type: 'model_only', label: 'SP recent form',
+      body: `${homeA} SP last-start deviation ${devH > 0 ? '+' : ''}${devH?.toFixed(1)} runs vs ${awayA} ${devA > 0 ? '+' : ''}${devA?.toFixed(1)} — model weights recent ERA vs xERA as regression signal; MC uses season averages only` });
+  }
+
+  return { gap, drivers };
+}
+
+// Render the model vs MC comparison block below the win strip.
+function mcRenderComparison(game, r) {
+  const pred         = game.prediction || {};
+  const modelRaw     = pred.home_win_pct;
+  if (modelRaw == null) return '';
+
+  const modelHomePct = Math.round(modelRaw * 1000) / 10;
+  const modelAwayPct = Math.round((1 - modelRaw) * 1000) / 10;
+  const homeA = abbrev(game.home_team);
+  const awayA = abbrev(game.away_team);
+
+  const { gap, drivers } = mcBuildDrivers(game, r);
+  const absGap  = Math.abs(gap);
+  const gapSign = gap > 0 ? '+' : '';
+  const gapCls  = absGap < 1.5 ? 'neutral' : gap > 0 ? 'pos' : 'neg';
+  const gapText = absGap < 1.5 ? 'Closely aligned' : `MC ${gapSign}${gap.toFixed(1)}pp vs model`;
+
+  const driverRows = drivers.length === 0
+    ? `<div class="sim-driver-empty">Simulation closely tracks the model — no material divergence in inputs.</div>`
+    : drivers.map(d => {
+        const tagCls  = d.type === 'agree'      ? 'sim-dtag-agree'
+                      : d.type === 'disagree'   ? 'sim-dtag-diverge'
+                      : 'sim-dtag-model';
+        const tagText = d.type === 'agree'      ? 'Aligned'
+                      : d.type === 'disagree'   ? 'Diverges'
+                      : 'Model only';
+        return `<div class="sim-driver">
+  <span class="sim-dtag ${tagCls}">${tagText}</span>
+  <span class="sim-driver-label">${d.label}:</span>
+  <span class="sim-driver-body">${d.body}</span>
+</div>`;
+      }).join('');
+
+  const driversSection = `
+  <div class="sim-drivers-hdr">What's driving the gap</div>
+  <div class="sim-drivers">${driverRows}</div>`;
+
+  return `
+<div class="sim-compare">
+  <div class="sim-compare-hdr">Model vs Simulation</div>
+  <div class="sim-compare-row">
+    <div class="sim-compare-col">
+      <div class="sim-compare-sublabel">Primary Model</div>
+      <div class="sim-compare-pcts">
+        <span class="sim-cpct">${awayA} ${modelAwayPct}%</span><span class="sim-csep"> · </span><span class="sim-cpct">${homeA} ${modelHomePct}%</span>
+      </div>
+    </div>
+    <div class="sim-compare-gap ${gapCls}">${gapText}</div>
+    <div class="sim-compare-col sim-compare-right">
+      <div class="sim-compare-sublabel">MC Simulation</div>
+      <div class="sim-compare-pcts">
+        <span class="sim-cpct">${awayA} ${r.awayWinPct}%</span><span class="sim-csep"> · </span><span class="sim-cpct">${homeA} ${r.homeWinPct}%</span>
+      </div>
+    </div>
+  </div>
+  ${driversSection}
+</div>`;
+}
+
 // Render an SVG score distribution bar chart
 function mcRenderChart(homeDist, awayDist, homeAbbr, awayAbbr) {
   const TEAM_COLORS = {
@@ -2911,18 +3064,7 @@ function mcRenderResults(pk, game, r, scenario) {
         >UNDER ${r.underProb}%</span>
     </div>` : '';
 
-  // Compare vs. model's prediction
-  const modelHomePct = game.prediction?.home_win_pct != null
-    ? Math.round(game.prediction.home_win_pct * 10) / 10 : null;
-  const modelDiff = modelHomePct != null
-    ? Math.round((r.homeWinPct - modelHomePct) * 10) / 10 : null;
-  const modelDiffHtml = modelDiff != null ? `
-    <div class="sim-model-diff">
-      Model: ${homeAbbr} ${modelHomePct}%
-      <span class="sim-diff-val ${modelDiff > 0 ? 'pos' : modelDiff < 0 ? 'neg' : ''}">
-        (MC ${modelDiff > 0 ? '+' : ''}${modelDiff}pp vs model)
-      </span>
-    </div>` : '';
+  const compareHtml = mcRenderComparison(game, r);
 
   const scenarioLabels = {
     normal:       'Normal',
@@ -2950,7 +3092,7 @@ function mcRenderResults(pk, game, r, scenario) {
     <div class="sim-win-label">${homeAbbr} wins</div>
   </div>
 </div>
-${modelDiffHtml}
+${compareHtml}
 <div class="sim-chart-section">
   <div class="sim-chart-title">Score distribution (${r.nSims.toLocaleString()} simulations)</div>
   <div class="sim-chart-wrap">

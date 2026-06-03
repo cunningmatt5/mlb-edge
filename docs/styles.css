@@ -2909,6 +2909,88 @@ header {
 .sim-diff-val.pos { color: var(--green-light); }
 .sim-diff-val.neg { color: var(--red-light); }
 
+/* Model vs Simulation comparison */
+.sim-compare {
+  background: var(--bg-table);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.sim-compare-hdr {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+.sim-compare-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.sim-compare-col { flex: 1; }
+.sim-compare-right { text-align: right; }
+.sim-compare-sublabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-dim);
+  margin-bottom: 3px;
+}
+.sim-compare-pcts { font-size: 13px; }
+.sim-cpct { font-weight: 700; color: var(--text); }
+.sim-csep { color: var(--text-dim); }
+.sim-compare-gap {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 4px;
+  text-align: center;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.sim-compare-gap.pos     { color: var(--green-light); background: var(--green-dim); }
+.sim-compare-gap.neg     { color: var(--red-light);   background: var(--red-dim); }
+.sim-compare-gap.neutral { color: var(--text-muted);  background: var(--bg-input); }
+.sim-drivers-hdr {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.sim-drivers { border-top: 1px solid var(--border); padding-top: 8px; }
+.sim-driver {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.5;
+}
+.sim-driver:last-child { border-bottom: none; padding-bottom: 0; }
+.sim-dtag {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.sim-dtag-agree   { background: var(--green-dim);          color: var(--green-light); }
+.sim-dtag-diverge { background: rgba(251,191,36,.12);      color: var(--gold); }
+.sim-dtag-model   { background: var(--accent-dim);         color: #818cf8; }
+.sim-driver-label { flex-shrink: 0; font-weight: 600; color: var(--text); font-size: 12px; }
+.sim-driver-body  { color: var(--text-muted); font-size: 12px; line-height: 1.4; }
+.sim-driver-empty { font-size: 12px; color: var(--text-dim); }
+
 /* Scenarios */
 .sim-scenarios-label {
   font-size: 11px;
