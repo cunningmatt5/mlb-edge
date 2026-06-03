@@ -2637,15 +2637,39 @@ function mcSimulateOneGame(game, scenario) {
   const bpXeraToBabipMult = xera =>
     xera != null ? mcClamp(1 + 0.4 * (xera - 4.15) / 4.15, 0.80, 1.20) : 1.0;
 
+  // Directional K%/BB% blend: only adjust when actual rate and pitcher_score are misaligned
+  // relative to league average. Fixes cases like a ground-ball pitcher with low K% but good
+  // overall quality (pull K% up), or a weak pitcher with deceptively high K% (pull K% down).
+  // Aligned cases (elite K% + high score, or low K% + weak score) are left unchanged.
+  const directionalBlend = (rawK, rawBB, ps, blend = 0.40) => {
+    if (ps == null) return { k: rawK, bb: rawBB };
+    const kMisaligned  = (ps > 0.5) !== (rawK  > MC_LEAGUE.pitcher_k_pct);
+    const bbMisaligned = (ps > 0.5) === (rawBB > MC_LEAGUE.pitcher_bb_pct);
+    return {
+      k:  kMisaligned  ? rawK  * (1 - blend) + MC_LEAGUE.pitcher_k_pct  * (ps / 0.5)                * blend : rawK,
+      bb: bbMisaligned ? rawBB * (1 - blend) + MC_LEAGUE.pitcher_bb_pct * (0.5 / Math.max(ps, 0.15)) * blend : rawBB,
+    };
+  };
+
+  const homeSpBlend = directionalBlend(
+    homeSp.season?.k_pct  ?? MC_LEAGUE.pitcher_k_pct,
+    homeSp.season?.bb_pct ?? MC_LEAGUE.pitcher_bb_pct,
+    sig.pitcher_score_home,
+  );
   const homeSpStats = {
-    k_pct:       homeSp.season?.k_pct  ?? MC_LEAGUE.pitcher_k_pct,
-    bb_pct:      homeSp.season?.bb_pct ?? MC_LEAGUE.pitcher_bb_pct,
+    k_pct:       homeSpBlend.k,
+    bb_pct:      homeSpBlend.bb,
     _babip_mult: pitcherScoreToBabipMult(sig.pitcher_score_home),
     _noise:      spNoise(),
   };
+  const awaySpBlend = directionalBlend(
+    awaySp.season?.k_pct  ?? MC_LEAGUE.pitcher_k_pct,
+    awaySp.season?.bb_pct ?? MC_LEAGUE.pitcher_bb_pct,
+    sig.pitcher_score_away,
+  );
   const awaySpStats = {
-    k_pct:       awaySp.season?.k_pct  ?? MC_LEAGUE.pitcher_k_pct,
-    bb_pct:      awaySp.season?.bb_pct ?? MC_LEAGUE.pitcher_bb_pct,
+    k_pct:       awaySpBlend.k,
+    bb_pct:      awaySpBlend.bb,
     _babip_mult: pitcherScoreToBabipMult(sig.pitcher_score_away),
     _noise:      spNoise(),
   };
@@ -2801,20 +2825,31 @@ function mcBuildDrivers(game, r) {
       body: `Primary model uses market-implied odds (O/U ${game.odds.total}) as its baseline; MC is a pure Statcast simulation with no market information. This is the main expected source of any residual gap.` });
   }
 
-  // SP quality: show whether pitcher_score (which now drives BABIP in MC) agrees with K-rate direction
+  // SP quality: pitcher_score drives BABIP in MC; directional K% blend also applied when misaligned
   const pHome = sig.pitcher_score_home, pAway = sig.pitcher_score_away;
   const homeSp = game.home_sp || {}, awaySp = game.away_sp || {};
   const homeK = homeSp.season?.k_pct, awayK = awaySp.season?.k_pct;
   if (pHome != null && pAway != null) {
-    const modelEdge = pHome - pAway;  // + = model thinks home SP better
+    const modelEdge = pHome - pAway;
     const favA = modelEdge >= 0 ? homeA : awayA;
     const babipEffect = Math.abs(modelEdge) >= 0.03;
     if (babipEffect) {
-      const kNote = homeK != null && awayK != null
-        ? `, K-rate ${(Math.max(homeK,awayK)*100).toFixed(0)}% vs ${(Math.min(homeK,awayK)*100).toFixed(0)}%`
-        : '';
+      // Check if directional K% blend was applied (K%/score misaligned)
+      const LK = MC_LEAGUE.pitcher_k_pct;
+      const homeKMisaligned = homeK != null && ((pHome > 0.5) !== (homeK > LK));
+      const awayKMisaligned = awayK != null && ((pAway > 0.5) !== (awayK > LK));
+      let kNote = '';
+      if (homeK != null && awayK != null) {
+        kNote = `, K-rate ${(Math.max(homeK,awayK)*100).toFixed(0)}% vs ${(Math.min(homeK,awayK)*100).toFixed(0)}%`;
+      }
+      let blendNote = '';
+      if (homeKMisaligned || awayKMisaligned) {
+        const who = homeKMisaligned && awayKMisaligned ? 'both SPs'
+          : homeKMisaligned ? `${homeA} SP` : `${awayA} SP`;
+        blendNote = `; K% corrected for ${who} (misaligned with pitcher_score)`;
+      }
       drivers.push({ type: 'agree', label: 'SP quality',
-        body: `${favA} has the stronger pitcher profile (score ${(Math.max(pHome,pAway)*100).toFixed(0)} vs ${(Math.min(pHome,pAway)*100).toFixed(0)})${kNote} — reflected in MC via adjusted BABIP (pitcher_score encodes xERA, whiff%, and chase%)` });
+        body: `${favA} has the stronger pitcher profile (score ${(Math.max(pHome,pAway)*100).toFixed(0)} vs ${(Math.min(pHome,pAway)*100).toFixed(0)})${kNote} — MC reflects this via BABIP adjustment (pitcher_score encodes xERA, whiff%, chase%)${blendNote}` });
     }
   }
 
