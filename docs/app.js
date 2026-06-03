@@ -2347,21 +2347,18 @@ function renderPitcherView() {
     });
 
     const rows = filtered.map(p => {
-      const star    = (p.ml.roi_pct >= 5 && p.ml.n >= 30) ? '<span class="pv-star" title="Consistent edge: ML ROI ≥ +5% with 30+ starts">★</span>' : '';
+      const star     = (p.ml.roi_pct >= 5 && p.ml.n >= 30) ? '<span class="pv-star" title="Consistent edge: ML ROI ≥ +5% with 30+ starts">★</span>' : '';
       const todayCls = _todaySpIds.has(p.id) ? ' pv-row-today' : '';
-      const homeN = p.ml.home.n ? `<span class="pv-sub">${p.ml.home.n}</span>` : '';
-      const awayN = p.ml.away.n ? `<span class="pv-sub">${p.ml.away.n}</span>` : '';
-      const unN   = p.under.n   ? `<span class="pv-sub">${p.under.n}</span>`   : '';
       return `<tr class="${todayCls}">
         <td class="pv-name">${star}${p.name}</td>
         <td class="pv-team">${abbrev(p.team)}</td>
         <td class="pv-n">${p.ml.n}</td>
         <td class="pv-n">${p.starts_2026 ?? 0}</td>
-        <td class="pv-roi ${baseRoiCls(p.ml.roi_pct)}">${fmtRoi(p.ml.roi_pct)}<br>${homeN}</td>
+        <td class="pv-roi ${baseRoiCls(p.ml.roi_pct)}">${fmtRoi(p.ml.roi_pct)}</td>
         <td class="pv-wr">${fmtWr(p.ml.win_rate)}</td>
         <td class="pv-roi ${roiCls(p.ml.home.roi_pct)}">${fmtRoi(p.ml.home.roi_pct)}</td>
         <td class="pv-roi ${roiCls(p.ml.away.roi_pct)}">${fmtRoi(p.ml.away.roi_pct)}</td>
-        <td class="pv-roi ${roiCls(p.under.roi_pct)}">${fmtRoi(p.under.roi_pct)}${unN}</td>
+        <td class="pv-roi ${roiCls(p.under.roi_pct)}">${fmtRoi(p.under.roi_pct)}</td>
         <td class="pv-wr">${fmtWr(p.under.win_rate)}</td>
       </tr>`;
     }).join('');
