@@ -2311,6 +2311,13 @@ function renderPitcherView() {
   const _avg2026 = _active2026.reduce((s, p) => s + (p.starts_2026 || 0), 0) / Math.max(_active2026.length, 1);
   const _regularThreshold = Math.floor(_avg2026 * 0.35); // e.g. floor(8.4 * 0.35) = 2
 
+  // Today's scheduled starters from gamesData (loaded on startup)
+  const _todaySpIds = new Set();
+  for (const g of (gamesData?.games || [])) {
+    if (g.home_sp_id) _todaySpIds.add(g.home_sp_id);
+    if (g.away_sp_id) _todaySpIds.add(g.away_sp_id);
+  }
+
   const fmtRoi    = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
   const fmtWr     = v => v == null ? '—' : (v * 100).toFixed(1) + '%';
   const roiCls    = v => v == null ? '' : v >= 30 ? 'pv-exceptional' : v >= 0 ? 'seg-pos' : 'seg-neg';
@@ -2340,11 +2347,12 @@ function renderPitcherView() {
     });
 
     const rows = filtered.map(p => {
-      const star = (p.ml.roi_pct >= 5 && p.ml.n >= 30) ? '<span class="pv-star" title="Consistent edge: ML ROI ≥ +5% with 30+ starts">★</span>' : '';
+      const star    = (p.ml.roi_pct >= 5 && p.ml.n >= 30) ? '<span class="pv-star" title="Consistent edge: ML ROI ≥ +5% with 30+ starts">★</span>' : '';
+      const todayCls = _todaySpIds.has(p.id) ? ' pv-row-today' : '';
       const homeN = p.ml.home.n ? `<span class="pv-sub">${p.ml.home.n}</span>` : '';
       const awayN = p.ml.away.n ? `<span class="pv-sub">${p.ml.away.n}</span>` : '';
       const unN   = p.under.n   ? `<span class="pv-sub">${p.under.n}</span>`   : '';
-      return `<tr>
+      return `<tr class="${todayCls}">
         <td class="pv-name">${star}${p.name}</td>
         <td class="pv-team">${abbrev(p.team)}</td>
         <td class="pv-n">${p.ml.n}</td>
@@ -2405,11 +2413,11 @@ function renderPitcherView() {
       </p>
       <div class="pv-controls">
         <input type="text" id="pv-search" class="pv-search" placeholder="Search pitcher…" value="${_pvSearch}">
-        <select id="pv-min-starts" class="pv-select">
-          <option value="20" ${_pvMinStarts === 20 ? 'selected' : ''}>≥ 20 career GS</option>
-          <option value="40" ${_pvMinStarts === 40 ? 'selected' : ''}>≥ 40 career GS</option>
-          <option value="60" ${_pvMinStarts === 60 ? 'selected' : ''}>≥ 60 career GS</option>
-        </select>
+        <div class="pv-toggle" role="group" aria-label="Min career starts">
+          <button class="pv-toggle-btn${_pvMinStarts === 20 ? ' active' : ''}" data-pv-min="20">20+ GS</button>
+          <button class="pv-toggle-btn${_pvMinStarts === 40 ? ' active' : ''}" data-pv-min="40">40+ GS</button>
+          <button class="pv-toggle-btn${_pvMinStarts === 60 ? ' active' : ''}" data-pv-min="60">60+ GS</button>
+        </div>
         <div class="pv-toggle" role="group" aria-label="Starter type">
           <button class="pv-toggle-btn${_pvRegularOnly ? ' active' : ''}" data-pv="regular">Regular Starter</button>
           <button class="pv-toggle-btn${!_pvRegularOnly ? ' active' : ''}" data-pv="all">All Starters</button>
@@ -2429,15 +2437,23 @@ function renderPitcherView() {
   el.addEventListener('click', e => {
     const th = e.target.closest('.pv-th[data-col]');
     if (th) { _thClick(th.dataset.col); return; }
-    const btn = e.target.closest('.pv-toggle-btn[data-pv]');
-    if (btn) {
-      _pvRegularOnly = btn.dataset.pv === 'regular';
-      el.querySelectorAll('.pv-toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.pv === btn.dataset.pv));
+
+    const minBtn = e.target.closest('.pv-toggle-btn[data-pv-min]');
+    if (minBtn) {
+      _pvMinStarts = parseInt(minBtn.dataset.pvMin);
+      el.querySelectorAll('.pv-toggle-btn[data-pv-min]').forEach(b =>
+        b.classList.toggle('active', b.dataset.pvMin === minBtn.dataset.pvMin));
+      _renderTable();
+      return;
+    }
+
+    const typeBtn = e.target.closest('.pv-toggle-btn[data-pv]');
+    if (typeBtn) {
+      _pvRegularOnly = typeBtn.dataset.pv === 'regular';
+      el.querySelectorAll('.pv-toggle-btn[data-pv]').forEach(b =>
+        b.classList.toggle('active', b.dataset.pv === typeBtn.dataset.pv));
       _renderTable();
     }
-  });
-  el.addEventListener('change', e => {
-    if (e.target.id === 'pv-min-starts') { _pvMinStarts = parseInt(e.target.value); _renderTable(); }
   });
   el.addEventListener('input', e => {
     if (e.target.id === 'pv-search') { _pvSearch = e.target.value; _renderTable(); }
