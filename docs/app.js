@@ -2545,7 +2545,29 @@ const MC_LEAGUE = {
   hr_per_bip: 0.032, babip: 0.299,
   single_of_hit: 0.535, double_of_hit: 0.285, triple_of_hit: 0.018,
   pitcher_k_pct: 0.224, pitcher_bb_pct: 0.084,
+  xera_avg: 4.15,
 };
+
+// Estimate K%/BB% from xERA when season stats unavailable.
+// Slopes calibrated to real MLB distributions (~2.8pp K% per run of xERA; ~1.4pp BB%).
+function mcXeraToSpStats(xera) {
+  if (xera == null) return { k_pct: MC_LEAGUE.pitcher_k_pct, bb_pct: MC_LEAGUE.pitcher_bb_pct };
+  const d = xera - MC_LEAGUE.xera_avg;
+  return {
+    k_pct:  mcClamp(MC_LEAGUE.pitcher_k_pct  - d * 0.028, 0.10, 0.35),
+    bb_pct: mcClamp(MC_LEAGUE.pitcher_bb_pct + d * 0.014, 0.03, 0.18),
+  };
+}
+
+// Adjust effective pitcher_score for recent form (last_start_dev = ERA − xERA over last 3 starts).
+// Negative deviation = hot (ERA below xERA) → raise effective score → lower BABIP allowed.
+// Uses ~60% of the primary model's progressive weights to avoid over-trusting short streaks.
+function mcFormAdjPs(score, dev) {
+  if (dev == null || score == null) return score;
+  const a = Math.abs(dev);
+  const w = a < 1.0 ? 0.030 : a < 2.0 ? 0.060 : 0.080;
+  return mcClamp(score - dev * w, 0.10, 0.90);
+}
 
 // Log5 formula: combine batter rate + pitcher rate relative to league average
 function mcLog5(b, p, L) {
@@ -2727,26 +2749,34 @@ function mcSimulateOneGame(game, scenario) {
     };
   };
 
+  // Effective pitcher scores adjusted for recent form (ERA vs xERA over last 3 starts)
+  const homePsEff = mcFormAdjPs(sig.pitcher_score_home, sig.last_start_dev_home);
+  const awayPsEff = mcFormAdjPs(sig.pitcher_score_away, sig.last_start_dev_away);
+
+  // xERA-derived fallbacks replace league-average when season K%/BB% are unavailable
+  const homeXeraFb = mcXeraToSpStats(homeSp.season?.xera);
+  const awayXeraFb = mcXeraToSpStats(awaySp.season?.xera);
+
   const homeSpBlend = directionalBlend(
-    homeSp.season?.k_pct  ?? MC_LEAGUE.pitcher_k_pct,
-    homeSp.season?.bb_pct ?? MC_LEAGUE.pitcher_bb_pct,
-    sig.pitcher_score_home,
+    homeSp.season?.k_pct  ?? homeXeraFb.k_pct,
+    homeSp.season?.bb_pct ?? homeXeraFb.bb_pct,
+    homePsEff,
   );
   const homeSpStats = {
     k_pct:       homeSpBlend.k,
     bb_pct:      homeSpBlend.bb,
-    _babip_mult: pitcherScoreToBabipMult(sig.pitcher_score_home),
+    _babip_mult: pitcherScoreToBabipMult(homePsEff),
     _noise:      spNoise(),
   };
   const awaySpBlend = directionalBlend(
-    awaySp.season?.k_pct  ?? MC_LEAGUE.pitcher_k_pct,
-    awaySp.season?.bb_pct ?? MC_LEAGUE.pitcher_bb_pct,
-    sig.pitcher_score_away,
+    awaySp.season?.k_pct  ?? awayXeraFb.k_pct,
+    awaySp.season?.bb_pct ?? awayXeraFb.bb_pct,
+    awayPsEff,
   );
   const awaySpStats = {
     k_pct:       awaySpBlend.k,
     bb_pct:      awaySpBlend.bb,
-    _babip_mult: pitcherScoreToBabipMult(sig.pitcher_score_away),
+    _babip_mult: pitcherScoreToBabipMult(awayPsEff),
     _noise:      spNoise(),
   };
 
@@ -2912,12 +2942,15 @@ function mcBuildDrivers(game, r) {
     if (babipEffect) {
       // Check if directional K% blend was applied (K%/score misaligned)
       const LK = MC_LEAGUE.pitcher_k_pct;
-      const homeKMisaligned = homeK != null && ((pHome > 0.5) !== (homeK > LK));
-      const awayKMisaligned = awayK != null && ((pAway > 0.5) !== (awayK > LK));
-      let kNote = '';
-      if (homeK != null && awayK != null) {
-        kNote = `, K-rate ${(Math.max(homeK,awayK)*100).toFixed(0)}% vs ${(Math.min(homeK,awayK)*100).toFixed(0)}%`;
-      }
+      // Use xERA-derived estimates when season K% unavailable (same as simulation)
+      const homeKeff = homeK ?? mcXeraToSpStats(homeSp.season?.xera).k_pct;
+      const awayKeff = awayK ?? mcXeraToSpStats(awaySp.season?.xera).k_pct;
+      const homePsEff = mcFormAdjPs(pHome, sig.last_start_dev_home);
+      const awayPsEff = mcFormAdjPs(pAway, sig.last_start_dev_away);
+      const homeKMisaligned = (homePsEff > 0.5) !== (homeKeff > LK);
+      const awayKMisaligned = (awayPsEff > 0.5) !== (awayKeff > LK);
+      const kSrc = (homeK == null || awayK == null) ? ' (xERA-estimated)' : '';
+      const kNote = `, K-rate ${(Math.max(homeKeff,awayKeff)*100).toFixed(0)}% vs ${(Math.min(homeKeff,awayKeff)*100).toFixed(0)}%${kSrc}`;
       let blendNote = '';
       if (homeKMisaligned || awayKMisaligned) {
         const who = homeKMisaligned && awayKMisaligned ? 'both SPs'
@@ -2925,7 +2958,7 @@ function mcBuildDrivers(game, r) {
         blendNote = `; K% corrected for ${who} (misaligned with pitcher_score)`;
       }
       drivers.push({ type: 'agree', label: 'SP quality',
-        body: `${favA} has the stronger pitcher profile (score ${(Math.max(pHome,pAway)*100).toFixed(0)} vs ${(Math.min(pHome,pAway)*100).toFixed(0)})${kNote} — MC reflects this via BABIP adjustment (pitcher_score encodes xERA, whiff%, chase%)${blendNote}` });
+        body: `${favA} has the stronger pitcher profile (score ${(Math.max(pHome,pAway)*100).toFixed(0)} vs ${(Math.min(pHome,pAway)*100).toFixed(0)})${kNote} — MC reflects this via BABIP adjustment${blendNote}` });
     }
   }
 
@@ -2954,13 +2987,18 @@ function mcBuildDrivers(game, r) {
     }
   }
 
-  // Recent SP form: ERA vs xERA deviation — model-only regression signal
+  // Recent SP form: ERA vs xERA deviation — now incorporated into MC via form-adjusted pitcher_score
   const devH = sig.last_start_dev_home, devA = sig.last_start_dev_away;
-  if (devH != null && devA != null && Math.abs((devH||0) - (devA||0)) >= 1.5) {
+  if (devH != null && devA != null && Math.abs((devH||0) - (devA||0)) >= 1.0) {
     const homeFav = (devH||0) < (devA||0);
-    const dir = homeFav ? homeA : awayA;
-    drivers.push({ type: 'model_only', label: 'SP recent form',
-      body: `${homeA} SP last-start deviation ${devH > 0 ? '+' : ''}${devH?.toFixed(1)} vs ${awayA} ${devA > 0 ? '+' : ''}${devA?.toFixed(1)} ERA-vs-xERA — model applies regression signal; MC uses season averages` });
+    const adjH = mcFormAdjPs(pHome, devH), adjA = mcFormAdjPs(pAway, devA);
+    const adjDiff = Math.abs((adjH||0) - (adjA||0));
+    const dType = adjDiff >= 0.03 ? 'agree' : 'model_only';
+    const note  = adjDiff >= 0.03
+      ? `MC adjusts BABIP via effective score (${adjH?.toFixed(2)} vs ${adjA?.toFixed(2)}); model uses progressive form weights`
+      : `Small form signal — MC applies minor BABIP adjustment; model weight is stronger`;
+    drivers.push({ type: dType, label: 'SP recent form',
+      body: `${homeA} SP: ${devH > 0 ? '+' : ''}${devH?.toFixed(1)} ERA-vs-xERA; ${awayA} SP: ${devA > 0 ? '+' : ''}${devA?.toFixed(1)} — ${note}` });
   }
 
   return { gap, drivers };
