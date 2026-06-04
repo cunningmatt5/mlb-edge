@@ -462,6 +462,183 @@ def main() -> None:
             roi = tot["ml_units"] / tot["ml_bets"] * 100
             print(f"{tier_label:<14}  {tot['ml_bets']:>5} {wr:>6.1%} {tot['ml_units']:>+7.1f} {roi:>+7.1f}")
 
+    # ──────────────────────────────────────────────────────────────
+    # 8. ML ROI BY PREDICTED TOTAL (does low-total boost away picks?)
+    # ──────────────────────────────────────────────────────────────
+    print("\n[8] ML ROI BY PREDICTED TOTAL BUCKET (Away picks only)\n")
+    print("Hypothesis: Strong Away picks in pitcher's duels outperform high-total games.\n")
+
+    total_buckets = [
+        ("Low   (<8.0)",  lambda t: t < 8.0),
+        ("Mid (8.0-9.0)", lambda t: 8.0 <= t < 9.0),
+        ("High  (9.0+)",  lambda t: t >= 9.0),
+    ]
+
+    # Three independent subsets: run each tier separately so they don't cascade
+    away_subsets = [
+        ("All Away (edge<0)",    [g for g in games if g.get("model_edge_ml") is not None
+                                   and g["model_edge_ml"] < 0 and g.get("bet_side")
+                                   and g.get("predicted_total") is not None]),
+        ("Strong Away (edge<=-6%)", [g for g in games if g.get("model_edge_ml") is not None
+                                     and g["model_edge_ml"] <= -0.06 and g.get("bet_side")
+                                     and g.get("predicted_total") is not None]),
+        ("Elite Away (edge<=-10%)", [g for g in games if g.get("model_edge_ml") is not None
+                                     and g["model_edge_ml"] <= -0.10 and g.get("bet_side")
+                                     and g.get("predicted_total") is not None]),
+    ]
+
+    for et_label, subset in away_subsets:
+        # bucket stats per total range
+        tb_stats: dict[str, dict] = {tb[0]: {"ml_bets": 0, "ml_units": 0.0, "wins": 0}
+                                      for tb in total_buckets}
+        for g in subset:
+            ptot = g["predicted_total"]
+            res  = _ml_result(g)
+            for tb_label, tb_cond in total_buckets:
+                if tb_cond(ptot):
+                    c = tb_stats[tb_label]
+                    c["ml_bets"] += 1
+                    c["wins"]    += int(bool(g.get("bet_won")))
+                    if res is not None:
+                        payout, won = res
+                        c["ml_units"] += payout if won else -1.0
+                    break
+
+        print(f"  {et_label}  (n={len(subset)})")
+        print(f"    {'Total Bucket':<16} {'Bets':>5} {'Win%':>6} {'Units':>8} {'ROI%':>7}")
+        print(f"    {'-'*47}")
+        for tb_label, _ in total_buckets:
+            c = tb_stats[tb_label]
+            if c["ml_bets"] == 0:
+                print(f"    {tb_label:<16} {'n/a':>5}")
+            else:
+                wr  = c["wins"] / c["ml_bets"]
+                roi = c["ml_units"] / c["ml_bets"] * 100
+                print(f"    {tb_label:<16} {c['ml_bets']:>5} {wr:>6.1%} {c['ml_units']:>+8.1f} {roi:>+7.1f}")
+        print()
+
+    # ──────────────────────────────────────────────────────────────
+    # 9. TOTALS DIRECTION ROI (OVER vs. UNDER breakdown with ROI)
+    # ──────────────────────────────────────────────────────────────
+    print("\n[9] TOTALS DIRECTION ROI (OVER vs. UNDER)\n")
+    print("bet_over = predicted_total > closing_total\n")
+
+    dir_stats: dict[str, dict] = {
+        "OVER":  {"bets": 0, "wins": 0, "units": 0.0},
+        "UNDER": {"bets": 0, "wins": 0, "units": 0.0},
+    }
+    dir_by_year: dict[int, dict[str, dict]] = defaultdict(
+        lambda: {d: {"bets": 0, "wins": 0, "units": 0.0} for d in ("OVER", "UNDER")}
+    )
+
+    for g in games:
+        closing = g.get("closing_total")
+        actual  = g.get("actual_total")
+        pred    = g.get("predicted_total")
+        if closing is None or actual is None or pred is None or actual == closing:
+            continue
+        direction = "OVER" if pred > closing else "UNDER"
+        price = g.get("over_price") if direction == "OVER" else g.get("under_price")
+        if price is None:
+            continue
+        actual_over = actual > closing
+        model_over  = direction == "OVER"
+        won = (model_over == actual_over)
+        payout = _payout(price)
+
+        d = dir_stats[direction]
+        d["bets"]  += 1
+        d["wins"]  += int(won)
+        d["units"] += payout if won else -1.0
+
+        yr = g.get("season") or int(g["date"][:4])
+        dy = dir_by_year[yr][direction]
+        dy["bets"]  += 1
+        dy["wins"]  += int(won)
+        dy["units"] += payout if won else -1.0
+
+    print(f"{'Direction':<8} {'Bets':>6} {'Win%':>7} {'Units':>8} {'ROI%':>8}")
+    print("-" * 42)
+    for direction in ("OVER", "UNDER"):
+        d = dir_stats[direction]
+        if d["bets"] == 0:
+            continue
+        wr  = d["wins"] / d["bets"]
+        roi = d["units"] / d["bets"] * 100
+        print(f"{direction:<8} {d['bets']:>6,} {wr:>7.1%} {d['units']:>+8.1f} {roi:>+8.1f}")
+
+    print("\n  Year breakdown:")
+    print(f"  {'Year':<6} {'OVR Bets':>9} {'OVR Win%':>9} {'OVR ROI':>8}  {'UND Bets':>9} {'UND Win%':>9} {'UND ROI':>8}")
+    print(f"  {'-'*65}")
+    for yr in sorted(dir_by_year.keys()):
+        ov = dir_by_year[yr]["OVER"]
+        un = dir_by_year[yr]["UNDER"]
+        ov_str = (f"{ov['bets']:>9,} {ov['wins']/ov['bets']:>9.1%} {ov['units']/ov['bets']*100:>+8.1f}"
+                  if ov["bets"] else f"{'n/a':>9} {'n/a':>9} {'n/a':>8}")
+        un_str = (f"{un['bets']:>9,} {un['wins']/un['bets']:>9.1%} {un['units']/un['bets']*100:>+8.1f}"
+                  if un["bets"] else f"{'n/a':>9} {'n/a':>9} {'n/a':>8}")
+        tag = " *" if yr == 2026 else ""
+        print(f"  {yr:<6} {ov_str}  {un_str}{tag}")
+
+    # ──────────────────────────────────────────────────────────────
+    # 10. UNDER WIN RATE BY PITCHER QUALITY TIER
+    # ──────────────────────────────────────────────────────────────
+    print("\n[10] UNDER WIN RATE BY COMBINED PITCHER QUALITY\n")
+    print("avg_pitcher_score = (home_score + away_score) / 2")
+    print("Higher score = stronger pitcher (less ERA / xFIP).\n")
+
+    pitcher_tiers = [
+        ("Elite  (avg 0.60+)",   lambda s: s >= 0.60),
+        ("Good   (0.50-0.60)",   lambda s: 0.50 <= s < 0.60),
+        ("Average(0.40-0.50)",   lambda s: 0.40 <= s < 0.50),
+        ("Weak   (<0.40)",       lambda s: s < 0.40),
+    ]
+
+    under_by_ptier: dict[str, dict] = {t[0]: {"bets": 0, "wins": 0, "units": 0.0} for t in pitcher_tiers}
+    over_by_ptier:  dict[str, dict] = {t[0]: {"bets": 0, "wins": 0, "units": 0.0} for t in pitcher_tiers}
+
+    for g in games:
+        closing = g.get("closing_total")
+        actual  = g.get("actual_total")
+        pred    = g.get("predicted_total")
+        ph      = g.get("pitcher_score_home")
+        pa      = g.get("pitcher_score_away")
+        if closing is None or actual is None or pred is None or ph is None or pa is None:
+            continue
+        if actual == closing:
+            continue
+        avg_ps = (ph + pa) / 2.0
+        direction = "OVER" if pred > closing else "UNDER"
+        price = g.get("over_price") if direction == "OVER" else g.get("under_price")
+        if price is None:
+            continue
+        actual_over = actual > closing
+        won = (direction == "OVER") == actual_over
+        payout = _payout(price)
+
+        bucket_map = under_by_ptier if direction == "UNDER" else over_by_ptier
+        for label, cond in pitcher_tiers:
+            if cond(avg_ps):
+                c = bucket_map[label]
+                c["bets"]  += 1
+                c["wins"]  += int(won)
+                c["units"] += payout if won else -1.0
+                break
+
+    print(f"{'Pitcher Tier':<24}  {'--- UNDER picks ---':^38}  {'--- OVER picks ---':^38}")
+    print(f"{'':24}  {'Bets':>5} {'Win%':>6} {'Units':>8} {'ROI%':>7}  {'Bets':>5} {'Win%':>6} {'Units':>8} {'ROI%':>7}")
+    print("-" * 102)
+    for label, _ in pitcher_tiers:
+        u = under_by_ptier[label]
+        o = over_by_ptier[label]
+        def _fmt(c: dict) -> str:
+            if c["bets"] == 0:
+                return f"{'n/a':>5} {'n/a':>6} {'n/a':>8} {'n/a':>7}"
+            wr  = c["wins"] / c["bets"]
+            roi = c["units"] / c["bets"] * 100
+            return f"{c['bets']:>5} {wr:>6.1%} {c['units']:>+8.1f} {roi:>+7.1f}"
+        print(f"{label:<24}  {_fmt(u)}  {_fmt(o)}")
+
     print("\n" + "=" * 70)
     print("Analysis complete.\n")
 
