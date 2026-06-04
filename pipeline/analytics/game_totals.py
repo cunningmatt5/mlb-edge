@@ -101,6 +101,10 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
         # OVER bets historically have -14% ROI; raise threshold sharply to require very
         # high conviction before surfacing. UNDER has +1% ROI so keep threshold lower.
         threshold = 8.0 if direction == "OVER" else 4.5
+        # UNDER picks in avg-quality pitcher matchups (suppression < 0.50) have -1.6% ROI;
+        # Good-tier matchups (>= 0.50) have +2.2% ROI — gate UNDER on pitcher quality.
+        if direction == "UNDER" and avg_suppression < 0.50:
+            continue
         if signal >= threshold:
             reasons = _build_reasons(direction, home_sp, away_sp, avg_xwoba, park_run, venue)
             if weather_reason:
