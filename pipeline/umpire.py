@@ -10,7 +10,7 @@ These are career-level tendencies — individual game variation is high.
 from __future__ import annotations
 
 _ZONE_SCORES: dict[str, float] = {
-    # Pitcher-friendly (expand zone)
+    # Pitcher-friendly (expand zone) — UmpScorecards career tendency
     "Hunter Wendelstedt":   +1.5,
     "Jerry Meals":          +1.0,
     "Gerry Davis":          +1.0,
@@ -21,6 +21,9 @@ _ZONE_SCORES: dict[str, float] = {
     "Brian Gorman":         +0.8,
     "Bill Miller":          +0.8,
     "John Hirschbeck":      +0.8,
+    "Laz Diaz":             +0.8,
+    "Ron Kulpa":            +0.8,
+    "Rob Drake":            +0.8,
     "Mark Carlson":         +0.5,
     "Lance Barksdale":      +0.5,
     "Doug Eddings":         +0.5,
@@ -35,6 +38,9 @@ _ZONE_SCORES: dict[str, float] = {
     "Nick Mahrley":         +0.5,
     "D.J. Reyburn":         +0.5,
     "Brian Walsh":          +0.5,
+    "Fieldin Culbreth":     +0.5,
+    "Mike DiMuro":          +0.5,
+    "Jerry Layne":          +0.5,
     "Carlos Torres":        +0.3,
     "Alfonso Marquez":      +0.3,
     "Adam Hamari":          +0.3,
@@ -48,6 +54,24 @@ _ZONE_SCORES: dict[str, float] = {
     "Mike Muchlinski":      +0.3,
     "Andy Fletcher":        +0.3,
     "Lance Barrett":        +0.3,
+    "Alan Porter":          +0.3,
+    "Todd Tichenor":        +0.3,
+    "Paul Emmel":           +0.3,
+    "Gabe Morales":         +0.3,
+    "Ryan Additon":         +0.3,
+    "Tom Woodring":         +0.3,
+    # Neutral / near-neutral (no zone bias meaningful enough to include)
+    "Edwin Jimenez":         0.0,
+    "Scott Barry":           0.0,
+    "John Tumpane":          0.0,
+    "Chris Conroy":          0.0,
+    "Dan Merzel":            0.0,
+    "Ben May":               0.0,
+    "Jeremie Rehak":         0.0,
+    "Malachi Moore":         0.0,
+    "Brennan Miller":        0.0,
+    "Mark Ripperger":        0.0,
+    "Nestor Ceja":           0.0,
     # Hitter-friendly (contract zone)
     "CB Bucknor":           -0.5,
     "Angel Hernandez":      -0.5,
@@ -61,6 +85,11 @@ _ZONE_SCORES: dict[str, float] = {
     "Pat Hoberg":           -0.5,
     "Nic Lentz":            -0.3,
     "Alex Tosi":            -0.3,
+    "Phil Cuzzi":           -0.3,
+    "Mark Wegner":          -0.3,
+    "Jordan Baker":         -0.3,
+    "Kerwin Danley":        -0.3,
+    "David Arrieta":        -0.3,
 }
 
 
@@ -76,6 +105,10 @@ _RUN_TENDENCY: dict[str, float] = {
     "Chris Guccione":       +0.3,
     "Chad Fairchild":       +0.3,
     "Sean Barber":          +0.2,
+    "Phil Cuzzi":           +0.2,
+    "Jordan Baker":         +0.2,
+    "Kerwin Danley":        +0.2,
+    "Pat Hoberg":           +0.2,
     # Notable under-tendency (expanded zone, extra Ks, fewer baserunners)
     "Hunter Wendelstedt":   -0.7,
     "Jerry Meals":          -0.4,
@@ -83,8 +116,13 @@ _RUN_TENDENCY: dict[str, float] = {
     "Jeff Nelson":          -0.3,
     "Marvin Hudson":        -0.3,
     "Tripp Gibson":         -0.3,
+    "Laz Diaz":             -0.3,
+    "Ron Kulpa":            -0.3,
+    "Rob Drake":            -0.2,
     "Bill Miller":          -0.2,
     "Mark Carlson":         -0.2,
+    "Fieldin Culbreth":     -0.2,
+    "Mike DiMuro":          -0.2,
 }
 
 

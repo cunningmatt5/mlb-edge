@@ -581,6 +581,11 @@ def build_game(
     # Pass opposing SP handedness so lineup uses vs-LHP / vs-RHP xwOBA splits
     home_lineup_score  = _lineup_score(home_lineup_players, sp_throws=away_sp_throws)
     away_lineup_score  = _lineup_score(away_lineup_players, sp_throws=home_sp_throws)
+    # Compute neutral (no-split) score to measure how much platoon adjusts things
+    home_lineup_score_neutral = _lineup_score(home_lineup_players, sp_throws=None)
+    away_lineup_score_neutral = _lineup_score(away_lineup_players, sp_throws=None)
+    platoon_adj_home = round(home_lineup_score - home_lineup_score_neutral, 4) if (home_lineup_players and away_sp_throws) else None
+    platoon_adj_away = round(away_lineup_score - away_lineup_score_neutral, 4) if (away_lineup_players and home_sp_throws) else None
 
     home_xwoba = lineup_weighted_mean(home_lineup_players, "xwoba")
     away_xwoba = lineup_weighted_mean(away_lineup_players, "xwoba")
@@ -909,6 +914,10 @@ def build_game(
                 "opener_risk_home":         home_opener_risk,
                 "opener_risk_away":         away_opener_risk,
                 "line_move_ml":             _lm,
+                "platoon_adj_home":         platoon_adj_home,
+                "platoon_adj_away":         platoon_adj_away,
+                "sp_throws_home":           home_sp_throws,
+                "sp_throws_away":           away_sp_throws,
             },
         },
     }

@@ -98,8 +98,9 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
     sav_pitch_lead    = _fetch_savant_pitcher_leaderboard(season)    # leaderboard (ERA, xERA, K%)
     sav_bat_expected  = _fetch_savant_batter_expected_stats(season)
     sav_bat_batted    = _fetch_savant_batter_batted_ball_stats(season)
-    sav_bat_vs_lhp    = _fetch_savant_batter_splits(season, "vs_lhp")
-    sav_bat_vs_rhp    = _fetch_savant_batter_splits(season, "vs_rhp")
+    sav_bat_vs_lhp    = _fetch_savant_batter_splits(season, "vs_lhp")  # returns empty DF (Savant ignores splits param)
+    sav_bat_vs_rhp    = _fetch_savant_batter_splits(season, "vs_rhp")  # returns empty DF
+    mlb_platoon_splits = _fetch_mlb_platoon_splits(list(batter_ids), season)
 
     # --- ID crosswalk: MLBAM → FanGraphs (only needed when FG data is available) ---
     crosswalk = _build_crosswalk(all_ids)
@@ -132,8 +133,14 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
         _merge_fg_batting(entry, fg_bat, fg_id)                  # FG (may be empty due to 403)
         _merge_savant_batter_expected(entry, sav_bat_expected, mlbam_id)  # xwOBA, wOBA, K%
         _merge_savant_batter_batted_ball(entry, sav_bat_batted, mlbam_id)
-        _merge_batter_split(entry, sav_bat_vs_lhp, mlbam_id, "vs_lhp")
-        _merge_batter_split(entry, sav_bat_vs_rhp, mlbam_id, "vs_rhp")
+        _merge_batter_split(entry, sav_bat_vs_lhp, mlbam_id, "vs_lhp")   # no-op (empty DF)
+        _merge_batter_split(entry, sav_bat_vs_rhp, mlbam_id, "vs_rhp")   # no-op (empty DF)
+        # Overwrite with real MLB API platoon splits (OBP/SLG → wOBA proxy)
+        splits = mlb_platoon_splits.get(mlbam_id, {})
+        if splits.get("xwoba_vs_l") is not None:
+            entry["xwoba_vs_l"] = splits["xwoba_vs_l"]
+        if splits.get("xwoba_vs_r") is not None:
+            entry["xwoba_vs_r"] = splits["xwoba_vs_r"]
         cache[mlbam_id] = entry
 
     n_xwoba  = sum(1 for v in cache.values() if v.get("role") == "batter" and v.get("xwoba"))
@@ -318,16 +325,86 @@ def _fetch_savant_batter_batted_ball_stats(season: int) -> pd.DataFrame:
 
 
 def _fetch_savant_batter_splits(season: int, split: str) -> pd.DataFrame:
-    """Fetch batter expected stats split by pitcher handedness.
+    """Stub — Savant expected_statistics ignores the splits= parameter entirely.
 
-    split: 'vs_lhp' or 'vs_rhp'. Min PA lowered to 30 (fewer ABs per split).
-    Returns xBA, xwOBA, xSLG per batter vs. that hand.
+    Returns an empty DataFrame so _merge_batter_split() is a no-op.
+    Platoon split data is now sourced via _fetch_mlb_platoon_splits() instead.
     """
-    url = (
-        f"{SAVANT_BASE}/expected_statistics"
-        f"?type=batter&year={season}&position=&team=&min=30&splits={split}&csv=true"
-    )
-    return _fetch_savant_csv(url, f"batter-{split}")
+    return pd.DataFrame()
+
+
+def _fetch_mlb_platoon_splits(batter_ids: list[int], season: int) -> dict[int, dict]:
+    """Fetch vs-LHP and vs-RHP OBP/SLG from the MLB Stats API and convert to a
+    wOBA proxy.  Two bulk /people requests (one per handedness) cover all batters.
+
+    Returns {mlbam_id: {'xwoba_vs_l': float, 'xwoba_vs_r': float}}.
+    Only entries with >= 20 PA vs that hand are included (tiny samples excluded).
+
+    wOBA proxy formula: (1.2 * OBP + SLG) / 2.6
+    This gives values on the same ~0.260-0.380 scale as xwOBA with a league
+    average of ~0.310, close enough for platoon-split normalization.
+    """
+    if not batter_ids:
+        return {}
+
+    result: dict[int, dict] = {}
+    MIN_PA = 20
+
+    def _woba_proxy(obp: float, slg: float) -> float:
+        return (1.2 * obp + slg) / 2.6
+
+    # Batch in chunks of 200 (URL length limit)
+    CHUNK = 200
+    session = requests.Session()
+
+    for sitcode, split_key in (("vl", "xwoba_vs_l"), ("vr", "xwoba_vs_r")):
+        for i in range(0, len(batter_ids), CHUNK):
+            chunk = batter_ids[i : i + CHUNK]
+            try:
+                resp = session.get(
+                    f"{MLB_STATS_BASE}/people",
+                    params={
+                        "personIds": ",".join(str(p) for p in chunk),
+                        "hydrate": (
+                            f"stats(group=hitting,type=statSplits,"
+                            f"sitCodes={sitcode},season={season},gameType=R)"
+                        ),
+                    },
+                    headers=_HEADERS,
+                    timeout=20,
+                )
+                resp.raise_for_status()
+            except Exception as exc:
+                log.debug("MLB platoon splits fetch failed (sitcode=%s): %s", sitcode, exc)
+                continue
+
+            for person in resp.json().get("people", []):
+                pid = person.get("id")
+                if not pid:
+                    continue
+                for sg in person.get("stats", []):
+                    for s in sg.get("splits", []):
+                        if s.get("split", {}).get("code") != sitcode:
+                            continue
+                        st = s.get("stat", {})
+                        pa = st.get("plateAppearances") or 0
+                        if pa < MIN_PA:
+                            continue
+                        try:
+                            obp = float(st.get("obp") or 0)
+                            slg = float(st.get("slg") or 0)
+                        except (TypeError, ValueError):
+                            continue
+                        if obp <= 0 or slg <= 0:
+                            continue
+                        proxy = round(_woba_proxy(obp, slg), 4)
+                        if pid not in result:
+                            result[pid] = {}
+                        result[pid][split_key] = proxy
+
+    found = sum(1 for v in result.values() if "xwoba_vs_l" in v and "xwoba_vs_r" in v)
+    log.info("MLB platoon splits: %d/%d batters have both L/R splits", found, len(batter_ids))
+    return result
 
 
 def _fetch_all_active_rosters(season: int) -> dict[str, list[int]]:
