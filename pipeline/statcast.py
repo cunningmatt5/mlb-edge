@@ -95,12 +95,13 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
     fg_pitch = _fetch_fg_pitching(season)
     fg_bat   = _fetch_fg_batting(season)
     sav_pitch         = _fetch_savant_pitcher_stats(season)          # expected stats (xwOBA etc.)
-    sav_pitch_lead    = _fetch_savant_pitcher_leaderboard(season)    # leaderboard (ERA, xERA, K%)
+    sav_pitch_lead    = _fetch_savant_pitcher_leaderboard(season)    # leaderboard (barrel%, EV)
     sav_bat_expected  = _fetch_savant_batter_expected_stats(season)
     sav_bat_batted    = _fetch_savant_batter_batted_ball_stats(season)
     sav_bat_vs_lhp    = _fetch_savant_batter_splits(season, "vs_lhp")  # returns empty DF (Savant ignores splits param)
     sav_bat_vs_rhp    = _fetch_savant_batter_splits(season, "vs_rhp")  # returns empty DF
     mlb_platoon_splits = _fetch_mlb_platoon_splits(list(batter_ids), season)
+    mlb_pitcher_stats  = _fetch_mlb_pitcher_stats(season)            # K%/BB% fallback when FG unavailable
 
     # --- ID crosswalk: MLBAM → FanGraphs (only needed when FG data is available) ---
     crosswalk = _build_crosswalk(all_ids)
@@ -113,7 +114,13 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
         entry: dict = {"mlbam_id": mlbam_id, "role": "pitcher"}
         _merge_fg_pitching(entry, fg_pitch, fg_id)               # FG (may be empty due to 403)
         _merge_savant_pitcher(entry, sav_pitch, mlbam_id)        # xwOBA against
-        _merge_savant_pitcher_leaderboard(entry, sav_pitch_lead, mlbam_id)  # ERA, xERA→xfip, K%, BB%
+        _merge_savant_pitcher_leaderboard(entry, sav_pitch_lead, mlbam_id)  # barrel%, EV
+        # MLB Stats API K%/BB% — fills gap when FanGraphs returns 403
+        ps = mlb_pitcher_stats.get(mlbam_id, {})
+        if ps.get("k_pct") and not entry.get("k_pct"):
+            entry["k_pct"] = ps["k_pct"]
+        if ps.get("bb_pct") and not entry.get("bb_pct"):
+            entry["bb_pct"] = ps["bb_pct"]
         # Throws fallback: use schedule data if Savant leaderboard didn't have p_throws
         if not entry.get("throws"):
             for g_dict in games:
@@ -331,6 +338,64 @@ def _fetch_savant_batter_splits(season: int, split: str) -> pd.DataFrame:
     Platoon split data is now sourced via _fetch_mlb_platoon_splits() instead.
     """
     return pd.DataFrame()
+
+
+def _fetch_mlb_pitcher_stats(season: int) -> dict[int, dict]:
+    """Fetch K%/BB% for all pitchers via MLB Stats API bulk endpoint.
+
+    Returns {mlbam_id: {'k_pct': float, 'bb_pct': float}}.
+    Requires >= 20 batters faced to exclude garbage-sample relievers.
+    K% = strikeOuts / battersFaced, BB% = baseOnBalls / battersFaced.
+    """
+    result: dict[int, dict] = {}
+    MIN_BF = 20
+    session = requests.Session()
+    offset = 0
+    limit = 1000
+    while True:
+        try:
+            resp = session.get(
+                f"{MLB_STATS_BASE}/stats",
+                params={
+                    "stats": "season",
+                    "playerPool": "all",
+                    "group": "pitching",
+                    "season": season,
+                    "sportId": 1,
+                    "limit": limit,
+                    "offset": offset,
+                },
+                headers=_HEADERS,
+                timeout=30,
+            )
+            resp.raise_for_status()
+        except Exception as exc:
+            log.warning("MLB pitcher stats fetch failed (offset=%d): %s", offset, exc)
+            break
+        data = resp.json()
+        splits = data.get("stats", [{}])[0].get("splits", [])
+        if not splits:
+            break
+        for s in splits:
+            pid = s.get("player", {}).get("id")
+            if not pid:
+                continue
+            stat = s.get("stat", {})
+            bf = stat.get("battersFaced") or 0
+            so = stat.get("strikeOuts") or 0
+            bb = stat.get("baseOnBalls") or 0
+            if bf < MIN_BF:
+                continue
+            result[pid] = {
+                "k_pct": round(so / bf, 4),
+                "bb_pct": round(bb / bf, 4),
+            }
+        total = data.get("stats", [{}])[0].get("totalSplits", 0)
+        offset += len(splits)
+        if offset >= total:
+            break
+    log.info("MLB pitcher stats: %d pitchers with K%%/BB%% for season %d", len(result), season)
+    return result
 
 
 def _fetch_mlb_platoon_splits(batter_ids: list[int], season: int) -> dict[int, dict]:
