@@ -84,6 +84,15 @@ def fetch_schedule(game_date: date) -> list[dict]:
         if parsed:
             games.append(parsed)
 
+    # Batch-fetch pitcher handedness (pitchHand.code not included in probablePitcher hydration)
+    all_sp_ids = list({g[k] for g in games for k in ("home_sp_id", "away_sp_id") if g.get(k)})
+    hand_map = _fetch_pitcher_handedness(all_sp_ids)
+    for g in games:
+        if not g.get("home_sp_throws"):
+            g["home_sp_throws"] = hand_map.get(g["home_sp_id"])
+        if not g.get("away_sp_throws"):
+            g["away_sp_throws"] = hand_map.get(g["away_sp_id"])
+
     # Attach rest days for each team
     try:
         rest_map = get_team_rest_days(game_date)
@@ -103,6 +112,27 @@ def fetch_schedule(game_date: date) -> list[dict]:
 
 
 _SKIP_STATES = {"D", "C"}  # D = Postponed, C = Cancelled
+
+
+def _fetch_pitcher_handedness(sp_ids: list[int]) -> dict[int, str]:
+    """Batch-fetch pitchHand.code (L/R) for a list of pitcher MLBAM IDs.
+
+    The /schedule probablePitcher hydration does not include pitchHand — this
+    separate /people call is required to activate platoon split scoring.
+    """
+    if not sp_ids:
+        return {}
+    url = f"{MLB_API}/people"
+    params = {"personIds": ",".join(str(i) for i in sp_ids),
+              "fields": "people,id,pitchHand,code"}
+    try:
+        resp = requests.get(url, params=params, timeout=TIMEOUT)
+        resp.raise_for_status()
+        return {p["id"]: p.get("pitchHand", {}).get("code")
+                for p in resp.json().get("people", []) if "id" in p}
+    except Exception as exc:
+        log.debug("Pitcher handedness fetch failed: %s", exc)
+        return {}
 
 
 def _parse_game(raw: dict) -> dict | None:

@@ -98,7 +98,10 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
                 current_t = line_movement.get("current_total", "?")
                 lm_reason = f"Total moved {move_dir} ({opening_t} → {current_t}) — sharp money confirms {direction}"
         signal = max(0.0, min(10.0, round(base_signal + ump_mod + tend_mod + lm_mod, 1)))
-        if signal >= 5.0:
+        # OVER bets historically have -14% ROI; raise threshold sharply to require very
+        # high conviction before surfacing. UNDER has +1% ROI so keep threshold lower.
+        threshold = 8.0 if direction == "OVER" else 4.5
+        if signal >= threshold:
             reasons = _build_reasons(direction, home_sp, away_sp, avg_xwoba, park_run, venue)
             if weather_reason:
                 reasons = (reasons + [weather_reason])[:4]
