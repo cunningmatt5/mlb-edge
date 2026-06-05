@@ -2329,6 +2329,11 @@ header {
   font-weight: 500;
   white-space: nowrap;
 }
+.data-quality-badge.lineup-warn {
+  background: #fef9c322;
+  color: #a16207;
+  border-color: #ca8a0444;
+}
 
 /* ── ML pick consensus badges ────────────────────────────────────── */
 

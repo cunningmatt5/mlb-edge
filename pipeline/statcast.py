@@ -77,18 +77,26 @@ TIMEOUT = 45
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def build_player_cache(games: list[dict]) -> dict[int, dict]:
-    """Return a dict keyed by MLBAM player ID with all stats needed downstream."""
+def build_player_cache(games: list[dict], season: int | None = None) -> dict[int, dict]:
+    """Return a dict keyed by MLBAM player ID with all stats needed downstream.
+
+    Pass season to build a historical cache (e.g., season=2022). When building
+    historical caches, rolling/date-window Statcast fetches are skipped since they
+    are relative to today and meaningless for prior seasons.
+    """
     today = date.today()
-    season = today.year
+    if season is None:
+        season = today.year
+    is_historical = season != today.year
 
     sp_ids = _collect_sp_ids(games)
     batter_ids = _collect_batter_ids(games)
     all_ids = list(set(sp_ids) | set(batter_ids))
 
     log.info(
-        "Fetching stats for %d pitchers, %d batters (%d unique players)",
-        len(sp_ids), len(batter_ids), len(all_ids),
+        "Fetching stats for %d pitchers, %d batters (%d unique players) — season=%d%s",
+        len(sp_ids), len(batter_ids), len(all_ids), season,
+        " [historical — rolling fetches skipped]" if is_historical else "",
     )
 
     # --- Season-level data (single bulk calls) ---
@@ -155,28 +163,29 @@ def build_player_cache(games: list[dict]) -> dict[int, dict]:
     n_bat    = sum(1 for v in cache.values() if v.get("role") == "batter")
     log.info("Batter data coverage: %d/%d have xwoba, %d/%d have barrel%%", n_xwoba, n_bat, n_barrel, n_bat)
 
-    # --- 21-day rolling (whiff%, chase rate for SPs) ---
-    start = (today - timedelta(days=ROLLING_DAYS)).strftime("%Y-%m-%d")
-    end = today.strftime("%Y-%m-%d")
-    for mlbam_id in sp_ids:
-        _merge_rolling_pitcher(cache[mlbam_id], mlbam_id, start, end)
+    if not is_historical:
+        # --- 21-day rolling (whiff%, chase rate for SPs) — skipped for historical seasons ---
+        start = (today - timedelta(days=ROLLING_DAYS)).strftime("%Y-%m-%d")
+        end = today.strftime("%Y-%m-%d")
+        for mlbam_id in sp_ids:
+            _merge_rolling_pitcher(cache[mlbam_id], mlbam_id, start, end)
 
-    # --- Pitcher last-start deviation (season xERA vs. most recent start ERA est.) ---
-    for mlbam_id in sp_ids:
-        _merge_pitcher_last_start(cache[mlbam_id], mlbam_id, season)
+        # --- Pitcher last-start deviation (season xERA vs. most recent start ERA est.) ---
+        for mlbam_id in sp_ids:
+            _merge_pitcher_last_start(cache[mlbam_id], mlbam_id, season)
 
-    # --- Batter recent game logs (last 20 games: H, HR, K + rolling rates) ---
-    for mlbam_id in batter_ids:
-        _merge_batter_game_log(cache[mlbam_id], mlbam_id, season)
+        # --- Batter recent game logs (last 20 games: H, HR, K + rolling rates) ---
+        for mlbam_id in batter_ids:
+            _merge_batter_game_log(cache[mlbam_id], mlbam_id, season)
 
-    # --- 30-day rolling Statcast for batters (contact%, hard-hit%, barrel%, K%/BB%) ---
-    start_30d = (today - timedelta(days=ROLLING_DAYS_BATTER)).strftime("%Y-%m-%d")
-    end_dt    = today.strftime("%Y-%m-%d")
-    log.info("Fetching 30-day rolling Statcast for %d batters...", len(batter_ids))
-    for mlbam_id in batter_ids:
-        if mlbam_id in cache:
-            _merge_rolling_batter(cache[mlbam_id], mlbam_id, start_30d, end_dt)
-            _blend_batter_rolling(cache[mlbam_id])
+        # --- 30-day rolling Statcast for batters (contact%, hard-hit%, barrel%, K%/BB%) ---
+        start_30d = (today - timedelta(days=ROLLING_DAYS_BATTER)).strftime("%Y-%m-%d")
+        end_dt    = today.strftime("%Y-%m-%d")
+        log.info("Fetching 30-day rolling Statcast for %d batters...", len(batter_ids))
+        for mlbam_id in batter_ids:
+            if mlbam_id in cache:
+                _merge_rolling_batter(cache[mlbam_id], mlbam_id, start_30d, end_dt)
+                _blend_batter_rolling(cache[mlbam_id])
 
     # --- Avg IP per start for opener/bulk detection (season-level fallback) ---
     for pid in sp_ids:

@@ -3431,6 +3431,10 @@ function renderPick(p) {
     }
   }
 
+  const lineupWarnBadge = p.lineup_unconfirmed
+    ? '<span class="data-quality-badge lineup-warn" title="Based on projected lineup — verify before betting">⚠ Projected lineup</span>'
+    : '';
+
   const reasonsHtml = (p.reasons || []).map(r =>
     `<li class="pick-reason">${escapeHtml(r)}</li>`
   ).join('');
@@ -3447,6 +3451,7 @@ function renderPick(p) {
       <span class="pick-subject">${escapeHtml(p.subject)}</span>
       <span class="pick-dir ${dirCls}">${p.direction}</span>
       ${noLineup ? '<span class="data-quality-badge">Pitcher-only signal</span>' : ''}
+      ${lineupWarnBadge}
       ${consensusBadge}
     </div>
     <div class="pick-headline">${escapeHtml(p.headline)}</div>

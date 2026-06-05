@@ -66,6 +66,12 @@ def main(dry_run: bool = False) -> None:
             if not g.get("away_lineup"):
                 g["away_lineup_proxy"] = proxy_map.get(g.get("awayTeam", ""), [])
 
+    # Stamp lineup_status on each game dict so prop picks can be tagged downstream
+    for g in games:
+        _is_proxy = bool(g.get("home_lineup_proxy") or g.get("away_lineup_proxy"))
+        _has_lineup = bool(g.get("home_lineup") and g.get("away_lineup"))
+        g["lineup_status"] = "official" if (_has_lineup and not _is_proxy) else ("proxy" if _is_proxy else "tbd")
+
     log.info("Building player cache for %d games...", len(games))
     cache = build_player_cache(games)
 
@@ -182,18 +188,34 @@ def main(dry_run: bool = False) -> None:
             from pipeline.analytics.moneyline_f5    import score_moneyline_f5
 
             _GAME_LEVEL_TYPES = {"TOTAL", "TEAM_TOTAL", "F5_TOTAL", "ML_F5"}
+            _LINEUP_DEP_TYPES = {"K_PROP", "WALK_PROP", "HR_PROP", "HIT_PROP", "TOTAL_BASES"}
 
             pick_games: list[dict] = []
             for game in games:  # original schedule dicts have SP IDs + lineup ID lists
+                # Merge proxy lineup IDs into home/away_lineup for analytics modules.
+                # Analytics modules only read home_lineup/away_lineup (not the _proxy key),
+                # so without this step they'd skip picks when lineups aren't officially posted.
+                game_p = dict(game)
+                if not game_p.get("home_lineup") and game_p.get("home_lineup_proxy"):
+                    game_p["home_lineup"] = game_p["home_lineup_proxy"]
+                if not game_p.get("away_lineup") and game_p.get("away_lineup_proxy"):
+                    game_p["away_lineup"] = game_p["away_lineup_proxy"]
+
                 all_picks: list[dict] = []
-                all_picks += score_hr_props(game, cache)
-                all_picks += score_hit_props(game, cache)
-                all_picks += score_strikeout_props(game, cache)
-                all_picks += score_total_bases(game, cache)
-                all_picks += score_team_totals(game, cache)
-                all_picks += score_game_total(game, cache)
-                all_picks += score_f5_totals(game, cache)
-                all_picks += score_moneyline_f5(game, cache)
+                all_picks += score_hr_props(game_p, cache)
+                all_picks += score_hit_props(game_p, cache)
+                all_picks += score_strikeout_props(game_p, cache)
+                all_picks += score_total_bases(game_p, cache)
+                all_picks += score_team_totals(game_p, cache)
+                all_picks += score_game_total(game_p, cache)
+                all_picks += score_f5_totals(game_p, cache)
+                all_picks += score_moneyline_f5(game_p, cache)
+
+                # Flag lineup-dependent picks when lineup came from proxy/TBD history
+                if game.get("lineup_status", "official") in ("proxy", "tbd"):
+                    for pick in all_picks:
+                        if pick.get("bet_type") in _LINEUP_DEP_TYPES:
+                            pick["lineup_unconfirmed"] = True
                 all_picks.sort(key=lambda p: p["signal"], reverse=True)
 
                 # Tag ML_F5 picks as CONTRARIAN or CONFIRMS_MARKET for UI badge
@@ -238,13 +260,14 @@ def main(dry_run: bool = False) -> None:
 
                 if all_picks:
                     pick_games.append({
-                        "gamePk":    game.get("gamePk"),
-                        "date":      today.isoformat(),
-                        "game_time": game.get("gameTime", ""),
-                        "away_team": game.get("awayTeam", ""),
-                        "home_team": game.get("homeTeam", ""),
-                        "venue":     game.get("venue", ""),
-                        "picks":     all_picks,
+                        "gamePk":        game.get("gamePk"),
+                        "date":          today.isoformat(),
+                        "game_time":     game.get("gameTime", ""),
+                        "away_team":     game.get("awayTeam", ""),
+                        "home_team":     game.get("homeTeam", ""),
+                        "venue":         game.get("venue", ""),
+                        "lineup_status": game.get("lineup_status", "official"),
+                        "picks":         all_picks,
                     })
 
             picks_output = {

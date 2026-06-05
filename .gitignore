@@ -9,7 +9,9 @@ dist/
 build/
 .pytest_cache/
 
-# Historical data — large Parquet files; calibration.json and game_comps.json are committed
-data/seasons/
-!data/seasons/*/closing_lines.parquet
+# Historical data — large files; player_cache.pkl and closing_lines.parquet are committed
+data/seasons/**
+!data/seasons/**/
+!data/seasons/**/closing_lines.parquet
+!data/seasons/**/player_cache.pkl
 data/backtest_results.parquet

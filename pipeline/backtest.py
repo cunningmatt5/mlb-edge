@@ -1216,7 +1216,7 @@ def run_backtest(seasons: Optional[list[int]] = None) -> None:
     segmentation = compute_segmentation(all_results)
     totals_signal = compute_totals_signal_backtest(all_results)
 
-    lookahead_seasons = [s for s in all_seasons if s < 2025]
+    lookahead_seasons = [s for s in all_seasons if s < 2022]
     output = {
         "seasons":                all_seasons,
         "generated_at":           datetime.now(timezone.utc).isoformat(),
@@ -1224,11 +1224,10 @@ def run_backtest(seasons: Optional[list[int]] = None) -> None:
         "data_quality_notes": {
             "lookahead_bias_seasons": lookahead_seasons,
             "lookahead_bias_description": (
-                "Seasons prior to 2025 use full-season Savant pitcher stats (xERA, barrel%, K%) "
-                "to score each game, including early-season games where those stats didn't yet exist. "
-                "This introduces lookahead bias of unknown magnitude. "
-                "Only 2025+ seasons use a proper prior-year cache (lookahead-safe). "
-                "Treat 2021-2024 ROI figures as estimates, not clean out-of-sample results."
+                "2021 uses full-season Savant pitcher stats (lookahead bias — no prior-year cache). "
+                "2022–2024 use proper prior-year caches (data/seasons/{year-1}/player_cache.pkl) — lookahead-safe. "
+                "2025+ also use prior-year caches. "
+                "Treat 2021 ROI figures as estimates; 2022–2025 are clean out-of-sample results."
             ),
             "threshold_selection": (
                 "Key signal thresholds (combo edge -10%, pitcher diff -0.05, totals OVER 8.0, "
