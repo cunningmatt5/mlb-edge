@@ -80,9 +80,61 @@ PARK_HR_FACTORS: dict[str, int] = {
 }
 
 
+TEAM_HOME_VENUES: dict[str, str] = {
+    "Colorado Rockies":          "Coors Field",
+    "Cincinnati Reds":           "Great American Ball Park",
+    "Texas Rangers":             "Globe Life Field",
+    "New York Yankees":          "Yankee Stadium",
+    "Atlanta Braves":            "Truist Park",
+    "Boston Red Sox":            "Fenway Park",
+    "Arizona Diamondbacks":      "Chase Field",
+    "Chicago White Sox":         "Rate Field",
+    "Philadelphia Phillies":     "Citizens Bank Park",
+    "Milwaukee Brewers":         "American Family Field",
+    "Minnesota Twins":           "Target Field",
+    "Detroit Tigers":            "Comerica Park",
+    "Chicago Cubs":              "Wrigley Field",
+    "Athletics":                 "Sutter Health Park",
+    "Los Angeles Angels":        "Angel Stadium",
+    "Washington Nationals":      "Nationals Park",
+    "Miami Marlins":             "loanDepot park",
+    "Kansas City Royals":        "Kauffman Stadium",
+    "Cleveland Guardians":       "Progressive Field",
+    "Toronto Blue Jays":         "Rogers Centre",
+    "Baltimore Orioles":         "Oriole Park at Camden Yards",
+    "Houston Astros":            "Minute Maid Park",
+    "Los Angeles Dodgers":       "UNIQLO Field at Dodger Stadium",
+    "Pittsburgh Pirates":        "PNC Park",
+    "St. Louis Cardinals":       "Busch Stadium",
+    "New York Mets":             "Citi Field",
+    "Seattle Mariners":          "T-Mobile Park",
+    "Tampa Bay Rays":            "Tropicana Field",
+    "San Diego Padres":          "Petco Park",
+    "San Francisco Giants":      "Oracle Park",
+}
+
+
 def get_run_factor(venue: str) -> int:
     return PARK_RUN_FACTORS.get(venue, 100)
 
 
 def get_hr_factor(venue: str) -> int:
     return PARK_HR_FACTORS.get(venue, 100)
+
+
+def get_team_park_factor(team_name: str) -> int:
+    """Return the run-scoring park factor for a team's home venue. 100 if unknown."""
+    venue = TEAM_HOME_VENUES.get(team_name)
+    if venue:
+        return PARK_RUN_FACTORS.get(venue, 100)
+    return 100
+
+
+def park_neutral_wrc(wrc_plus: float, team_name: str) -> float:
+    """Adjust a team's wRC+ to remove their home-park effect, yielding a park-neutral value.
+
+    wRC+ is already park-adjusted to each team's home park. Dividing by (park_factor/100)
+    reverses that adjustment so both teams can be compared on equal footing.
+    """
+    pf = get_team_park_factor(team_name)
+    return wrc_plus / (pf / 100.0) if pf else wrc_plus

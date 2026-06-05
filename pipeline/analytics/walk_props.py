@@ -44,9 +44,9 @@ def score_walk_props(game: dict, cache: dict) -> list[dict]:
         fstrike_s = normalize(sp.get("f_strike_pct"),          lo=0.52, hi=0.70)
 
         command_comp = weighted_avg([
-            (bb_s,      0.40),
-            (zone_s,    0.35),
-            (fstrike_s, 0.25),
+            (bb_s,      0.65),
+            (zone_s,    0.20),
+            (fstrike_s, 0.15),
         ])
 
         # --- Opposing lineup patience ---

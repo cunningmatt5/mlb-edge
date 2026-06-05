@@ -10,6 +10,7 @@ Returns at most one pick per game (the stronger of ML vs. F5, one direction).
 from __future__ import annotations
 
 from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean
+from pipeline.park_factors import park_neutral_wrc
 
 
 def score_moneyline_f5(game: dict, cache: dict) -> list[dict]:
@@ -25,8 +26,10 @@ def score_moneyline_f5(game: dict, cache: dict) -> list[dict]:
     home_lineup = [cache[b] for b in game.get("home_lineup", []) if b in cache]
     away_lineup = [cache[b] for b in game.get("away_lineup", []) if b in cache]
 
-    home_wrc = lineup_weighted_mean(home_lineup, "wrc_plus") or 100.0
-    away_wrc = lineup_weighted_mean(away_lineup, "wrc_plus") or 100.0
+    home_team = game.get("homeTeam", "")
+    away_team = game.get("awayTeam", "")
+    home_wrc = park_neutral_wrc(lineup_weighted_mean(home_lineup, "wrc_plus") or 100.0, home_team)
+    away_wrc = park_neutral_wrc(lineup_weighted_mean(away_lineup, "wrc_plus") or 100.0, away_team)
     lineup_diff = (home_wrc - away_wrc) / 30.0  # normalize to ~[-1, 1]
 
     # Full-game moneyline

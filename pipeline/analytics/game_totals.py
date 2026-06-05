@@ -89,7 +89,7 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
         # line movement: +0.3 when sharp money confirms our direction
         lm_mod = 0.0
         lm_reason = None
-        if total_move is not None and abs(total_move) >= 0.5:
+        if total_move is not None and abs(total_move) >= 1.0:
             agrees = (direction == "OVER" and total_move > 0) or (direction == "UNDER" and total_move < 0)
             if agrees:
                 lm_mod = 0.3

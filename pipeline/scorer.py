@@ -6,8 +6,10 @@ from __future__ import annotations
 def normalize(value: float | None, lo: float, hi: float) -> float:
     """Clamp and linearly scale a raw stat to [0.0, 1.0].
 
-    lo and hi represent roughly the p5 and p95 of the MLB population for
-    that stat. Returns 0.5 (neutral) when value is None.
+    lo marks the low-score end of the scale; hi marks the high-score end.
+    Passing lo > hi inverts the direction — e.g., normalize(k_pct, lo=0.35, hi=0.12)
+    makes lower K% score higher, which is correct for batter K-vulnerability.
+    Returns 0.5 (neutral) when value is None.
     """
     if value is None:
         return 0.5

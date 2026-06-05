@@ -61,16 +61,17 @@ def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
             (b.get(f"k_pct{k_suffix}") if k_suffix else None) or b.get("k_pct")
             for b in opp_lineup
         ]
-        opp_contacts  = [b.get("contact_pct") for b in opp_lineup]
+        opp_bb_pcts   = [b.get("bb_pct") for b in opp_lineup]
         opp_k_mean    = safe_mean(opp_k_pcts)
-        opp_contact_mean = safe_mean(opp_contacts)
+        opp_bb_mean   = safe_mean(opp_bb_pcts)
 
-        opp_k_s       = normalize(opp_k_mean,      lo=0.16, hi=0.30)
-        opp_contact_s = normalize(opp_contact_mean, lo=0.90, hi=0.68)
+        opp_k_s  = normalize(opp_k_mean,  lo=0.16, hi=0.30)
+        # Inverted: lower BB% (free-swinging lineup) = easier to K = higher score
+        opp_bb_s = normalize(opp_bb_mean, lo=0.14, hi=0.05)
 
         lineup_comp = weighted_avg([
-            (opp_k_s,       0.60),
-            (opp_contact_s, 0.40),
+            (opp_k_s,  0.70),
+            (opp_bb_s, 0.30),
         ])
 
         combined = (pitcher_comp ** 0.6) * (lineup_comp ** 0.4)
@@ -80,7 +81,7 @@ def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
         if signal >= 5.0:
             sp_name  = sp.get("name") or game.get(f"{sp_side}_sp_name", "SP")
             opp_team = game.get(f"{opp_side}Team", "Opponent")
-            reasons  = _build_reasons(sp, opp_k_mean, opp_contact_mean, opp_team, blended_k, recent_k)
+            reasons  = _build_reasons(sp, opp_k_mean, opp_bb_mean, opp_team, blended_k, recent_k)
             if ump_reason:
                 reasons = (reasons + [ump_reason])[:4]
 
@@ -101,7 +102,7 @@ def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
                     "k_pct_recent":      _pct(sp.get("recent_k_pct")),
                     "opp_k_pct":         _pct(opp_k_mean),
                     "opp_k_split":       f"vs_{'L' if sp_throws == 'L' else 'R' if sp_throws == 'R' else 'season'}",
-                    "opp_contact_pct":   _pct(opp_contact_mean),
+                    "opp_bb_pct":        _pct(opp_bb_mean),
                     "pitcher_component": round(pitcher_comp, 3),
                     "lineup_component":  round(lineup_comp, 3),
                     "sp_throws":         sp_throws,
@@ -114,7 +115,7 @@ def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
     return picks
 
 
-def _build_reasons(sp, opp_k_mean, opp_contact_mean, opp_team, blended_k, recent_k) -> list[str]:
+def _build_reasons(sp, opp_k_mean, opp_bb_mean, opp_team, blended_k, recent_k) -> list[str]:
     reasons = []
 
     stuff = sp.get("stuff_plus")
@@ -160,9 +161,9 @@ def _build_reasons(sp, opp_k_mean, opp_contact_mean, opp_team, blended_k, recent
             label = "average strikeout rate"
         reasons.append(f"{opp_team} averages {opp_k_mean:.1%} K rate — {label}")
 
-    if opp_contact_mean is not None and opp_contact_mean <= 0.74:
+    if opp_bb_mean is not None and opp_bb_mean <= 0.07:
         reasons.append(
-            f"{opp_team} contact rate {opp_contact_mean:.1%} — struggles to put bat on ball"
+            f"{opp_team} BB rate {opp_bb_mean:.1%} — free-swinging lineup, easier to expand zone"
         )
 
     return reasons[:6]

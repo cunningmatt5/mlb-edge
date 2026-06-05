@@ -5,6 +5,11 @@ Scale: -2 (very small zone) to +2 (very large zone). 0 = neutral.
 
 Data aggregated from public umpire tendency sources (UmpScorecards, Retrosheet).
 These are career-level tendencies — individual game variation is high.
+Unknown umpires default to 0.0 (neutral zone score, 0.0 run tendency).
+
+# Last validated: 2026-06 against UmpScorecards career leaderboard.
+# Re-validate annually pre-season. Umpires who retire should be left in place
+# (their entries are harmless) but new umpires with meaningful tendencies should be added.
 """
 
 from __future__ import annotations
