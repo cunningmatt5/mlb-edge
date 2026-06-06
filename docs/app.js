@@ -39,7 +39,7 @@ let expandedPk   = null;
 let currentView  = 'games';
 let lastCheckedAt = null;
 let propsFilter  = 'all';   // 'all' | 'highconf' | 'value'
-let parlayParams = { legs: 3, risk: 'medium', propsIncluded: true, special: 'na' };
+let parlayParams = { legs: 3, risk: 'medium', include: ['all'] };
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -3560,17 +3560,21 @@ function getPickRawOdds(p) {
 }
 
 function generateParlays(params, allPicks) {
-  const { legs, risk, propsIncluded, special } = params;
-  const PROP_TYPES    = new Set(['K_PROP', 'HR_PROP', 'HIT_PROP', 'TB_PROP', 'WALK_PROP', 'TEAM_TOTAL']);
-  const TOTALS_TYPES  = new Set(['TOTAL', 'TEAM_TOTAL', 'F5_TOTAL']);
+  const { legs, risk, include } = params;
+  const PROP_TYPES   = new Set(['K_PROP', 'HR_PROP', 'HIT_PROP', 'TB_PROP', 'WALK_PROP', 'TEAM_TOTAL']);
+  const TOTALS_TYPES = new Set(['TOTAL', 'F5_TOTAL']);
 
-  // Step 1: filter by bet type
+  const incAll    = include.includes('all');
+  const incML     = incAll || include.includes('ml');
+  const incTotals = incAll || include.includes('totals');
+  const incProps  = incAll || include.includes('props');
+
+  // Step 1: filter by bet type — each type maps to exactly one include bucket
   let pool = allPicks.filter(p => {
-    if (special === 'ml')     return p.bet_type === 'ML_F5';
-    if (special === 'totals') return TOTALS_TYPES.has(p.bet_type);
-    if (special === 'props')  return PROP_TYPES.has(p.bet_type);
-    if (!propsIncluded && PROP_TYPES.has(p.bet_type)) return false;
-    return true;
+    if (p.bet_type === 'ML_F5')       return incML;
+    if (TOTALS_TYPES.has(p.bet_type)) return incTotals;
+    if (PROP_TYPES.has(p.bet_type))   return incProps;
+    return false;
   });
 
   // Step 2: annotate each pick with _prob and _decOdds
@@ -3662,6 +3666,22 @@ function renderParlayView() {
     return `<div class="parlay-param-row"><span class="parlay-param-label">${label}</span><div class="parlay-param-options">${btns}</div></div>`;
   };
 
+  const mkIncludeRow = () => {
+    const inc = parlayParams.include;
+    const isAll = inc.includes('all');
+    const opts = [
+      { value: 'ml',     text: 'Moneyline' },
+      { value: 'totals', text: 'Totals'    },
+      { value: 'props',  text: 'Props'     },
+      { value: 'all',    text: 'All'       },
+    ];
+    const btns = opts.map(({ value, text }) => {
+      const active = value === 'all' ? isAll : (!isAll && inc.includes(value));
+      return `<button class="parlay-opt-btn${active ? ' active' : ''}" data-param="include" data-value="${value}">${text}</button>`;
+    }).join('');
+    return `<div class="parlay-param-row"><span class="parlay-param-label">Include</span><div class="parlay-param-options">${btns}</div></div>`;
+  };
+
   view.innerHTML = `
 <div class="view-header">
   <h1>Parlay Generator</h1>
@@ -3670,8 +3690,7 @@ function renderParlayView() {
 <div class="parlay-params">
   ${mkParamRow('Legs', 'legs', [{value:'2',text:'2'},{value:'3',text:'3'},{value:'4',text:'4'},{value:'5',text:'5'}], String(parlayParams.legs))}
   ${mkParamRow('Risk Level', 'risk', [{value:'low',text:'Low'},{value:'medium',text:'Medium'},{value:'high',text:'High'}], parlayParams.risk)}
-  ${mkParamRow('Props Included', 'props', [{value:'yes',text:'Yes'},{value:'no',text:'No'}], parlayParams.propsIncluded ? 'yes' : 'no')}
-  ${mkParamRow('Special Request', 'special', [{value:'na',text:'N/A'},{value:'ml',text:'ML Only'},{value:'totals',text:'Totals Only'},{value:'props',text:'Props Only'}], parlayParams.special)}
+  ${mkIncludeRow()}
   <button class="parlay-generate-btn">Generate Parlay</button>
 </div>
 <div id="parlay-results" class="parlay-results">
@@ -3682,11 +3701,31 @@ function renderParlayView() {
     btn.addEventListener('click', () => {
       const param = btn.dataset.param;
       const val   = btn.dataset.value;
-      if (param === 'legs')   parlayParams.legs = parseInt(val, 10);
-      if (param === 'risk')   parlayParams.risk = val;
-      if (param === 'props')  parlayParams.propsIncluded = val === 'yes';
-      if (param === 'special') parlayParams.special = val;
-      // Update active state
+
+      if (param === 'include') {
+        if (val === 'all') {
+          parlayParams.include = ['all'];
+        } else {
+          const curr = parlayParams.include;
+          if (curr.includes('all')) {
+            parlayParams.include = [val];
+          } else if (curr.includes(val)) {
+            const next = curr.filter(v => v !== val);
+            parlayParams.include = next.length ? next : ['all'];
+          } else {
+            parlayParams.include = [...curr, val];
+          }
+        }
+        const isAll = parlayParams.include.includes('all');
+        view.querySelectorAll('.parlay-opt-btn[data-param="include"]').forEach(b => {
+          const bv = b.dataset.value;
+          b.classList.toggle('active', bv === 'all' ? isAll : (!isAll && parlayParams.include.includes(bv)));
+        });
+        return;
+      }
+
+      if (param === 'legs') parlayParams.legs = parseInt(val, 10);
+      if (param === 'risk') parlayParams.risk = val;
       view.querySelectorAll(`.parlay-opt-btn[data-param="${param}"]`).forEach(b =>
         b.classList.toggle('active', b === btn));
     });
