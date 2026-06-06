@@ -256,14 +256,19 @@ def main(dry_run: bool = False) -> None:
                                 matched = match_prop_line(pick, prop_lines)
                             if matched:
                                 ev = compute_ev(pick, matched)
+                                # signal_to_model_prob is calibrated for player props
+                                # (midpoint 7.5); game totals score at 4.5-6.0 so the
+                                # derived edge_pct is systematically wrong for those types.
+                                # Keep line/price for context but suppress the edge display.
+                                _UNCALIBRATED = {"TOTAL", "TEAM_TOTAL", "F5_TOTAL"}
                                 pick["odds"] = {
                                     "has_line":     True,
                                     "line":         ev.get("line"),
                                     "over_price":   ev["over_price"],
                                     "under_price":  ev["under_price"],
-                                    "edge_pct":     ev["edge_pct"],
-                                    "model_prob":   ev["model_prob"],
-                                    "implied_prob": ev["implied_prob"],
+                                    "edge_pct":     None if pick["bet_type"] in _UNCALIBRATED else ev["edge_pct"],
+                                    "model_prob":   None if pick["bet_type"] in _UNCALIBRATED else ev["model_prob"],
+                                    "implied_prob": None if pick["bet_type"] in _UNCALIBRATED else ev["implied_prob"],
                                 }
                         except Exception:
                             pass
