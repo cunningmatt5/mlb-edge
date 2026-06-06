@@ -19,6 +19,7 @@ from pipeline.odds import (
     fetch_mlb_game_lines, fetch_mlb_props, get_game_event,
     match_game_line, match_prop_line, compute_ev,
     load_opening_lines, save_opening_lines, record_opening_lines, compute_line_movement,
+    signal_to_model_prob,
 )
 from pipeline.predictor import build_game
 from pipeline.schedule import fetch_schedule, fetch_recent_lineup_ids
@@ -216,6 +217,11 @@ def main(dry_run: bool = False) -> None:
                     for pick in all_picks:
                         if pick.get("bet_type") in _LINEUP_DEP_TYPES:
                             pick["lineup_unconfirmed"] = True
+
+                # Add calibrated win probability to every pick for frontend parlay logic
+                for pick in all_picks:
+                    pick["model_prob"] = signal_to_model_prob(pick["signal"])
+
                 all_picks.sort(key=lambda p: p["signal"], reverse=True)
 
                 # Tag ML_F5 picks as CONTRARIAN or CONFIRMS_MARKET for UI badge

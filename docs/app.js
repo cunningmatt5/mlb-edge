@@ -39,6 +39,8 @@ let expandedPk   = null;
 let currentView  = 'games';
 let lastCheckedAt = null;
 let propsFilter  = 'all';   // 'all' | 'highconf' | 'value'
+let parlayParams = { legs: 3, risk: 'medium', propsIncluded: true, special: 'na' };
+let parlayGenerated = false;
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -57,6 +59,7 @@ function setupNav() {
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b === btn));
       document.getElementById('games-view').hidden    = currentView !== 'games';
       document.getElementById('props-view').hidden    = currentView !== 'props';
+      document.getElementById('parlay-view').hidden   = currentView !== 'parlay';
       document.getElementById('record-view').hidden   = currentView !== 'record';
       document.getElementById('backtest-view').hidden = currentView !== 'backtest';
       document.getElementById('pitcher-view').hidden  = currentView !== 'pitcher';
@@ -66,6 +69,7 @@ function setupNav() {
       if (currentView === 'backtest') Promise.all([loadBacktest(), loadPropsHistory()]).then(renderBacktestView);
       if (currentView === 'pitcher')  Promise.all([loadPitcherData(), loadGames()]).then(renderPitcherView);
       if (currentView === 'props')    loadPicks().then(renderPropsView);
+      if (currentView === 'parlay')   loadPicks().then(renderParlayView);
       if (currentView === 'simulate') loadGames().then(renderSimulateView);
       if (currentView === 'support')  renderSupportView();
     });
@@ -3547,6 +3551,279 @@ function renderLast5Row(p) {
   return '';
 }
 
+
+// ── Parlay Generator ─────────────────────────────────────────────────────────
+
+function getPickRawOdds(p) {
+  const o = p.odds;
+  if (!o || !o.has_line) return null;
+  return (p.direction === 'OVER' || p.direction === 'HOME') ? (o.over_price ?? null) : (o.under_price ?? null);
+}
+
+function generateParlays(params, allPicks) {
+  const { legs, risk, propsIncluded, special } = params;
+  const PROP_TYPES    = new Set(['K_PROP', 'HR_PROP', 'HIT_PROP', 'TB_PROP', 'WALK_PROP']);
+  const TOTALS_TYPES  = new Set(['TOTAL', 'TEAM_TOTAL', 'F5_TOTAL']);
+
+  // Step 1: filter by bet type
+  let pool = allPicks.filter(p => {
+    if (!propsIncluded && PROP_TYPES.has(p.bet_type)) return false;
+    if (special === 'ml')     return p.bet_type === 'ML_F5';
+    if (special === 'totals') return TOTALS_TYPES.has(p.bet_type);
+    if (special === 'props')  return PROP_TYPES.has(p.bet_type);
+    return true;
+  });
+
+  // Step 2: annotate each pick with _prob and _decOdds
+  pool = pool.map(p => {
+    const prob = p.model_prob != null ? p.model_prob
+      : 1 / (1 + Math.exp(-(( p.signal ?? 5) - 7.5) * 0.45));
+    const rawOdds = getPickRawOdds(p);
+    const hasOdds = rawOdds != null;
+    const decOdds = hasOdds ? americanToDecimal(rawOdds)
+      : (prob > 0.5 ? 1.85 : 2.10);
+    return { ...p, _prob: prob, _decOdds: decOdds, _oddsEstimated: !hasOdds };
+  });
+
+  // Step 3: apply risk-level signal floor
+  const minSignal = { low: 7.0, medium: 6.0, high: 5.5 }[risk] ?? 6.0;
+  pool = pool.filter(p => (p.signal ?? 0) >= minSignal);
+  if (risk === 'low') pool = pool.filter(p => p._prob >= 0.52);
+
+  // Step 4: three sorted rankings
+  const byEV     = [...pool].sort((a, b) => (b._prob * b._decOdds) - (a._prob * a._decOdds));
+  const byPayout = [...pool].sort((a, b) => b._decOdds - a._decOdds);
+  const bySafest = [...pool].sort((a, b) => b._prob - a._prob);
+
+  const evLegs     = _selectParlayLegs(byEV,     legs);
+  const payoutLegs = _selectParlayLegs(byPayout, legs);
+  const safestLegs = _selectParlayLegs(bySafest, legs);
+
+  const mkOption = (key, label, selectedLegs) => ({
+    key, label,
+    legs: selectedLegs,
+    stats: _computeParlayStats(selectedLegs),
+    note: selectedLegs.length < legs
+      ? `Only ${selectedLegs.length} leg${selectedLegs.length !== 1 ? 's' : ''} met your criteria today — showing ${selectedLegs.length}-leg parlay`
+      : null,
+  });
+
+  return {
+    ev:     mkOption('ev',     'Best EV',     evLegs),
+    payout: mkOption('payout', 'Best Payout', payoutLegs),
+    safest: mkOption('safest', 'Safest',      safestLegs),
+  };
+}
+
+function _selectParlayLegs(sortedPicks, n) {
+  const selected = [];
+  const usedGames   = new Set();
+  const usedBatters = new Set();
+
+  for (const pick of sortedPicks) {
+    if (selected.length >= n) break;
+    if (pick.subject_id && usedBatters.has(pick.subject_id)) continue;  // hard block: same batter
+
+    const sameGame = usedGames.has(pick._gamePk);
+    selected.push({ ...pick, _sameGameWarning: sameGame });
+    usedGames.add(pick._gamePk);
+    if (pick.subject_id) usedBatters.add(pick.subject_id);
+  }
+  return selected;
+}
+
+function _computeParlayStats(legs) {
+  if (!legs.length) return { payout: 0, winPct: '0.0', hasEstimate: false, totalDecOdds: 1 };
+  let totalDecOdds = 1;
+  let totalProb = 1;
+  let hasEstimate = false;
+  for (const leg of legs) {
+    totalDecOdds *= leg._decOdds;
+    totalProb    *= leg._prob;
+    if (leg._oddsEstimated) hasEstimate = true;
+  }
+  return {
+    payout: Math.round((totalDecOdds - 1) * 100),
+    winPct: (totalProb * 100).toFixed(1),
+    hasEstimate,
+    totalDecOdds,
+  };
+}
+
+function renderParlayView() {
+  const view = document.getElementById('parlay-view');
+  const ts = picksData?.generated_at ? `Updated ${formatGeneratedAt(picksData.generated_at)}` : '';
+
+  const mkParamRow = (label, paramKey, options, currentVal) => {
+    const btns = options.map(({ value, text }) =>
+      `<button class="parlay-opt-btn${currentVal === value ? ' active' : ''}" data-param="${paramKey}" data-value="${value}">${text}</button>`
+    ).join('');
+    return `<div class="parlay-param-row"><span class="parlay-param-label">${label}</span><div class="parlay-param-options">${btns}</div></div>`;
+  };
+
+  view.innerHTML = `
+<div class="view-header">
+  <h1>Parlay Generator</h1>
+  <span class="sub-label">${ts || 'Build the day\'s best parlay from model picks'}</span>
+</div>
+<div class="parlay-params">
+  ${mkParamRow('Legs', 'legs', [{value:'2',text:'2'},{value:'3',text:'3'},{value:'4',text:'4'},{value:'5',text:'5'}], String(parlayParams.legs))}
+  ${mkParamRow('Risk Level', 'risk', [{value:'low',text:'Low'},{value:'medium',text:'Medium'},{value:'high',text:'High'}], parlayParams.risk)}
+  ${mkParamRow('Props Included', 'props', [{value:'yes',text:'Yes'},{value:'no',text:'No'}], parlayParams.propsIncluded ? 'yes' : 'no')}
+  ${mkParamRow('Special Request', 'special', [{value:'na',text:'N/A'},{value:'ml',text:'ML Only'},{value:'totals',text:'Totals Only'},{value:'props',text:'Props Only'}], parlayParams.special)}
+  <button class="parlay-generate-btn">Generate Parlay</button>
+</div>
+<div id="parlay-results" class="parlay-results">
+  <div class="empty-state">Configure parameters above and tap Generate.</div>
+</div>`;
+
+  view.querySelectorAll('.parlay-opt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const param = btn.dataset.param;
+      const val   = btn.dataset.value;
+      if (param === 'legs')   parlayParams.legs = parseInt(val, 10);
+      if (param === 'risk')   parlayParams.risk = val;
+      if (param === 'props')  parlayParams.propsIncluded = val === 'yes';
+      if (param === 'special') parlayParams.special = val;
+      // Update active state
+      view.querySelectorAll(`.parlay-opt-btn[data-param="${param}"]`).forEach(b =>
+        b.classList.toggle('active', b === btn));
+    });
+  });
+
+  view.querySelector('.parlay-generate-btn').addEventListener('click', () => {
+    _runParlayGeneration();
+  });
+}
+
+function _runParlayGeneration() {
+  const resultsDiv = document.getElementById('parlay-results');
+  if (!resultsDiv) return;
+
+  if (!picksData?.games?.length) {
+    resultsDiv.innerHTML = '<div class="empty-state">No picks available today — run the pipeline first.</div>';
+    return;
+  }
+
+  // Flatten all picks, annotating each with game context
+  const allPicks = [];
+  for (const game of picksData.games) {
+    const gameStr = `${abbrev(game.away_team)} @ ${abbrev(game.home_team)}`;
+    for (const pick of (game.picks || [])) {
+      allPicks.push({ ...pick, _gamePk: game.gamePk, _gameStr: gameStr });
+    }
+  }
+
+  const result = generateParlays(parlayParams, allPicks);
+  const options = [result.ev, result.payout, result.safest];
+
+  resultsDiv.innerHTML = `<div class="parlay-options">${options.map((opt, i) => _renderParlayOption(opt, i === 0)).join('')}</div>`;
+
+  // Expand/collapse toggle
+  resultsDiv.querySelectorAll('.parlay-option-header').forEach(header => {
+    header.addEventListener('click', () => {
+      const card     = header.closest('.parlay-option-card');
+      const isOpen   = card.classList.contains('expanded');
+      resultsDiv.querySelectorAll('.parlay-option-card').forEach(c => {
+        c.classList.remove('expanded');
+        c.querySelector('.parlay-chevron').textContent = '▶';
+      });
+      if (!isOpen) {
+        card.classList.add('expanded');
+        card.querySelector('.parlay-chevron').textContent = '▼';
+      }
+    });
+  });
+
+  // Copy buttons
+  resultsDiv.querySelectorAll('.parlay-copy-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const key = btn.dataset.optKey;
+      const opt = options.find(o => o.key === key);
+      if (opt) _copyParlayText(opt, btn);
+    });
+  });
+}
+
+function _renderParlayOption(opt, expanded) {
+  const { key, label, legs, stats, note } = opt;
+  const { payout, winPct, hasEstimate } = stats;
+  const hasCorr = legs.some(l => l._sameGameWarning);
+  const payStr  = `${hasEstimate ? '~' : ''}$${payout.toLocaleString()} on $100`;
+
+  const corrBadge = hasCorr
+    ? '<span class="parlay-corr-badge">⚠ Correlated legs</span>'
+    : '';
+
+  const shortfall = note
+    ? `<div class="parlay-shortfall">⚠ ${escapeHtml(note)}</div>`
+    : '';
+
+  const legsHtml = legs.length
+    ? legs.map((leg, i) => (i > 0 ? '<div class="parlay-leg-divider"></div>' : '') + _renderParlayLeg(leg)).join('')
+    : '<div class="parlay-empty-legs">No qualifying picks found — try adjusting parameters.</div>';
+
+  return `
+<div class="parlay-option-card${expanded ? ' expanded' : ''}" data-opt-key="${key}">
+  <div class="parlay-option-header">
+    <div class="parlay-option-summary">
+      <span class="parlay-option-label">${label}</span>
+      <span class="parlay-option-meta">· ${legs.length}-leg · Pays ${escapeHtml(payStr)} · Win: ${winPct}%</span>
+      ${corrBadge}
+    </div>
+    <div class="parlay-option-actions">
+      <button class="parlay-copy-btn" data-opt-key="${key}">Copy</button>
+      <span class="parlay-chevron">${expanded ? '▼' : '▶'}</span>
+    </div>
+  </div>
+  <div class="parlay-option-body">
+    ${shortfall}
+    ${legsHtml}
+  </div>
+</div>`;
+}
+
+function _renderParlayLeg(leg) {
+  const badges = [];
+  if (leg._sameGameWarning) badges.push('<span class="data-quality-badge lineup-warn">⚠ Same game</span>');
+  if (leg._oddsEstimated)   badges.push('<span class="data-quality-badge parlay-est-badge">~est. odds</span>');
+
+  const gameLabel = `<div class="parlay-leg-game">${escapeHtml(leg._gameStr || '')}</div>`;
+  const badgeRow  = badges.length ? `<div class="parlay-leg-badge-row">${badges.join('')}</div>` : '';
+
+  return `<div class="parlay-leg-wrap">${gameLabel}${badgeRow}${renderPick(leg)}</div>`;
+}
+
+function _copyParlayText(opt, btn) {
+  const { label, legs, stats } = opt;
+  const payStr = `${stats.hasEstimate ? '~' : ''}$${stats.payout.toLocaleString()} on $100`;
+  let text = `MLBEdge Parlay — ${label} · ${legs.length}-leg · Pays ${payStr}\n`;
+  legs.forEach((leg, i) => {
+    const dir  = leg.direction || '';
+    const line = leg.odds?.line != null ? ` ${leg.odds.line}` : '';
+    const rawOdds = getPickRawOdds(leg);
+    const oddsStr = rawOdds != null ? ` (${rawOdds > 0 ? '+' : ''}${rawOdds})` : '';
+    text += `Leg ${i + 1}: ${leg.subject || ''} ${dir}${line}${oddsStr} — Signal ${(leg.signal ?? 0).toFixed(1)}\n`;
+  });
+
+  const origText = btn.textContent;
+  navigator.clipboard.writeText(text)
+    .then(() => {
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = origText; }, 1500);
+    })
+    .catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = origText; }, 1500);
+    });
+}
 
 // ── Support view ──────────────────────────────────────────────────────────────
 
