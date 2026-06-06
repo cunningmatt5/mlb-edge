@@ -3592,49 +3592,102 @@ function generateParlays(params, allPicks) {
   const minSignal = { low: 7.0, medium: 6.0, high: 5.5 }[risk] ?? 6.0;
   pool = pool.filter(p => (p.signal ?? 0) >= minSignal);
 
-  // Step 4: three sorted rankings
+  // Step 4: exhaustive combo search over top candidates for each objective.
+  // Sorting candidates by the per-pick proxy for each objective ensures the
+  // globally optimal parlay is found within the candidate window.
+  const evScore     = ls => ls.reduce((a, l) => a * l._prob * l._decOdds, 1);
+  const payoutScore = ls => ls.reduce((a, l) => a * l._decOdds, 1);
+  const safestScore = ls => ls.reduce((a, l) => a * l._prob, 1);
+
   const byEV     = [...pool].sort((a, b) => (b._prob * b._decOdds) - (a._prob * a._decOdds));
   const byPayout = [...pool].sort((a, b) => b._decOdds - a._decOdds);
   const bySafest = [...pool].sort((a, b) => b._prob - a._prob);
 
-  const evLegs     = _selectParlayLegs(byEV,     legs);
-  const payoutLegs = _selectParlayLegs(byPayout, legs);
-  const safestLegs = _selectParlayLegs(bySafest, legs);
+  const evResult     = _findBestCombo(byEV,     legs, evScore);
+  const payoutResult = _findBestCombo(byPayout, legs, payoutScore);
+  const safestResult = _findBestCombo(bySafest, legs, safestScore);
 
-  const mkOption = (key, label, selectedLegs) => ({
+  const mkOption = (key, label, result) => ({
     key, label,
-    legs: selectedLegs,
-    stats: _computeParlayStats(selectedLegs),
-    note: selectedLegs.length < legs
-      ? `Only ${selectedLegs.length} leg${selectedLegs.length !== 1 ? 's' : ''} met your criteria today — showing ${selectedLegs.length}-leg parlay`
+    legs: result.legs,
+    stats: _computeParlayStats(result.legs),
+    combosChecked: result.combosChecked,
+    note: result.legs.length < legs
+      ? `Only ${result.legs.length} leg${result.legs.length !== 1 ? 's' : ''} met your criteria today — showing ${result.legs.length}-leg parlay`
       : null,
   });
 
   return {
-    ev:     mkOption('ev',     'Best EV',     evLegs),
-    payout: mkOption('payout', 'Best Payout', payoutLegs),
-    safest: mkOption('safest', 'Safest',      safestLegs),
+    ev:     mkOption('ev',     'Best EV',     evResult),
+    payout: mkOption('payout', 'Best Payout', payoutResult),
+    safest: mkOption('safest', 'Safest',      safestResult),
   };
 }
 
-function _selectParlayLegs(sortedPicks, n) {
-  const selected = [];
-  const usedGames   = new Set();
-  const usedBatters = new Set();
-  let teamTotalCount = 0;
+function _findBestCombo(candidatePool, n, scoreFn) {
+  // Exhaustive search over top-25 candidates for the combination that truly
+  // maximises scoreFn (parlay-level product). Falls back to greedy when no
+  // valid n-leg combo exists (e.g. diversity constraints block everything).
+  const MAX_CANDS = 25;
+  const cands = candidatePool.slice(0, MAX_CANDS);
+  const m = cands.length;
+  if (m === 0) return { legs: [], combosChecked: 0 };
 
-  for (const pick of sortedPicks) {
-    if (selected.length >= n) break;
-    if (pick.subject_id && usedBatters.has(pick.subject_id)) continue;  // hard block: same batter
-    if (pick.bet_type === 'TEAM_TOTAL' && teamTotalCount >= 1) continue; // max 1 team total per parlay
-
-    const sameGame = usedGames.has(pick._gamePk);
-    selected.push({ ...pick, _sameGameWarning: sameGame });
-    usedGames.add(pick._gamePk);
-    if (pick.subject_id) usedBatters.add(pick.subject_id);
-    if (pick.bet_type === 'TEAM_TOTAL') teamTotalCount++;
+  function isValid(combo) {
+    const batters = new Set(); let tt = 0;
+    for (const p of combo) {
+      if (p.subject_id && batters.has(p.subject_id)) return false;
+      if (p.bet_type === 'TEAM_TOTAL' && ++tt > 1) return false;
+      if (p.subject_id) batters.add(p.subject_id);
+    }
+    return true;
   }
-  return selected;
+
+  let bestScore = -Infinity;
+  let bestCombo = [];
+  let combosChecked = 0;
+
+  function search(start, current) {
+    if (current.length === n) {
+      combosChecked++;
+      if (isValid(current)) {
+        const score = scoreFn(current);
+        if (score > bestScore) { bestScore = score; bestCombo = [...current]; }
+      }
+      return;
+    }
+    if (m - start < n - current.length) return; // prune: not enough picks left
+    for (let i = start; i < m; i++) {
+      current.push(cands[i]);
+      search(i + 1, current);
+      current.pop();
+    }
+  }
+
+  search(0, []);
+
+  // Fallback: no valid n-leg combo found — greedy selection from candidate list
+  if (bestCombo.length === 0) {
+    const batters = new Set(); let tt = 0;
+    for (const p of cands) {
+      if (bestCombo.length >= n) break;
+      if (p.subject_id && batters.has(p.subject_id)) continue;
+      if (p.bet_type === 'TEAM_TOTAL' && tt >= 1) continue;
+      bestCombo.push(p);
+      if (p.subject_id) batters.add(p.subject_id);
+      if (p.bet_type === 'TEAM_TOTAL') tt++;
+    }
+  }
+
+  // Tag same-game warnings
+  const seenGames = new Set();
+  const legs = bestCombo.map(p => {
+    const warn = Boolean(p._gamePk && seenGames.has(p._gamePk));
+    if (p._gamePk) seenGames.add(p._gamePk);
+    return { ...p, _sameGameWarning: warn };
+  });
+
+  return { legs, combosChecked };
 }
 
 function _computeParlayStats(legs) {
@@ -3787,13 +3840,17 @@ function _runParlayGeneration() {
 }
 
 function _renderParlayOption(opt, expanded) {
-  const { key, label, legs, stats, note } = opt;
+  const { key, label, legs, stats, note, combosChecked } = opt;
   const { payout, winPct, hasEstimate } = stats;
   const hasCorr = legs.some(l => l._sameGameWarning);
   const payStr  = `${hasEstimate ? '~' : ''}$${payout.toLocaleString()} on $100`;
 
   const corrBadge = hasCorr
     ? '<span class="parlay-corr-badge">⚠ Correlated legs</span>'
+    : '';
+
+  const verifyBadge = combosChecked > 0
+    ? `<span class="parlay-verify-badge">✓ ${combosChecked.toLocaleString()} combos checked</span>`
     : '';
 
   const shortfall = note
@@ -3813,6 +3870,7 @@ function _renderParlayOption(opt, expanded) {
       ${corrBadge}
     </div>
     <div class="parlay-option-actions">
+      ${verifyBadge}
       <button class="parlay-copy-btn" data-opt-key="${key}">Copy</button>
       <span class="parlay-chevron">${expanded ? '▼' : '▶'}</span>
     </div>
