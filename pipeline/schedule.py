@@ -256,7 +256,9 @@ def fetch_recent_lineup_ids(tbd_games: list[dict], days: int = 14) -> dict[str, 
                     all_games.append((day.get("date", ""), raw))
         all_games.sort(key=lambda x: x[0], reverse=True)
 
-        player_ids: set[int] = set()
+        # Track each player's batting positions across recent games so the proxy
+        # lineup preserves realistic order rather than arbitrary set iteration.
+        player_positions: dict[int, list[int]] = {}
         games_counted = 0
         for _, raw in all_games[:10]:
             lineups  = raw.get("lineups", {})
@@ -264,7 +266,8 @@ def fetch_recent_lineup_ids(tbd_games: list[dict], days: int = 14) -> dict[str, 
             players  = lineups.get("homePlayers" if home_tid == team_id else "awayPlayers", [])
             ids      = [p["id"] for p in players if "id" in p]
             if ids:
-                player_ids.update(ids)
+                for slot, pid in enumerate(ids, 1):
+                    player_positions.setdefault(pid, []).append(slot)
                 games_counted += 1
 
         if games_counted < 3:
@@ -289,16 +292,19 @@ def fetch_recent_lineup_ids(tbd_games: list[dict], days: int = 14) -> dict[str, 
             log.debug("Active roster fetch failed for %s — using full proxy pool: %s", team_name, exc)
 
         if active_roster_ids:
-            filtered = player_ids & active_roster_ids
-            removed  = len(player_ids) - len(filtered)
+            before = set(player_positions)
+            player_positions = {pid: slots for pid, slots in player_positions.items()
+                                if pid in active_roster_ids}
+            removed = len(before) - len(player_positions)
             if removed:
                 log.info("Proxy lineup: %s — filtered %d non-active player(s), %d remain",
-                         team_name, removed, len(filtered))
-            player_ids = filtered
+                         team_name, removed, len(player_positions))
 
-        result[team_name] = list(player_ids)
+        # Sort by average batting order so analytics get realistic slot assignments.
+        ordered = sorted(player_positions, key=lambda pid: sum(player_positions[pid]) / len(player_positions[pid]))
+        result[team_name] = ordered
         log.info("Proxy lineup: %s — %d players from last %d games",
-                 team_name, len(player_ids), games_counted)
+                 team_name, len(ordered), games_counted)
 
     return result
 

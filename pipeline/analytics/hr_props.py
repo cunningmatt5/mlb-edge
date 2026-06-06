@@ -48,6 +48,8 @@ def score_hr_props(game: dict, cache: dict) -> list[dict]:
             # Use split xwOBA where available
             suffix    = "_vs_l" if sp_throws == "L" else "_vs_r" if sp_throws == "R" else ""
             xwoba_val = (b.get(f"xwoba{suffix}") if suffix else None) or b.get("xwoba")
+            if xwoba_val is None and b.get("barrel_pct") is None:
+                continue  # no Statcast data — skip rather than emit a 0.5-neutral fake signal
 
             barrel_s = normalize(b.get("barrel_pct"),       lo=0.03, hi=0.20)
             hh_s     = normalize(b.get("hard_hit_pct"),     lo=0.25, hi=0.55)
@@ -62,10 +64,9 @@ def score_hr_props(game: dict, cache: dict) -> list[dict]:
             ])
 
             combined    = (batter_comp ** 0.55) * (context_comp ** 0.45)
-            base_signal = max(0.0, min(10.0, round(combined * 10 + weather_mod, 1)))
-
-            pa_mult = _PA_MULT[order - 1] if order <= 9 else 1.0
-            signal  = max(0.0, min(10.0, round(base_signal * pa_mult, 1)))
+            pa_mult     = _PA_MULT[order - 1] if order <= 9 else 1.0
+            # weather_mod is position-independent — add after PA scaling, not before
+            signal      = max(0.0, min(10.0, round(combined * 10 * pa_mult + weather_mod, 1)))
 
             if signal >= 5.0:
                 batter_name = b.get("name", f"Batter {batter_id}")

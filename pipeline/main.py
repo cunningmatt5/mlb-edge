@@ -189,7 +189,7 @@ def main(dry_run: bool = False) -> None:
             from pipeline.analytics.moneyline_f5    import score_moneyline_f5
 
             _GAME_LEVEL_TYPES = {"TOTAL", "TEAM_TOTAL", "F5_TOTAL", "ML_F5"}
-            _LINEUP_DEP_TYPES = {"K_PROP", "WALK_PROP", "HR_PROP", "HIT_PROP", "TOTAL_BASES"}
+            _LINEUP_DEP_TYPES = {"K_PROP", "WALK_PROP", "HR_PROP", "HIT_PROP", "TB_PROP"}
 
             pick_games: list[dict] = []
             for game in games:  # original schedule dicts have SP IDs + lineup ID lists
@@ -216,6 +216,10 @@ def main(dry_run: bool = False) -> None:
                 if game.get("lineup_status", "official") in ("proxy", "tbd"):
                     for pick in all_picks:
                         if pick.get("bet_type") in _LINEUP_DEP_TYPES:
+                            # WALK UNDER is pitcher-command signal only (65% weight);
+                            # opposing lineup patience (35%) degrades gracefully to neutral.
+                            if pick["bet_type"] == "WALK_PROP" and pick.get("direction") == "UNDER":
+                                continue
                             pick["lineup_unconfirmed"] = True
 
                 # Add calibrated win probability to every pick for frontend parlay logic

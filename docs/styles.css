@@ -44,6 +44,8 @@
   --radius-sm:    5px;
   --header-h:     56px;
 
+  --surface2:     #111827;
+
   font-size: 14px;
 }
 
@@ -58,6 +60,7 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ── Header ──────────────────────────────────────────────────────────────── */
@@ -3297,4 +3300,146 @@ header {
   text-align: center;
   color: var(--text-muted);
   font-size: 13px;
+}
+
+/* ── Pick team badge ─────────────────────────────────────────────────────── */
+.pick-team-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.pick-team-logo {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  vertical-align: middle;
+  display: inline-block;
+}
+
+.pick-team-abbr {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: .03em;
+}
+
+.pv-team-logo {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+/* ── iOS / Mobile overrides (cascade after earlier @media block) ──────────── */
+@media (max-width: 600px) {
+  /* Safe area: body handles notch + home indicator for both PWA and Safari */
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Two-row header: logo row + scrollable nav strip */
+  header {
+    height: auto;
+  }
+
+  .header-inner {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0;
+    height: auto;
+  }
+
+  .logo {
+    padding: 10px 16px;
+    padding-left:  calc(16px + env(safe-area-inset-left));
+    padding-right: calc(16px + env(safe-area-inset-right));
+  }
+
+  /* Scrollable tab strip with no visible scrollbar */
+  .nav-tabs {
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-wrap: nowrap;
+    gap: 2px;
+    padding: 0 12px 8px;
+    padding-left:  calc(12px + env(safe-area-inset-left));
+    padding-right: calc(12px + env(safe-area-inset-right));
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+
+  .nav-tabs::-webkit-scrollbar { display: none; }
+
+  /* 44px min touch target on each tab */
+  .nav-btn {
+    flex-shrink: 0;
+    min-height: 44px;
+    padding: 0 14px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  /* Main content safe areas */
+  #app {
+    padding: 12px;
+    padding-left:  calc(12px + env(safe-area-inset-left));
+    padding-right: calc(12px + env(safe-area-inset-right));
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+
+  /* Props filter row: horizontal scroll, no wrap */
+  .props-filter-row {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+    padding: 0 12px 10px;
+  }
+
+  .props-filter-row::-webkit-scrollbar { display: none; }
+
+  /* Fix double-padding: picks-list already inside #app which has 12px padding */
+  .picks-list { padding: 0; }
+
+  /* Parlay meta line: break to its own line below the title */
+  .parlay-option-meta {
+    display: block;
+    width: 100%;
+    margin-top: 4px;
+  }
+
+  /* Hide verify badge on mobile to save horizontal space */
+  .parlay-verify-badge { display: none; }
+
+  /* Sub-10px font sizes — Apple renders anything below 10px blurry / unreadable */
+  .tier-badge      { font-size: 10px; }
+  .pick-tier-badge { font-size: 10px; }
+  .consensus-badge { font-size: 10px; }
+
+  /* Prevent iOS auto-zoom on input focus (requires font-size >= 16px) */
+  .pv-search,
+  .pv-select { font-size: 16px; }
+
+  /* :active tap feedback — iOS ignores :hover on non-anchor elements */
+  .nav-btn:active                  { background: rgba(255,255,255,.08); color: var(--text); }
+  .nav-btn.active:active           { background: var(--green-dim); color: var(--green-light); }
+  .pf-tab:active                   { background: rgba(255,255,255,.06); color: var(--text); }
+  .parlay-copy-btn:active          { opacity: .72; }
+  .game-card:active                { background: rgba(255,255,255,.02); }
+
+  /* Overscroll containment on nested scroll containers */
+  .expanded-section,
+  .lineup-half,
+  .pv-table-wrap { overscroll-behavior: contain; }
 }

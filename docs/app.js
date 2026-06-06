@@ -41,6 +41,9 @@ let lastCheckedAt = null;
 let propsFilter  = 'all';   // 'all' | 'highconf' | 'value'
 let parlayParams = { legs: 3, risk: 'medium', include: ['all'] };
 
+// player MLBAM id → full team name; rebuilt whenever gamesData loads
+let _playerTeamMap = new Map();
+
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   setupNav();
@@ -56,6 +59,7 @@ function setupNav() {
     btn.addEventListener('click', () => {
       currentView = btn.dataset.view;
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b === btn));
+      btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       document.getElementById('games-view').hidden    = currentView !== 'games';
       document.getElementById('props-view').hidden    = currentView !== 'props';
       document.getElementById('parlay-view').hidden   = currentView !== 'parlay';
@@ -83,6 +87,27 @@ async function loadGames() {
   } catch {
     gamesData = { games: [], date: new Date().toISOString().slice(0, 10), game_count: 0 };
   }
+  _buildPlayerTeamMap();
+}
+
+function _buildPlayerTeamMap() {
+  _playerTeamMap = new Map();
+  for (const g of (gamesData?.games || [])) {
+    if (g.home_sp_id) _playerTeamMap.set(g.home_sp_id, g.home_team);
+    if (g.away_sp_id) _playerTeamMap.set(g.away_sp_id, g.away_team);
+    for (const lp of (g.home_lineup || [])) { if (lp.mlbam_id) _playerTeamMap.set(lp.mlbam_id, g.home_team); }
+    for (const lp of (g.away_lineup || [])) { if (lp.mlbam_id) _playerTeamMap.set(lp.mlbam_id, g.away_team); }
+  }
+}
+
+function _teamBadge(teamFull) {
+  if (!teamFull) return '';
+  const slug = TEAM_LOGO[teamFull];
+  const abbr = abbrev(teamFull);
+  const img  = slug
+    ? `<img src="https://a.espncdn.com/combiner/i?img=/i/teamlogos/mlb/500/${slug}.png&h=32&w=32" width="14" height="14" alt="${abbr}" class="pick-team-logo" onerror="this.style.display='none'">`
+    : '';
+  return `<span class="pick-team-badge">${img}<span class="pick-team-abbr">${abbr}</span></span>`;
 }
 
 async function loadHistory() {
@@ -2430,9 +2455,13 @@ function renderPitcherView() {
       const star     = (p.ml.roi_pct >= 5 && p.ml.n >= 30) ? '<span class="pv-star" title="Consistent edge: ML ROI ≥ +5% with 30+ starts">★</span>' : '';
       const todayCls = _todaySpIds.has(p.id) ? ' pv-row-today' : '';
       const teamName = _liveTeam.get(p.id) || p.team;
+      const pvSlug   = TEAM_LOGO[teamName];
+      const pvLogoHtml = pvSlug
+        ? `<img src="https://a.espncdn.com/combiner/i?img=/i/teamlogos/mlb/500/${pvSlug}.png&h=32&w=32" width="14" height="14" alt="${abbrev(teamName)}" class="pv-team-logo" onerror="this.style.display='none'">`
+        : '';
       return `<tr class="${todayCls}">
         <td class="pv-name">${star}${p.name}</td>
-        <td class="pv-team">${abbrev(teamName)}</td>
+        <td class="pv-team">${pvLogoHtml}${abbrev(teamName)}</td>
         <td class="pv-n">${p.ml.n}</td>
         <td class="pv-n">${p.starts_2026 ?? 0}</td>
         <td class="pv-roi ${baseRoiCls(p.ml.roi_pct)}">${fmtRoi(p.ml.roi_pct)}</td>
@@ -3446,11 +3475,20 @@ function renderPick(p) {
   const last5Html  = renderLast5Row(p);
   const oddsHtml   = renderPickOdds(p);
 
+  const _PLAYER_PROP_TYPES = new Set(['K_PROP', 'WALK_PROP', 'HR_PROP', 'HIT_PROP', 'TB_PROP']);
+  let teamBadgeHtml = '';
+  if (_PLAYER_PROP_TYPES.has(p.bet_type) && p.subject_id) {
+    teamBadgeHtml = _teamBadge(_playerTeamMap.get(p.subject_id) || '');
+  } else if (p.bet_type === 'TEAM_TOTAL') {
+    teamBadgeHtml = _teamBadge(p.subject);
+  }
+
   return `
 <div class="pick-card" style="--bet-color:${meta.color}">
   <div class="pick-card-top">
     <div class="pick-subject-row">
       <span class="bet-badge" style="--bet-color:${meta.color}">${meta.label}</span>
+      ${teamBadgeHtml}
       <span class="pick-subject">${escapeHtml(p.subject)}</span>
       <span class="pick-dir ${dirCls}">${p.direction}</span>
       ${noLineup ? '<span class="data-quality-badge">Pitcher-only signal</span>' : ''}
@@ -3569,8 +3607,11 @@ function generateParlays(params, allPicks) {
   const incTotals = incAll || include.includes('totals');
   const incProps  = incAll || include.includes('props');
 
-  // Step 1: filter by bet type — each type maps to exactly one include bucket
+  // Step 1: filter by bet type — each type maps to exactly one include bucket.
+  // Exclude lineup-dependent props where the lineup hasn't been confirmed yet;
+  // those players may not start or have props available at sportsbooks.
   let pool = allPicks.filter(p => {
+    if (p.lineup_unconfirmed)         return false;
     if (p.bet_type === 'ML_F5')       return incML;
     if (TOTALS_TYPES.has(p.bet_type)) return incTotals;
     if (PROP_TYPES.has(p.bet_type))   return incProps;
@@ -3588,16 +3629,32 @@ function generateParlays(params, allPicks) {
     return { ...p, _prob: prob, _decOdds: decOdds, _oddsEstimated: !hasOdds };
   });
 
-  // Step 3: apply risk-level signal floor
-  const minSignal = { low: 7.0, medium: 6.0, high: 5.5 }[risk] ?? 6.0;
-  pool = pool.filter(p => (p.signal ?? 0) >= minSignal);
+  // Step 3: apply risk-level filter.
+  // Low Risk requires each leg to be individually favored (>50% model prob).
+  // Medium/High use signal floors since sub-50% legs may still carry positive EV.
+  if (risk === 'low') {
+    pool = pool.filter(p => (p._prob ?? 0) > 0.50);
+  } else {
+    const minSignal = { medium: 6.0, high: 5.5 }[risk] ?? 6.0;
+    pool = pool.filter(p => (p.signal ?? 0) >= minSignal);
+  }
 
   // Step 4: exhaustive combo search over top candidates for each objective.
   // Sorting candidates by the per-pick proxy for each objective ensures the
   // globally optimal parlay is found within the candidate window.
-  const evScore     = ls => ls.reduce((a, l) => a * l._prob * l._decOdds, 1);
+  //
+  // Same-game legs are positively correlated (shared pitcher, conditions, etc.).
+  // Apply a 10% probability discount per same-game leg pair so the optimizer
+  // naturally avoids stacking correlated props from one game.
+  function _corrFactor(combo) {
+    const counts = {};
+    combo.forEach(p => { if (p._gamePk) counts[p._gamePk] = (counts[p._gamePk] || 0) + 1; });
+    const pairs = Object.values(counts).reduce((s, n) => s + n * (n - 1) / 2, 0);
+    return Math.pow(0.90, pairs);
+  }
+  const evScore     = ls => ls.reduce((a, l) => a * l._prob * l._decOdds, 1) * _corrFactor(ls);
   const payoutScore = ls => ls.reduce((a, l) => a * l._decOdds, 1);
-  const safestScore = ls => ls.reduce((a, l) => a * l._prob, 1);
+  const safestScore = ls => ls.reduce((a, l) => a * l._prob, 1) * _corrFactor(ls);
 
   const byEV     = [...pool].sort((a, b) => (b._prob * b._decOdds) - (a._prob * a._decOdds));
   const byPayout = [...pool].sort((a, b) => b._decOdds - a._decOdds);
@@ -3628,7 +3685,7 @@ function _findBestCombo(candidatePool, n, scoreFn) {
   // Exhaustive search over top-25 candidates for the combination that truly
   // maximises scoreFn (parlay-level product). Falls back to greedy when no
   // valid n-leg combo exists (e.g. diversity constraints block everything).
-  const MAX_CANDS = 25;
+  const MAX_CANDS = 40;
   const cands = candidatePool.slice(0, MAX_CANDS);
   const m = cands.length;
   if (m === 0) return { legs: [], combosChecked: 0 };
@@ -3691,7 +3748,7 @@ function _findBestCombo(candidatePool, n, scoreFn) {
 }
 
 function _computeParlayStats(legs) {
-  if (!legs.length) return { payout: 0, winPct: '0.0', hasEstimate: false, totalDecOdds: 1 };
+  if (!legs.length) return { payout: 0, winPct: '0.0', hasEstimate: false, totalDecOdds: 1, corrAdj: false };
   let totalDecOdds = 1;
   let totalProb = 1;
   let hasEstimate = false;
@@ -3700,11 +3757,17 @@ function _computeParlayStats(legs) {
     totalProb    *= leg._prob;
     if (leg._oddsEstimated) hasEstimate = true;
   }
+  // Apply same-game correlation discount (10% per same-game leg pair)
+  const counts = {};
+  legs.forEach(l => { if (l._gamePk) counts[l._gamePk] = (counts[l._gamePk] || 0) + 1; });
+  const pairs = Object.values(counts).reduce((s, n) => s + n * (n - 1) / 2, 0);
+  const corrAdj = pairs > 0;
   return {
     payout: Math.round((totalDecOdds - 1) * 100),
-    winPct: (totalProb * 100).toFixed(1),
+    winPct: (totalProb * Math.pow(0.90, pairs) * 100).toFixed(1),
     hasEstimate,
     totalDecOdds,
+    corrAdj,
   };
 }
 
@@ -3810,7 +3873,18 @@ function _runParlayGeneration() {
   const result = generateParlays(parlayParams, allPicks);
   const options = [result.ev, result.payout, result.safest];
 
-  resultsDiv.innerHTML = `<div class="parlay-options">${options.map((opt, i) => _renderParlayOption(opt, i === 0)).join('')}</div>`;
+  // Deduplicate: when two objectives produce the same set of legs, merge their
+  // labels into one card rather than showing identical parlays twice.
+  const _legFp = opt => opt.legs.map(l => `${l.bet_type}:${l.subject_id ?? l._gamePk}:${l.direction}`).sort().join('|');
+  const _seen  = new Map();
+  for (const opt of options) {
+    const fp = _legFp(opt);
+    if (_seen.has(fp)) { _seen.get(fp).label += ` / ${opt.label}`; }
+    else { _seen.set(fp, { ...opt }); }
+  }
+  const uniqueOptions = [..._seen.values()];
+
+  resultsDiv.innerHTML = `<div class="parlay-options">${uniqueOptions.map((opt, i) => _renderParlayOption(opt, i === 0)).join('')}</div>`;
 
   // Expand/collapse toggle
   resultsDiv.querySelectorAll('.parlay-option-header').forEach(header => {
@@ -3833,7 +3907,7 @@ function _runParlayGeneration() {
     btn.addEventListener('click', e => {
       e.stopPropagation();
       const key = btn.dataset.optKey;
-      const opt = options.find(o => o.key === key);
+      const opt = uniqueOptions.find(o => o.key === key);
       if (opt) _copyParlayText(opt, btn);
     });
   });
@@ -3841,7 +3915,7 @@ function _runParlayGeneration() {
 
 function _renderParlayOption(opt, expanded) {
   const { key, label, legs, stats, note, combosChecked } = opt;
-  const { payout, winPct, hasEstimate } = stats;
+  const { payout, winPct, hasEstimate, corrAdj } = stats;
   const hasCorr = legs.some(l => l._sameGameWarning);
   const payStr  = `${hasEstimate ? '~' : ''}$${payout.toLocaleString()} on $100`;
 
@@ -3866,7 +3940,7 @@ function _renderParlayOption(opt, expanded) {
   <div class="parlay-option-header">
     <div class="parlay-option-summary">
       <span class="parlay-option-label">${label}</span>
-      <span class="parlay-option-meta">· ${legs.length}-leg · Pays ${escapeHtml(payStr)} · Win: ${winPct}%</span>
+      <span class="parlay-option-meta">· ${legs.length}-leg · Pays ${escapeHtml(payStr)} · Win: ${winPct}%${corrAdj ? ' (corr. adj.)' : ''}</span>
       ${corrBadge}
     </div>
     <div class="parlay-option-actions">
@@ -3901,7 +3975,7 @@ function _copyParlayText(opt, btn) {
     const dir  = leg.direction || '';
     const line = leg.odds?.line != null ? ` ${leg.odds.line}` : '';
     const rawOdds = getPickRawOdds(leg);
-    const oddsStr = rawOdds != null ? ` (${rawOdds > 0 ? '+' : ''}${rawOdds})` : '';
+    const oddsStr = rawOdds != null ? ` (${rawOdds > 0 ? '+' : ''}${rawOdds}${leg._oddsEstimated ? ' ~est' : ''})` : '';
     text += `Leg ${i + 1}: ${leg.subject || ''} ${dir}${line}${oddsStr} — Signal ${(leg.signal ?? 0).toFixed(1)}\n`;
   });
 

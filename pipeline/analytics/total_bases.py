@@ -47,6 +47,8 @@ def score_total_bases_props(game: dict, cache: dict) -> list[dict]:
             # Use platoon-split xSLG when available, fall back to season average
             suffix   = "_vs_l" if sp_throws == "L" else "_vs_r" if sp_throws == "R" else ""
             xslg_val = (b.get(f"xslg{suffix}") if suffix else None) or b.get("xslg")
+            if xslg_val is None:
+                continue  # no Statcast data — skip rather than emit a 0.5-neutral fake signal
 
             xslg_s   = normalize(xslg_val,            lo=0.280, hi=0.580)
             barrel_s = normalize(b.get("barrel_pct"), lo=0.030, hi=0.200)

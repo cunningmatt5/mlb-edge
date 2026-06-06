@@ -35,6 +35,8 @@ def score_hit_props(game: dict, cache: dict) -> list[dict]:
             # Use split xBA when available (vs. LHP or vs. RHP)
             suffix = "_vs_l" if sp_throws == "L" else "_vs_r" if sp_throws == "R" else ""
             xba_val  = (b.get(f"xba{suffix}") if suffix else None) or b.get("xba")
+            if xba_val is None:
+                continue  # no Statcast data — skip rather than emit a 0.5-neutral fake signal
 
             xba_s     = normalize(xba_val,               lo=0.190, hi=0.340)
             contact_s = normalize(b.get("contact_pct"),  lo=0.62,  hi=0.90)
