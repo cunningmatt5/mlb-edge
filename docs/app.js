@@ -40,7 +40,6 @@ let currentView  = 'games';
 let lastCheckedAt = null;
 let propsFilter  = 'all';   // 'all' | 'highconf' | 'value'
 let parlayParams = { legs: 3, risk: 'medium', propsIncluded: true, special: 'na' };
-let parlayGenerated = false;
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -3567,10 +3566,10 @@ function generateParlays(params, allPicks) {
 
   // Step 1: filter by bet type
   let pool = allPicks.filter(p => {
-    if (!propsIncluded && PROP_TYPES.has(p.bet_type)) return false;
     if (special === 'ml')     return p.bet_type === 'ML_F5';
     if (special === 'totals') return TOTALS_TYPES.has(p.bet_type);
     if (special === 'props')  return PROP_TYPES.has(p.bet_type);
+    if (!propsIncluded && PROP_TYPES.has(p.bet_type)) return false;
     return true;
   });
 
@@ -3588,7 +3587,6 @@ function generateParlays(params, allPicks) {
   // Step 3: apply risk-level signal floor
   const minSignal = { low: 7.0, medium: 6.0, high: 5.5 }[risk] ?? 6.0;
   pool = pool.filter(p => (p.signal ?? 0) >= minSignal);
-  if (risk === 'low') pool = pool.filter(p => p._prob >= 0.52);
 
   // Step 4: three sorted rankings
   const byEV     = [...pool].sort((a, b) => (b._prob * b._decOdds) - (a._prob * a._decOdds));
