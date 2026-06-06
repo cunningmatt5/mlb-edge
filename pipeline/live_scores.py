@@ -192,8 +192,18 @@ def patch_live_scores() -> tuple[int, bool]:
             for side in ("home", "away"):
                 new_id   = upd.get(f"{side}_sp_id")
                 new_name = upd.get(f"{side}_sp_name")
-                if new_id and new_id != game.get(f"{side}_sp_id"):
-                    old_id = game.get(f"{side}_sp_id")
+                old_id   = game.get(f"{side}_sp_id")
+
+                if new_id is None and old_id is not None:
+                    # Pitcher cleared from API (scratched but no replacement named yet)
+                    log.info(
+                        "SP cleared for gamePk %s (%s): %s → None (scratch pending)",
+                        pk, side, old_id,
+                    )
+                    game["sp_changed"] = True
+                    needs_rebuild = True
+                    changed += 1
+                elif new_id and new_id != old_id:
                     log.info(
                         "SP change detected for gamePk %s (%s): %s → %s (%s)",
                         pk, side, old_id, new_id, new_name,
