@@ -39,7 +39,7 @@ let expandedPk   = null;
 let currentView  = 'games';
 let lastCheckedAt = null;
 let propsFilter  = 'all';   // 'all' | 'highconf' | 'value'
-let parlayParams = { legs: 3, risk: 'medium', include: ['all'] };
+let parlayParams = { legs: 3, risk: 'medium', include: ['all'], allowCorr: true, sgp: false, locked: [] };
 
 // player MLBAM id → full team name; rebuilt whenever gamesData loads
 let _playerTeamMap = new Map();
@@ -443,6 +443,13 @@ function gameFav(g) {
 
 function americanToDecimal(odds) {
   return odds >= 0 ? 1 + odds / 100 : 1 - 100 / odds;
+}
+
+function _toAmericanOdds(decOdds) {
+  if (!decOdds || decOdds <= 1) return null;
+  return decOdds >= 2
+    ? Math.round((decOdds - 1) * 100)
+    : Math.round(-100 / (decOdds - 1));
 }
 
 function noVigProb(oddsA, oddsB) {
@@ -3483,6 +3490,12 @@ function renderPick(p) {
     teamBadgeHtml = _teamBadge(p.subject);
   }
 
+  const _pickFpCard = `${p.bet_type}:${p.subject_id ?? p._gamePk}:${p.direction}`;
+  const _isPinned = parlayParams.locked.includes(_pickFpCard);
+  const pinBtnHtml = p._gamePk
+    ? `<button class="parlay-pin-btn${_isPinned ? ' active' : ''}" data-fp="${escapeHtml(_pickFpCard)}" title="${_isPinned ? 'Unpin from parlay' : 'Pin to parlay'}" onclick="event.stopPropagation();_togglePin(this.dataset.fp)">📌</button>`
+    : '';
+
   return `
 <div class="pick-card" style="--bet-color:${meta.color}">
   <div class="pick-card-top">
@@ -3494,6 +3507,7 @@ function renderPick(p) {
       ${noLineup ? '<span class="data-quality-badge">Pitcher-only signal</span>' : ''}
       ${lineupWarnBadge}
       ${consensusBadge}
+      ${pinBtnHtml}
     </div>
     <div class="pick-headline">${escapeHtml(p.headline)}</div>
     <div class="signal-bar-wrap">
@@ -3598,25 +3612,38 @@ function getPickRawOdds(p) {
 }
 
 function generateParlays(params, allPicks) {
-  const { legs, risk, include } = params;
-  const PROP_TYPES   = new Set(['K_PROP', 'HR_PROP', 'HIT_PROP', 'TB_PROP', 'WALK_PROP', 'TEAM_TOTAL']);
-  const TOTALS_TYPES = new Set(['TOTAL', 'F5_TOTAL']);
-
-  const incAll    = include.includes('all');
-  const incML     = incAll || include.includes('ml');
-  const incTotals = incAll || include.includes('totals');
-  const incProps  = incAll || include.includes('props');
+  const { legs, risk, include, allowCorr, sgp } = params;
 
   // Step 1: filter by bet type — each type maps to exactly one include bucket.
   // Exclude lineup-dependent props where the lineup hasn't been confirmed yet;
   // those players may not start or have props available at sportsbooks.
+  const _INC = new Set(
+    include.includes('all')
+      ? ['ml', 'total', 'f5total', 'hr', 'batter', 'pitcher']
+      : include
+  );
   let pool = allPicks.filter(p => {
-    if (p.lineup_unconfirmed)         return false;
-    if (p.bet_type === 'ML_F5')       return incML;
-    if (TOTALS_TYPES.has(p.bet_type)) return incTotals;
-    if (PROP_TYPES.has(p.bet_type))   return incProps;
+    if (p.lineup_unconfirmed)                                     return false;
+    if (p.bet_type === 'ML_F5')                                   return _INC.has('ml');
+    if (p.bet_type === 'TOTAL' || p.bet_type === 'TEAM_TOTAL')    return _INC.has('total');
+    if (p.bet_type === 'F5_TOTAL')                                return _INC.has('f5total');
+    if (p.bet_type === 'HR_PROP')                                 return _INC.has('hr');
+    if (p.bet_type === 'HIT_PROP' || p.bet_type === 'TB_PROP')    return _INC.has('batter');
+    if (p.bet_type === 'K_PROP'   || p.bet_type === 'WALK_PROP')  return _INC.has('pitcher');
     return false;
   });
+
+  // SGP: narrow pool to the single game with the most qualifying picks
+  let sgpGame = null;
+  if (sgp && pool.length) {
+    const gameCounts = {};
+    pool.forEach(p => { if (p._gamePk) gameCounts[p._gamePk] = (gameCounts[p._gamePk] || 0) + 1; });
+    const topEntry = Object.entries(gameCounts).sort((a, b) => b[1] - a[1])[0];
+    if (topEntry) {
+      sgpGame = +topEntry[0];
+      pool = pool.filter(p => p._gamePk === sgpGame);
+    }
+  }
 
   // Step 2: annotate each pick with _prob and _decOdds
   pool = pool.map(p => {
@@ -3678,6 +3705,7 @@ function generateParlays(params, allPicks) {
     ev:     mkOption('ev',     'Best EV',     evResult),
     payout: mkOption('payout', 'Best Payout', payoutResult),
     safest: mkOption('safest', 'Safest',      safestResult),
+    sgpGame,
   };
 }
 
@@ -3691,11 +3719,13 @@ function _findBestCombo(candidatePool, n, scoreFn) {
   if (m === 0) return { legs: [], combosChecked: 0 };
 
   function isValid(combo) {
-    const batters = new Set(); let tt = 0;
+    const batters = new Set(), games = new Set(); let tt = 0;
     for (const p of combo) {
-      if (p.subject_id && batters.has(p.subject_id)) return false;
-      if (p.bet_type === 'TEAM_TOTAL' && ++tt > 1) return false;
+      if (p.subject_id && batters.has(p.subject_id))                          return false;
+      if (p.bet_type === 'TEAM_TOTAL' && ++tt > 1)                            return false;
+      if (!parlayParams.allowCorr && !parlayParams.sgp && p._gamePk && games.has(p._gamePk)) return false;
       if (p.subject_id) batters.add(p.subject_id);
+      if (p._gamePk)    games.add(p._gamePk);
     }
     return true;
   }
@@ -3725,14 +3755,16 @@ function _findBestCombo(candidatePool, n, scoreFn) {
 
   // Fallback: no valid n-leg combo found — greedy selection from candidate list
   if (bestCombo.length === 0) {
-    const batters = new Set(); let tt = 0;
+    const batters = new Set(), games = new Set(); let tt = 0;
     for (const p of cands) {
       if (bestCombo.length >= n) break;
       if (p.subject_id && batters.has(p.subject_id)) continue;
       if (p.bet_type === 'TEAM_TOTAL' && tt >= 1) continue;
+      if (!parlayParams.allowCorr && !parlayParams.sgp && p._gamePk && games.has(p._gamePk)) continue;
       bestCombo.push(p);
       if (p.subject_id) batters.add(p.subject_id);
       if (p.bet_type === 'TEAM_TOTAL') tt++;
+      if (p._gamePk) games.add(p._gamePk);
     }
   }
 
@@ -3786,16 +3818,41 @@ function renderParlayView() {
     const inc = parlayParams.include;
     const isAll = inc.includes('all');
     const opts = [
-      { value: 'ml',     text: 'Moneyline' },
-      { value: 'totals', text: 'Totals'    },
-      { value: 'props',  text: 'Props'     },
-      { value: 'all',    text: 'All'       },
+      { value: 'ml',      text: 'Moneyline'    },
+      { value: 'total',   text: 'Total'        },
+      { value: 'f5total', text: 'F5 Total'     },
+      { value: 'hr',      text: 'HR Props'     },
+      { value: 'batter',  text: 'Batter Props' },
+      { value: 'pitcher', text: 'Pitcher Props'},
+      { value: 'all',     text: 'All'          },
     ];
     const btns = opts.map(({ value, text }) => {
       const active = value === 'all' ? isAll : (!isAll && inc.includes(value));
       return `<button class="parlay-opt-btn${active ? ' active' : ''}" data-param="include" data-value="${value}">${text}</button>`;
     }).join('');
-    return `<div class="parlay-param-row"><span class="parlay-param-label">Include</span><div class="parlay-param-options">${btns}</div></div>`;
+    return `<div class="parlay-param-row"><span class="parlay-param-label">Include</span><div class="parlay-param-options parlay-include-options">${btns}</div></div>`;
+  };
+
+  const mkCorrRow = () => {
+    if (parlayParams.sgp) return '';
+    return mkParamRow('Correlated Legs', 'allowCorr',
+      [{value:'true',text:'Yes'},{value:'false',text:'No'}],
+      String(parlayParams.allowCorr));
+  };
+
+  const mkSgpRow = () =>
+    mkParamRow('Same-Game Parlay', 'sgp',
+      [{value:'false',text:'Off'},{value:'true',text:'On'}],
+      String(parlayParams.sgp));
+
+  const mkLockedStrip = () => {
+    if (!parlayParams.locked.length) return '';
+    const chips = parlayParams.locked.map(fp => {
+      const parts = fp.split(':');
+      const label = `${parts[0]} ${parts[2] || ''}`.trim();
+      return `<span class="parlay-locked-chip">${escapeHtml(label)}<button class="parlay-locked-remove" data-fp="${escapeHtml(fp)}">✕</button></span>`;
+    }).join('');
+    return `<div class="parlay-locked-strip"><span class="parlay-locked-label">📌 Locked:</span>${chips}</div>`;
   };
 
   view.innerHTML = `
@@ -3807,6 +3864,9 @@ function renderParlayView() {
   ${mkParamRow('Legs', 'legs', [{value:'2',text:'2'},{value:'3',text:'3'},{value:'4',text:'4'},{value:'5',text:'5'}], String(parlayParams.legs))}
   ${mkParamRow('Risk Level', 'risk', [{value:'low',text:'Low'},{value:'medium',text:'Medium'},{value:'high',text:'High'}], parlayParams.risk)}
   ${mkIncludeRow()}
+  ${mkCorrRow()}
+  ${mkSgpRow()}
+  ${mkLockedStrip()}
   <button class="parlay-generate-btn">Generate Parlay</button>
 </div>
 <div id="parlay-results" class="parlay-results">
@@ -3842,14 +3902,47 @@ function renderParlayView() {
 
       if (param === 'legs') parlayParams.legs = parseInt(val, 10);
       if (param === 'risk') parlayParams.risk = val;
+      if (param === 'allowCorr') parlayParams.allowCorr = val === 'true';
+      if (param === 'sgp') {
+        parlayParams.sgp = val === 'true';
+        // Re-render the whole view so the Correlated Legs row shows/hides
+        renderParlayView();
+        return;
+      }
       view.querySelectorAll(`.parlay-opt-btn[data-param="${param}"]`).forEach(b =>
         b.classList.toggle('active', b === btn));
+    });
+  });
+
+  // Locked strip remove buttons
+  view.querySelectorAll('.parlay-locked-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const fp = btn.dataset.fp;
+      parlayParams.locked = parlayParams.locked.filter(f => f !== fp);
+      renderParlayView();
     });
   });
 
   view.querySelector('.parlay-generate-btn').addEventListener('click', () => {
     _runParlayGeneration();
   });
+}
+
+function _togglePin(fp) {
+  if (!fp) return;
+  if (parlayParams.locked.includes(fp)) {
+    parlayParams.locked = parlayParams.locked.filter(f => f !== fp);
+  } else {
+    parlayParams.locked = [...parlayParams.locked, fp];
+  }
+  // Refresh pin button state across both props and parlay views
+  document.querySelectorAll(`.parlay-pin-btn[data-fp="${CSS.escape(fp)}"]`).forEach(b => {
+    b.classList.toggle('active', parlayParams.locked.includes(fp));
+    b.title = parlayParams.locked.includes(fp) ? 'Unpin from parlay' : 'Pin to parlay';
+  });
+  // Re-render the locked strip in the parlay view if visible
+  const pv = document.getElementById('parlay-view');
+  if (pv && !pv.hidden) renderParlayView();
 }
 
 function _runParlayGeneration() {
@@ -3870,8 +3963,43 @@ function _runParlayGeneration() {
     }
   }
 
-  const result = generateParlays(parlayParams, allPicks);
-  const options = [result.ev, result.payout, result.safest];
+  // Resolve locked picks fingerprints against the flat pool
+  const _pickFp = p => `${p.bet_type}:${p.subject_id ?? p._gamePk}:${p.direction}`;
+  const lockedPicks = parlayParams.locked
+    .map(fp => allPicks.find(p => _pickFp(p) === fp))
+    .filter(Boolean);
+  const missingLocked = parlayParams.locked.filter(fp => !allPicks.find(p => _pickFp(p) === fp));
+
+  // Warn about any locked picks that disappeared from the data
+  const lockedWarning = missingLocked.length
+    ? `<div class="parlay-locked-warn">⚠ ${missingLocked.length} locked pick(s) not found in today's data — skipped.</div>`
+    : '';
+
+  // When locked picks exist, exclude their subjects/games from the pool so
+  // the generator fills the remaining slots without duplicating them.
+  let poolForGen = allPicks;
+  if (lockedPicks.length) {
+    const lockedSubjects = new Set(lockedPicks.map(p => p.subject_id).filter(Boolean));
+    const lockedGames    = parlayParams.allowCorr ? new Set() : new Set(lockedPicks.map(p => p._gamePk).filter(Boolean));
+    poolForGen = allPicks.filter(p => {
+      if (p.subject_id && lockedSubjects.has(p.subject_id)) return false;
+      if (lockedGames.size && p._gamePk && lockedGames.has(p._gamePk)) return false;
+      return true;
+    });
+  }
+
+  const remainingLegs = Math.max(1, parlayParams.legs - lockedPicks.length);
+  const genParams = { ...parlayParams, legs: remainingLegs };
+  const result = generateParlays(genParams, poolForGen);
+
+  // Prepend locked picks to each option's legs
+  const prependLocked = opt => {
+    if (!lockedPicks.length) return opt;
+    const allLegs = [...lockedPicks.map(p => ({ ...p, _locked: true })), ...opt.legs];
+    return { ...opt, legs: allLegs, stats: _computeParlayStats(allLegs) };
+  };
+
+  const options = [result.ev, result.payout, result.safest].map(prependLocked);
 
   // Deduplicate: when two objectives produce the same set of legs, merge their
   // labels into one card rather than showing identical parlays twice.
@@ -3884,7 +4012,18 @@ function _runParlayGeneration() {
   }
   const uniqueOptions = [..._seen.values()];
 
-  resultsDiv.innerHTML = `<div class="parlay-options">${uniqueOptions.map((opt, i) => _renderParlayOption(opt, i === 0)).join('')}</div>`;
+  // SGP banner: find game string for the selected SGP game
+  let sgpBanner = '';
+  if (parlayParams.sgp && result.sgpGame) {
+    const sgpGameObj = picksData.games.find(g => g.gamePk === result.sgpGame);
+    const sgpLabel = sgpGameObj
+      ? `${abbrev(sgpGameObj.away_team)} @ ${abbrev(sgpGameObj.home_team)}`
+      : `Game ${result.sgpGame}`;
+    sgpBanner = `<div class="parlay-sgp-banner">🏟 Same-Game Parlay: ${escapeHtml(sgpLabel)}</div>`;
+  }
+
+  resultsDiv.innerHTML = lockedWarning + sgpBanner +
+    `<div class="parlay-options">${uniqueOptions.map((opt, i) => _renderParlayOption(opt, i === 0)).join('')}</div>`;
 
   // Expand/collapse toggle
   resultsDiv.querySelectorAll('.parlay-option-header').forEach(header => {
@@ -3911,13 +4050,27 @@ function _runParlayGeneration() {
       if (opt) _copyParlayText(opt, btn);
     });
   });
+
+  // Pin buttons inside parlay results
+  resultsDiv.querySelectorAll('.parlay-pin-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      _togglePin(btn.dataset.fp);
+    });
+  });
 }
 
 function _renderParlayOption(opt, expanded) {
   const { key, label, legs, stats, note, combosChecked } = opt;
-  const { payout, winPct, hasEstimate, corrAdj } = stats;
+  const { payout, winPct, hasEstimate, corrAdj, totalDecOdds } = stats;
   const hasCorr = legs.some(l => l._sameGameWarning);
   const payStr  = `${hasEstimate ? '~' : ''}$${payout.toLocaleString()} on $100`;
+
+  const americanStr = (() => {
+    const am = _toAmericanOdds(totalDecOdds);
+    if (am == null) return '';
+    return `${hasEstimate ? '~' : ''}${am > 0 ? '+' + am : am}`;
+  })();
 
   const corrBadge = hasCorr
     ? '<span class="parlay-corr-badge">⚠ Correlated legs</span>'
@@ -3935,12 +4088,18 @@ function _renderParlayOption(opt, expanded) {
     ? legs.map((leg, i) => (i > 0 ? '<div class="parlay-leg-divider"></div>' : '') + _renderParlayLeg(leg)).join('')
     : '<div class="parlay-empty-legs">No qualifying picks found — try adjusting parameters.</div>';
 
+  const metaParts = [];
+  if (americanStr) metaParts.push(`<span class="parlay-american-odds">${escapeHtml(americanStr)}</span>`);
+  metaParts.push(`${legs.length}-leg`);
+  metaParts.push(`Win: ${winPct}%${corrAdj ? ' (corr. adj.)' : ''}`);
+  metaParts.push(`(~${escapeHtml(payStr)})`);
+
   return `
 <div class="parlay-option-card${expanded ? ' expanded' : ''}" data-opt-key="${key}">
   <div class="parlay-option-header">
     <div class="parlay-option-summary">
       <span class="parlay-option-label">${label}</span>
-      <span class="parlay-option-meta">· ${legs.length}-leg · Pays ${escapeHtml(payStr)} · Win: ${winPct}%${corrAdj ? ' (corr. adj.)' : ''}</span>
+      <span class="parlay-option-meta">${metaParts.join(' · ')}</span>
       ${corrBadge}
     </div>
     <div class="parlay-option-actions">
@@ -3960,8 +4119,16 @@ function _renderParlayLeg(leg) {
   const badges = [];
   if (leg._sameGameWarning) badges.push('<span class="data-quality-badge lineup-warn">⚠ Same game</span>');
   if (leg._oddsEstimated)   badges.push('<span class="data-quality-badge parlay-est-badge">~est. odds</span>');
+  if (leg._locked)          badges.push('<span class="data-quality-badge parlay-locked-badge">📌 Locked</span>');
 
-  const gameLabel = `<div class="parlay-leg-game">${escapeHtml(leg._gameStr || '')}</div>`;
+  const probPct = leg.model_prob != null
+    ? `<span class="parlay-leg-prob">${Math.round(leg.model_prob * 100)}%</span>`
+    : '';
+  const fp = `${leg.bet_type}:${leg.subject_id ?? leg._gamePk}:${leg.direction}`;
+  const isPinned = parlayParams.locked.includes(fp);
+  const pinBtn = `<button class="parlay-pin-btn${isPinned ? ' active' : ''}" data-fp="${escapeHtml(fp)}" title="${isPinned ? 'Unpin from parlay' : 'Pin to parlay'}">📌</button>`;
+
+  const gameLabel = `<div class="parlay-leg-game">${escapeHtml(leg._gameStr || '')}${probPct}${pinBtn}</div>`;
   const badgeRow  = badges.length ? `<div class="parlay-leg-badge-row">${badges.join('')}</div>` : '';
 
   return `<div class="parlay-leg-wrap">${gameLabel}${badgeRow}${renderPick(leg)}</div>`;
@@ -3970,7 +4137,9 @@ function _renderParlayLeg(leg) {
 function _copyParlayText(opt, btn) {
   const { label, legs, stats } = opt;
   const payStr = `${stats.hasEstimate ? '~' : ''}$${stats.payout.toLocaleString()} on $100`;
-  let text = `MLBEdge Parlay — ${label} · ${legs.length}-leg · Pays ${payStr}\n`;
+  const am = _toAmericanOdds(stats.totalDecOdds);
+  const amStr = am != null ? `${stats.hasEstimate ? '~' : ''}${am > 0 ? '+' + am : am}  ` : '';
+  let text = `MLBEdge Parlay — ${amStr}${label} · ${legs.length}-leg · Pays ${payStr}\n`;
   legs.forEach((leg, i) => {
     const dir  = leg.direction || '';
     const line = leg.odds?.line != null ? ` ${leg.odds.line}` : '';
