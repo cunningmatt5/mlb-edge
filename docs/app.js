@@ -39,7 +39,7 @@ let expandedPk   = null;
 let currentView  = 'games';
 let lastCheckedAt = null;
 let propsFilter  = 'all';   // 'all' | 'highconf' | 'value'
-let parlayParams = { legs: 3, risk: 'medium', include: ['all'], allowCorr: true, sgp: false, locked: [] };
+let parlayParams = { legs: 3, risk: 'medium', include: ['all'], allowCorr: true, sgp: false, sgpGamePk: null, locked: [] };
 
 // player MLBAM id → full team name; rebuilt whenever gamesData loads
 let _playerTeamMap = new Map();
@@ -3633,16 +3633,18 @@ function generateParlays(params, allPicks) {
     return false;
   });
 
-  // SGP: narrow pool to the single game with the most qualifying picks
+  // SGP: narrow pool to the user-selected game (or the one with the most picks)
   let sgpGame = null;
   if (sgp && pool.length) {
-    const gameCounts = {};
-    pool.forEach(p => { if (p._gamePk) gameCounts[p._gamePk] = (gameCounts[p._gamePk] || 0) + 1; });
-    const topEntry = Object.entries(gameCounts).sort((a, b) => b[1] - a[1])[0];
-    if (topEntry) {
-      sgpGame = +topEntry[0];
-      pool = pool.filter(p => p._gamePk === sgpGame);
+    if (params.sgpGamePk) {
+      sgpGame = params.sgpGamePk;
+    } else {
+      const gameCounts = {};
+      pool.forEach(p => { if (p._gamePk) gameCounts[p._gamePk] = (gameCounts[p._gamePk] || 0) + 1; });
+      const topEntry = Object.entries(gameCounts).sort((a, b) => b[1] - a[1])[0];
+      if (topEntry) sgpGame = +topEntry[0];
     }
+    if (sgpGame) pool = pool.filter(p => p._gamePk === sgpGame);
   }
 
   // Step 2: annotate each pick with _prob and _decOdds
@@ -3840,10 +3842,32 @@ function renderParlayView() {
       String(parlayParams.allowCorr));
   };
 
-  const mkSgpRow = () =>
-    mkParamRow('Same-Game Parlay', 'sgp',
+  const mkSgpRow = () => {
+    const toggleRow = mkParamRow('Same-Game Parlay', 'sgp',
       [{value:'false',text:'Off'},{value:'true',text:'On'}],
       String(parlayParams.sgp));
+    if (!parlayParams.sgp || !picksData?.games?.length) return toggleRow;
+
+    // Build per-game pick counts so the user can see which games have the most coverage
+    const pickCounts = {};
+    for (const g of picksData.games) {
+      pickCounts[g.gamePk] = (g.picks || []).length;
+    }
+    const gameOpts = picksData.games
+      .filter(g => g.gamePk && pickCounts[g.gamePk] > 0)
+      .sort((a, b) => (pickCounts[b.gamePk] || 0) - (pickCounts[a.gamePk] || 0))
+      .map(g => {
+        const lbl = `${abbrev(g.away_team)} @ ${abbrev(g.home_team)}`;
+        const cnt = pickCounts[g.gamePk] || 0;
+        const isActive = parlayParams.sgpGamePk === g.gamePk ||
+          (parlayParams.sgpGamePk == null && g === picksData.games
+            .filter(x => x.gamePk && pickCounts[x.gamePk] > 0)
+            .sort((a, b) => (pickCounts[b.gamePk] || 0) - (pickCounts[a.gamePk] || 0))[0]);
+        return `<button class="parlay-opt-btn parlay-sgp-game-btn${isActive ? ' active' : ''}" data-param="sgpGamePk" data-value="${g.gamePk}">${escapeHtml(lbl)}<span class="parlay-sgp-pick-count">${cnt}</span></button>`;
+      }).join('');
+    const gameRow = `<div class="parlay-param-row"><span class="parlay-param-label">Game</span><div class="parlay-param-options parlay-include-options">${gameOpts}</div></div>`;
+    return toggleRow + gameRow;
+  };
 
   const mkLockedStrip = () => {
     if (!parlayParams.locked.length) return '';
@@ -3905,8 +3929,15 @@ function renderParlayView() {
       if (param === 'allowCorr') parlayParams.allowCorr = val === 'true';
       if (param === 'sgp') {
         parlayParams.sgp = val === 'true';
-        // Re-render the whole view so the Correlated Legs row shows/hides
+        parlayParams.sgpGamePk = null; // reset game selection on toggle
+        // Re-render so Correlated Legs row and game picker show/hide correctly
         renderParlayView();
+        return;
+      }
+      if (param === 'sgpGamePk') {
+        parlayParams.sgpGamePk = parseInt(val, 10);
+        view.querySelectorAll('.parlay-sgp-game-btn').forEach(b =>
+          b.classList.toggle('active', b.dataset.value === val));
         return;
       }
       view.querySelectorAll(`.parlay-opt-btn[data-param="${param}"]`).forEach(b =>

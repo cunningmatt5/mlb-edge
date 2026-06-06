@@ -3560,3 +3560,20 @@ header {
   flex-wrap: wrap;
   gap: 6px;
 }
+
+/* ── Parlay Generator: SGP game picker ───────────────────────────────────── */
+.parlay-sgp-pick-count {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: rgba(255,255,255,.08);
+  border-radius: 8px;
+  padding: 1px 5px;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+.parlay-sgp-game-btn.active .parlay-sgp-pick-count {
+  background: rgba(34,197,94,.18);
+  color: var(--green-light);
+}
