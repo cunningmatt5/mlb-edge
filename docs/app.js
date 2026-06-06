@@ -3561,7 +3561,7 @@ function getPickRawOdds(p) {
 
 function generateParlays(params, allPicks) {
   const { legs, risk, propsIncluded, special } = params;
-  const PROP_TYPES    = new Set(['K_PROP', 'HR_PROP', 'HIT_PROP', 'TB_PROP', 'WALK_PROP']);
+  const PROP_TYPES    = new Set(['K_PROP', 'HR_PROP', 'HIT_PROP', 'TB_PROP', 'WALK_PROP', 'TEAM_TOTAL']);
   const TOTALS_TYPES  = new Set(['TOTAL', 'TEAM_TOTAL', 'F5_TOTAL']);
 
   // Step 1: filter by bet type
@@ -3617,15 +3617,18 @@ function _selectParlayLegs(sortedPicks, n) {
   const selected = [];
   const usedGames   = new Set();
   const usedBatters = new Set();
+  let teamTotalCount = 0;
 
   for (const pick of sortedPicks) {
     if (selected.length >= n) break;
     if (pick.subject_id && usedBatters.has(pick.subject_id)) continue;  // hard block: same batter
+    if (pick.bet_type === 'TEAM_TOTAL' && teamTotalCount >= 1) continue; // max 1 team total per parlay
 
     const sameGame = usedGames.has(pick._gamePk);
     selected.push({ ...pick, _sameGameWarning: sameGame });
     usedGames.add(pick._gamePk);
     if (pick.subject_id) usedBatters.add(pick.subject_id);
+    if (pick.bet_type === 'TEAM_TOTAL') teamTotalCount++;
   }
   return selected;
 }
