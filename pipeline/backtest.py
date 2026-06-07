@@ -1041,7 +1041,8 @@ def generate_pitcher_value(all_results: list[dict]) -> None:
             p = pitchers[sp_id]
             if season:
                 p["seasons"].add(season)
-            p["team"] = team  # keep most-recent team name
+            # team is set on first encounter; since all_results is sorted newest-first,
+            # first encounter = most recent team — do not overwrite with older games
 
             # Count every 2026 appearance regardless of closing-line availability
             if season == 2026:
