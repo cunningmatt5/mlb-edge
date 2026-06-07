@@ -4266,40 +4266,92 @@ header {
   .ea-bottom-row { justify-content: flex-start; }
 }
 
-/* ── xERA tag upgrade — slightly bigger, better contrast ──────────────── */
+/* ═══════════════════════════════════════════════════════════════════
+   GAMES TAB VISUAL POLISH — v64
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── xERA tag — brighter gold for contrast on dark bg ─────────────── */
 .xera-tag {
   font-size: 10.5px;
-  padding: 2px 6px;
+  padding: 2px 7px;
   border-radius: 4px;
+  color: #fbbf24;
+  background: rgba(251,191,36,.13);
+  border: 1px solid rgba(251,191,36,.18);
 }
 
-/* ── Game info cell — venue name can be a bit smaller to give team names room */
+/* ── Team name — larger, punchier ─────────────────────────────────── */
+.team-name { font-size: 16px; }
+
+/* ── SP name — cleaner muted tone ─────────────────────────────────── */
+.sp-line { color: #6b7fa0; }
+
+/* ── Game time — slightly brighter ────────────────────────────────── */
+.game-time { color: #d4dff0; }
+
+/* ── Venue name — keep compact ────────────────────────────────────── */
 .venue-name { font-size: 10px; }
 
-/* ── Lineup status row — keep border separator to prevent overlap with xERA tags ── */
-.lineup-status-row {
-  padding-top: 6px;
-  padding-bottom: 2px;
-  margin-top: 8px;
+/* ── Matchup grid bottom padding — hard gap before section divider ── */
+.matchup-grid { padding-bottom: 10px; }
+
+/* ── Section dividers — visible on dark bg (was #1a2438, invisible) ─ */
+.lineup-status-row,
+.edge-strip,
+.pred-strip {
+  border-top-color: rgba(255,255,255,.07);
 }
 
-/* Lineup chip — slightly bigger */
+/* ── Lineup status row ─────────────────────────────────────────────── */
+.lineup-status-row {
+  margin-top: 0;
+  padding-top: 9px;
+  padding-bottom: 4px;
+}
+
+/* ── Lineup chip ───────────────────────────────────────────────────── */
 .lineup-chip {
   font-size: 11px;
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 3px 9px;
 }
 
-/* ── Key signal chips — more spacing ──────────────────────────────────── */
-.key-sig-row { padding: 0 16px 6px; gap: 6px; }
+/* ── Edge strip ────────────────────────────────────────────────────── */
+.edge-strip { padding: 6px 16px; }
+
+/* ── Key signal chips ──────────────────────────────────────────────── */
+.key-sig-row  { padding: 0 16px 7px; gap: 6px; border-top: none; }
 .key-sig-chip { font-size: 11px; padding: 3px 9px; }
 
-/* ── Expanded card body — section heading color update ───────────────── */
-.game-card.expanded .game-card-header {
-  border-bottom: none;
+/* ── Pred strip — more breathing room ─────────────────────────────── */
+.pred-strip {
+  margin-top: 0;
+  padding-top: 12px;
+  padding-bottom: 4px;
 }
 
-/* ── Live/Final state refinements ─────────────────────────────────────── */
-.live-state { font-size: 13px; letter-spacing: .03em; }
+/* ── Probability bar — bigger labels, taller bar, vivid colors ──────  */
+.ppr-away, .ppr-home {
+  font-size: 13px;
+  font-weight: 800;
+  min-width: 64px;
+}
+.ppr-fav { color: #34d399; }
+.ppr-dog { color: #f87171; }
+.ppr-bar  { height: 8px; border-radius: 5px; }
+
+/* ── Expanded card body ────────────────────────────────────────────── */
+.game-card.expanded .game-card-header { border-bottom: none; }
+
+/* ── Live/Final ────────────────────────────────────────────────────── */
+.live-state  { font-size: 13px; letter-spacing: .03em; }
 .final-badge { font-size: 12px; font-weight: 800; letter-spacing: .12em; }
 .live-score  { font-size: 15px; font-weight: 800; }
+
+/* ── Mobile overrides for upgraded styles ──────────────────────────── */
+@media (max-width: 600px) {
+  .team-name    { font-size: 14px; }
+  .ppr-away, .ppr-home { font-size: 12px; min-width: 52px; }
+  .ppr-bar      { height: 7px; }
+  .lineup-status-row { padding-top: 7px; }
+}
