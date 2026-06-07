@@ -257,44 +257,47 @@ function renderBestBetsSection(games) {
     const edgePct = pred.model_edge_ml != null ? (+(-pred.model_edge_ml * 100).toFixed(1)) : null;
     const awayMl  = odds.away_ml != null ? (odds.away_ml > 0 ? `+${odds.away_ml}` : String(odds.away_ml)) : null;
     const sl      = spLine(g.away_sp, g.away_sp?.name || abbrev(g.away_team), g.home_sp, g.home_sp?.name || abbrev(g.home_team));
-    // Lineup xwOBA line
     const awyL  = (g.away_lineup || []).filter(b => b.xwoba != null);
     const hmL   = (g.home_lineup  || []).filter(b => b.xwoba != null);
     const awyX  = awyL.length >= 3 ? awyL.reduce((s, b) => s + b.xwoba, 0) / awyL.length : null;
     const hmX   = hmL.length  >= 3 ? hmL.reduce((s, b)  => s + b.xwoba, 0) / hmL.length  : null;
     const luLine = (awyX != null && hmX != null)
-      ? `Lineup: Away .${Math.round(awyX * 1000)} vs Home .${Math.round(hmX * 1000)} xwOBA`
+      ? `Away .${Math.round(awyX * 1000)} vs Home .${Math.round(hmX * 1000)} xwOBA`
       : null;
-    // SP form note
     const awyDev = sig.last_start_dev_away;
     let formNote = '';
     if (awyDev != null && Math.abs(awyDev) >= 1.0) {
       const awySPName = g.away_sp?.name ? g.away_sp.name.split(',')[0] : 'Away SP';
       formNote = awyDev > 0
-        ? ` · ${awySPName} +${awyDev.toFixed(1)} ERA above xERA (cold)`
-        : ` · ${awySPName} ${awyDev.toFixed(1)} ERA below xERA (hot)`;
+        ? ` · ${awySPName} running cold`
+        : ` · ${awySPName} running hot`;
     }
     const oddsQual = oddsQualityBadge(odds.away_ml);
     return `
 <div class="ea-card" onclick="toggleCard(${g.gamePk})">
-  <div class="ea-left">
-    <div class="ea-matchup">
-      <span class="ea-away-name">${abbrev(g.away_team)}</span>
-      <span class="ea-at">@</span>
-      <span class="ea-home-name">${abbrev(g.home_team)}</span>
-    </div>
-    <div class="ea-sp-line">${sl}${formNote}</div>
-    ${luLine ? `<div class="ea-lu-line">${luLine}</div>` : ''}
-  </div>
-  <div class="ea-right">
-    <div class="ea-bet-row">
-      <span class="ea-bet-label">BET AWAY</span>
-      ${awayMl ? `<span class="ea-ml">${awayMl}</span>` : ''}
-      <span class="ea-win-pct">${awayPct}% win</span>
-    </div>
-    <div class="ea-bottom-row">
-      ${edgePct != null ? `<div class="ea-edge-pill">Model +${edgePct}% vs Vegas</div>` : ''}
-      ${oddsQual}
+  <div class="ea-card-inner">
+    <div class="ea-card-accent ea-accent-elite"></div>
+    <div class="ea-card-body">
+      <div class="ea-left">
+        <div class="ea-matchup">
+          <span class="ea-away-name">${abbrev(g.away_team)}</span>
+          <span class="ea-at">@</span>
+          <span class="ea-home-name">${abbrev(g.home_team)}</span>
+        </div>
+        <div class="ea-sp-line">${sl}${formNote}</div>
+        ${luLine ? `<div class="ea-lu-line">${luLine}</div>` : ''}
+      </div>
+      <div class="ea-right">
+        <div class="ea-bet-row">
+          <span class="ea-bet-label">BET AWAY</span>
+          ${awayMl ? `<span class="ea-ml">${awayMl}</span>` : ''}
+        </div>
+        <div class="ea-win-pct">${awayPct}% model win</div>
+        <div class="ea-bottom-row">
+          ${edgePct != null ? `<span class="ea-edge-pill">+${edgePct}% vs Vegas</span>` : ''}
+          ${oddsQual}
+        </div>
+      </div>
     </div>
   </div>
 </div>`;
@@ -315,19 +318,24 @@ function renderBestBetsSection(games) {
     const sl      = spLine(favSp, favSp?.name || abbrev(favName), dogSp, dogSp?.name || abbrev(dogName));
     return `
 <div class="ea-card bb-conf-card" onclick="toggleCard(${g.gamePk})">
-  <div class="ea-left">
-    <div class="ea-matchup">
-      <span class="ea-away-name">${abbrev(g.away_team)}</span>
-      <span class="ea-at">@</span>
-      <span class="ea-home-name">${abbrev(g.home_team)}</span>
-    </div>
-    <div class="ea-sp-line">${sl}</div>
-  </div>
-  <div class="ea-right">
-    <div class="ea-bet-row">
-      <span class="ea-bet-label">BET ${awayFav ? 'AWAY' : 'HOME'}</span>
-      ${favMlStr ? `<span class="ea-ml">${favMlStr}</span>` : ''}
-      <span class="ea-win-pct">${favPct}% win</span>
+  <div class="ea-card-inner">
+    <div class="ea-card-accent ea-accent-conf"></div>
+    <div class="ea-card-body">
+      <div class="ea-left">
+        <div class="ea-matchup">
+          <span class="ea-away-name">${abbrev(g.away_team)}</span>
+          <span class="ea-at">@</span>
+          <span class="ea-home-name">${abbrev(g.home_team)}</span>
+        </div>
+        <div class="ea-sp-line">${sl}</div>
+      </div>
+      <div class="ea-right">
+        <div class="ea-bet-row">
+          <span class="ea-bet-label">BET ${awayFav ? 'AWAY' : 'HOME'}</span>
+          ${favMlStr ? `<span class="ea-ml">${favMlStr}</span>` : ''}
+        </div>
+        <div class="ea-win-pct">${favPct}% model win</div>
+      </div>
     </div>
   </div>
 </div>`;
@@ -340,10 +348,10 @@ function renderBestBetsSection(games) {
   <div class="bb-subsection">
     <div class="bb-sub-hdr">
       <div class="bb-sub-title-row">
-        <span class="bb-sub-title">Elite Away Signal</span>
+        <span class="bb-sub-title">◆ Elite Away Signal</span>
         <span class="bb-badge bb-badge-elite">${eliteGames.length} game${eliteGames.length > 1 ? 's' : ''} today</span>
       </div>
-      <div class="bb-sub-desc">Model disagrees with Vegas by 10%+ &amp; away pitcher has better stats · <strong>+20.4% ROI</strong> backtested (536 bets, 2021–2025)</div>
+      <div class="bb-sub-desc">Model &amp; away pitcher both lean strongly against Vegas · <strong>+9.2% ROI</strong> on 884 bets (2022–2026)</div>
     </div>
     <div class="ea-cards">${eliteCards}</div>
   </div>`;
@@ -357,16 +365,18 @@ function renderBestBetsSection(games) {
         <span class="bb-sub-title">High Confidence</span>
         <span class="bb-badge bb-badge-conf">${hiConfGames.length} game${hiConfGames.length > 1 ? 's' : ''} today</span>
       </div>
-      <div class="bb-sub-desc">Model ≥62% confident · Pitcher stats confirm the pick · <strong>68.8% win rate</strong> on 362 games (2021–2025)</div>
+      <div class="bb-sub-desc">Model ≥62% confident · Pitcher + lineup signals align · <strong>68.0% win rate</strong> at 65%+ confidence (2022–2026)</div>
     </div>
     <div class="ea-cards">${hiConfCards}</div>
   </div>`;
   }
 
+  const totalCount = eliteGames.length + hiConfGames.length;
   return `
 <div class="bb-section">
   <div class="bb-section-hdr">
     <span class="bb-section-title">Today's Best Bets</span>
+    <span class="bb-total-count">${totalCount} pick${totalCount !== 1 ? 's' : ''}</span>
   </div>
   ${eliteBlock}${hiConfBlock}
 </div>`;
@@ -607,6 +617,7 @@ function gameCardHTML(g) {
   return `
 <div class="game-card" data-pk="${g.gamePk}" data-status="${status}" data-fav="${fav}" data-pick-tier="${g.prediction?.pick_tier || ''}">
   <div class="game-card-header">
+    ${gameEdgeBannerHTML(g)}
     <div class="matchup-grid">
       <div class="team-cell away-cell">
         <div class="logo-namerow">
@@ -642,7 +653,6 @@ function gameCardHTML(g) {
     </div>
     ${lineupStatusHTML(g)}
     ${vegasEdgeStripHTML(g)}
-    ${edgeConditionsHTML(g)}
     ${keySignalsHTML(g)}
     ${statusStrip(g)}
   </div>
@@ -747,12 +757,27 @@ function statusStrip(g) {
   const tierBadge = tier ? `<span class="tier-badge tier-${tier}">${tierLabel}</span>` : '';
   const pickTier = pred.pick_tier;
   const pickTierBadge = pickTier === 'elite_away'
-    ? `<span class="pick-tier-badge tier-elite-away">Elite Away</span>`
+    ? `<span class="pick-tier-badge tier-elite-away">◆ Elite Away</span>`
     : pickTier === 'strong_away'
-    ? `<span class="pick-tier-badge tier-strong-away">Strong Away</span>`
+    ? `<span class="pick-tier-badge tier-strong-away">▲ Strong Away</span>`
     : '';
-  const oddsQual    = pickTier ? oddsQualityBadge(g.odds?.away_ml) : '';
-  const pickReason  = buildPickReasoning(g);
+  const oddsQual   = pickTier ? oddsQualityBadge(g.odds?.away_ml) : '';
+  const pickReason = buildPickReasoning(g);
+
+  // Inline probability bar
+  const probBar = `
+<div class="pred-prob-row">
+  <span class="ppr-away ${awayFav ? 'ppr-fav' : 'ppr-dog'}">${abbrev(g.away_team)} ${awayPct}%</span>
+  <div class="ppr-bar">
+    <div class="ppr-seg ${awayFav ? 'ppr-fav-fill' : 'ppr-dog-fill'}" style="width:${awayPct}%"></div>
+    <div class="ppr-seg ${awayFav ? 'ppr-dog-fill' : 'ppr-fav-fill'}" style="width:${homePct}%"></div>
+  </div>
+  <span class="ppr-home ${awayFav ? 'ppr-dog' : 'ppr-fav'}">${abbrev(g.home_team)} ${homePct}%</span>
+</div>`;
+
+  const badges = [tierBadge, pickTierBadge, oddsQual].filter(Boolean).join('');
+  const badgesRow = badges ? `<div class="pred-badges-row">${badges}</div>` : '';
+
   const scoreCenter = pred.predicted_away_runs != null ? `
   <span class="pred-score-est">
     <span class="pse-team">${abbrev(g.away_team)}</span>
@@ -761,15 +786,12 @@ function statusStrip(g) {
     <strong class="pse-num pse-home">${pred.predicted_home_runs}</strong>
     <span class="pse-team">${abbrev(g.home_team)}</span>
   </span>` : '<span></span>';
+
   return `
 <div class="pred-strip">
   <div class="pred-left">
-    <div class="pred-both-pct">
-      <span class="${awayFav ? 'pf-fav' : 'pf-dog'}">${abbrev(g.away_team)} ${awayPct}%</span>
-      <span class="pf-sep">—</span>
-      <span class="${awayFav ? 'pf-dog' : 'pf-fav'}">${abbrev(g.home_team)} ${homePct}%</span>
-    </div>
-    ${tierBadge}${pickTierBadge}${oddsQual}
+    ${probBar}
+    ${badgesRow}
     ${pickReason}
   </div>
   ${scoreCenter}
@@ -780,6 +802,60 @@ function statusStrip(g) {
 function spEra(val, side = 'home') {
   const cls = side === 'away' ? 'xera-tag xera-tag-away' : 'xera-tag';
   return `<span class="${cls}">xERA ${val.toFixed(2)}</span>`;
+}
+
+// ── Game edge banner — prominent top-of-card callout for actionable picks ─────
+function gameEdgeBannerHTML(g) {
+  const pred   = g.prediction || {};
+  const tier   = pred.pick_tier;
+  const conds  = g.edge_conditions || [];
+  const status = g.game_status || 'preview';
+  if (status !== 'preview') return '';
+
+  const parts = [];
+
+  if (tier === 'elite_away') {
+    const edgePct = pred.model_edge_ml != null
+      ? `Model +${(Math.abs(pred.model_edge_ml) * 100).toFixed(1)}% vs Vegas`
+      : 'Model strongly disagrees with Vegas';
+    parts.push(`
+<div class="game-edge-banner banner-tier-elite">
+  <span class="geb-icon">◆</span>
+  <div class="geb-body">
+    <span class="geb-label">Elite Away</span>
+    <span class="geb-sep"></span>
+    <span class="geb-detail">${edgePct}</span>
+  </div>
+  <span class="geb-sub">+9.2% ROI · 884 bets</span>
+</div>`);
+  } else if (tier === 'strong_away') {
+    parts.push(`
+<div class="game-edge-banner banner-tier-strong">
+  <span class="geb-icon">▲</span>
+  <div class="geb-body">
+    <span class="geb-label">Strong Away</span>
+    <span class="geb-sep"></span>
+    <span class="geb-detail">SP edge + model tilt</span>
+  </div>
+</div>`);
+  }
+
+  for (const e of conds) {
+    const roiStr = `+${e.roi_pct.toFixed(1)}% ROI`;
+    const icon   = e.direction === 'UNDER' ? '⚡' : '★';
+    parts.push(`
+<div class="game-edge-banner banner-edge-under">
+  <span class="geb-icon">${icon}</span>
+  <div class="geb-body">
+    <span class="geb-label">${e.label}</span>
+    <span class="geb-sep"></span>
+    <span class="geb-detail">${roiStr} historical</span>
+  </div>
+  <span class="geb-sub">${e.seasons}</span>
+</div>`);
+  }
+
+  return parts.join('');
 }
 
 // ── Vegas edge strip (collapsed card) — surfaces ML and total model edge ──────
