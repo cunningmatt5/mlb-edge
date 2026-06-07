@@ -88,6 +88,41 @@ def main(dry_run: bool = False) -> None:
             save_opening_lines(opening_lines)
             log.info("Opening lines: recorded first-seen lines for today")
 
+    # Build a pre-game odds cache so live/final games always show the closing line
+    # (not in-game Pinnacle odds that reflect the current score).
+    # Primary source: previous games.json when game was in "preview" status.
+    # Fallback: opening_lines.json (has total/ML but no over/under prices).
+    pre_game_odds: dict[int, dict] = {}
+    try:
+        _old_path = OUTPUT_DIR / "games.json"
+        if _old_path.exists():
+            _old_data = json.loads(_old_path.read_text(encoding="utf-8"))
+            if _old_data.get("date") == today.isoformat():
+                for _og in _old_data.get("games", []):
+                    _pk = _og.get("gamePk")
+                    if _pk and _og.get("odds") and _og.get("game_status") == "preview":
+                        pre_game_odds[_pk] = _og["odds"]
+    except Exception as _exc:
+        log.debug("Could not load pre-game odds from existing games.json: %s", _exc)
+
+    # Fallback: opening_lines.json for games not yet captured as preview-state odds
+    _today_str = today.isoformat()
+    for _pk_str, _ol in opening_lines.items():
+        if _ol.get("date") != _today_str:
+            continue
+        try:
+            _pk = int(_pk_str)
+        except (ValueError, TypeError):
+            continue
+        if _pk not in pre_game_odds and _ol.get("home_ml") is not None:
+            pre_game_odds[_pk] = {
+                "home_ml": _ol["home_ml"],
+                "away_ml": _ol["away_ml"],
+                "total":   _ol["total"],
+            }
+
+    log.info("Pre-game odds cache: %d game(s) locked for live/final display", len(pre_game_odds))
+
     comps_db = load_comps_db()
     if comps_db:
         log.info("Comps database: %d historical games loaded", len(comps_db))
@@ -98,7 +133,17 @@ def main(dry_run: bool = False) -> None:
         away = game.get("awayTeam", "")
         log.info("Building: %s @ %s", away, home)
 
-        odds = get_game_event(game, game_lines) if game_lines else None
+        pk = game.get("gamePk")
+        status = game.get("game_status", "preview")
+
+        # Lock odds to pre-game closing line once a game starts — never show live in-game lines
+        using_locked_odds = status in ("live", "final") and pk in pre_game_odds
+        if using_locked_odds:
+            odds = pre_game_odds[pk]
+            log.debug("Using locked pre-game odds for %s @ %s (status=%s)", away, home, status)
+        else:
+            odds = get_game_event(game, game_lines) if game_lines else None
+
         game_obj = build_game(
             game=game,
             cache=cache,
@@ -111,9 +156,9 @@ def main(dry_run: bool = False) -> None:
             if tid and tid in team_records:
                 game_obj[f"{side}_record"] = team_records[tid]
 
-        # Attach line movement if significant movement detected vs. opening.
-        # Also stored on the original game dict so analytics scorers can access it.
-        if opening_lines and game_lines:
+        # Line movement: only compute for preview games.
+        # For live/final games the current API line is in-game; don't overwrite locked odds.
+        if not using_locked_odds and opening_lines and game_lines:
             movement = compute_line_movement(game, game_lines, opening_lines)
             if movement:
                 game["line_movement"] = movement
