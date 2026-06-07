@@ -764,6 +764,12 @@ def build_game(
         home_win_pct = round(_sigmoid(_logit(home_win_pct) + _lm * 0.35), 4)
         away_win_pct = round(1.0 - home_win_pct, 4)
 
+    # Platt scaling: compress overconfident extremes toward actual win rates.
+    # Params (a=0.762, b=0.044) fit on 14,070 resolved games in data/calibration.json.
+    from pipeline.odds import calibrate_home_prob
+    home_win_pct = calibrate_home_prob(home_win_pct)
+    away_win_pct = round(1.0 - home_win_pct, 4)
+
     # Flag when model and Vegas both agree strongly on home — signal is dampened
     # (edge_mult 0.25 vs 0.5). Surfaces in UI so users weight picks accordingly.
     _raw_edge_for_flag = (
