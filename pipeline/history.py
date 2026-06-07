@@ -50,13 +50,13 @@ def append_today(history: list[dict], games: list[dict], today_str: str) -> list
     for g in games:
         pk = g["gamePk"]
         if pk in existing_by_pk:
-            # Patch odds fields if they were missing when the record was first created
+            # Patch fields that were missing when the record was first created
             existing = existing_by_pk[pk]
+            pred     = g.get("prediction", {})
             odds     = g.get("odds") or {}
             home_ml  = odds.get("home_ml")
             away_ml  = odds.get("away_ml")
             if home_ml is not None and existing.get("home_ml") is None:
-                pred = g.get("prediction", {})
                 model_edge_ml = None
                 try:
                     pinnacle_home_prob, _ = no_vig_prob(int(home_ml), int(away_ml))
@@ -64,13 +64,19 @@ def append_today(history: list[dict], games: list[dict], today_str: str) -> list
                 except Exception:
                     pass
                 existing.update({
-                    "home_ml":       home_ml,
-                    "away_ml":       away_ml,
-                    "vegas_total":   odds.get("total"),
-                    "over_price":    odds.get("over_price"),
-                    "under_price":   odds.get("under_price"),
-                    "model_edge_ml": model_edge_ml,
+                    "home_ml":             home_ml,
+                    "away_ml":             away_ml,
+                    "vegas_total":         odds.get("total"),
+                    "over_price":          odds.get("over_price"),
+                    "under_price":         odds.get("under_price"),
+                    "model_edge_ml":       model_edge_ml,
+                    "pitcher_score_diff":  pred.get("pitcher_score_diff"),
                 })
+            # Always patch pick_tier and pitcher_score_diff if newly available
+            if existing.get("pick_tier") is None and pred.get("pick_tier") is not None:
+                existing["pick_tier"] = pred.get("pick_tier")
+            if existing.get("pitcher_score_diff") is None and pred.get("pitcher_score_diff") is not None:
+                existing["pitcher_score_diff"] = pred.get("pitcher_score_diff")
             continue
         pred    = g.get("prediction", {})
         signals = pred.get("model_signals", {})
@@ -102,6 +108,8 @@ def append_today(history: list[dict], games: list[dict], today_str: str) -> list
             "lineup_score_home":       signals.get("lineup_score_home"),
             "lineup_score_away":       signals.get("lineup_score_away"),
             "comps_home_win_rate":     signals.get("comps_home_win_rate"),
+            "pick_tier":               pred.get("pick_tier"),
+            "pitcher_score_diff":      pred.get("pitcher_score_diff"),
             # Vegas lines — stored for forward-looking ROI tracking
             "vegas_total":             odds.get("total"),
             "over_price":              odds.get("over_price"),
@@ -156,13 +164,21 @@ def resolve_yesterday(history: list[dict]) -> list[dict]:
         for pk, record in by_pk.items():
             score = scores.get(pk)
             if not score:
+                # Game not found in schedule for that date — likely postponed/rescheduled
+                record["actual_winner"] = "postponed"
+                resolved += 1
+                continue
+            # Postponed/suspended: status explicitly set
+            if score.get("status") in ("Postponed", "Suspended"):
+                record["actual_winner"] = "postponed"
+                resolved += 1
                 continue
             home_score = score["home_score"]
             away_score = score["away_score"]
             if home_score is None or away_score is None:
                 continue
             if home_score == 0 and away_score == 0:
-                continue  # suspended/postponed — do not resolve
+                continue  # in-progress or unresolved tie
             record["home_score"]    = home_score
             record["away_score"]    = away_score
             record["actual_winner"] = (
@@ -233,7 +249,12 @@ def _parse_scores(schedule_data: dict) -> dict[int, dict]:
                 home_score = home.get("score")
             if away_score is None:
                 away_score = away.get("score")
-            results[pk] = {"home_score": home_score, "away_score": away_score}
+            status = raw.get("status", {}).get("abstractGameState", "")
+            results[pk] = {
+                "home_score": home_score,
+                "away_score": away_score,
+                "status": raw.get("status", {}).get("detailedState", ""),
+            }
     return results
 
 
