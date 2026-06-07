@@ -616,8 +616,8 @@ function gameCardHTML(g) {
 
   return `
 <div class="game-card" data-pk="${g.gamePk}" data-status="${status}" data-fav="${fav}" data-pick-tier="${g.prediction?.pick_tier || ''}">
+  ${gameEdgeBannerHTML(g)}
   <div class="game-card-header">
-    ${gameEdgeBannerHTML(g)}
     <div class="matchup-grid">
       <div class="team-cell away-cell">
         <div class="logo-namerow">
@@ -814,12 +814,14 @@ function gameEdgeBannerHTML(g) {
 
   const parts = [];
 
+  const pk = g.gamePk;
+
   if (tier === 'elite_away') {
     const edgePct = pred.model_edge_ml != null
       ? `Model +${(Math.abs(pred.model_edge_ml) * 100).toFixed(1)}% vs Vegas`
       : 'Model strongly disagrees with Vegas';
     parts.push(`
-<div class="game-edge-banner banner-tier-elite">
+<div class="game-edge-banner banner-tier-elite" onclick="toggleCard(${pk})">
   <span class="geb-icon">◆</span>
   <div class="geb-body">
     <span class="geb-label">Elite Away</span>
@@ -830,7 +832,7 @@ function gameEdgeBannerHTML(g) {
 </div>`);
   } else if (tier === 'strong_away') {
     parts.push(`
-<div class="game-edge-banner banner-tier-strong">
+<div class="game-edge-banner banner-tier-strong" onclick="toggleCard(${pk})">
   <span class="geb-icon">▲</span>
   <div class="geb-body">
     <span class="geb-label">Strong Away</span>
@@ -844,7 +846,7 @@ function gameEdgeBannerHTML(g) {
     const roiStr = `+${e.roi_pct.toFixed(1)}% ROI`;
     const icon   = e.direction === 'UNDER' ? '⚡' : '★';
     parts.push(`
-<div class="game-edge-banner banner-edge-under">
+<div class="game-edge-banner banner-edge-under" onclick="toggleCard(${pk})">
   <span class="geb-icon">${icon}</span>
   <div class="geb-body">
     <span class="geb-label">${e.label}</span>

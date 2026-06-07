@@ -4276,12 +4276,11 @@ header {
 /* ── Game info cell — venue name can be a bit smaller to give team names room */
 .venue-name { font-size: 10px; }
 
-/* ── Lineup status row — tighter, no extra border ────────────────────── */
+/* ── Lineup status row — keep border separator to prevent overlap with xERA tags ── */
 .lineup-status-row {
-  padding-top: 5px;
+  padding-top: 6px;
   padding-bottom: 2px;
-  border-top: none;
-  margin-top: 4px;
+  margin-top: 8px;
 }
 
 /* Lineup chip — slightly bigger */
