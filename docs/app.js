@@ -390,13 +390,23 @@ function renderGamesView() {
     return;
   }
 
-  const label    = formatDateLabel(gamesData.date);
+  const label     = formatDateLabel(gamesData.date);
   const eliteHtml = renderBestBetsSection(gamesData.games);
+  const savedBank = localStorage.getItem('mlbedge_bankroll') || '';
+  const savedFrac = parseFloat(localStorage.getItem('mlbedge_kelly_fraction') || '0.5');
+  const fracLabel = _kellyFracLabel(savedFrac);
 
   view.innerHTML = `
     <div class="view-header">
       <h1>Today's Games</h1>
       <span class="sub-label">${label} &nbsp;·&nbsp; ${gamesData.game_count} games</span>
+    </div>
+    <div class="bankroll-row">
+      <span class="bankroll-label">Bankroll</span>
+      <span class="bankroll-prefix">$</span>
+      <input type="number" id="bankroll-input" class="bankroll-input"
+             placeholder="10000" min="0" step="100" value="${savedBank}">
+      <button class="kelly-frac-btn" id="kelly-frac-btn">${fracLabel}</button>
     </div>
     ${eliteHtml}
     <div class="game-list" id="game-list">
@@ -414,6 +424,40 @@ function renderGamesView() {
       const pk   = +card.dataset.pk;
       toggleCard(pk);
     });
+  });
+
+  const bankInput = document.getElementById('bankroll-input');
+  const fracBtn   = document.getElementById('kelly-frac-btn');
+
+  function refreshKellyStrips() {
+    view.querySelectorAll('.game-card').forEach(card => {
+      const pk  = +card.dataset.pk;
+      const g   = gamesData.games.find(x => x.gamePk === pk);
+      if (!g) return;
+      const existing = card.querySelector('.kelly-strip');
+      const html = kellyStripHTML(g);
+      if (existing) {
+        existing.outerHTML = html || '';
+      } else if (html) {
+        const edgeStrip = card.querySelector('.edge-strip');
+        if (edgeStrip) edgeStrip.insertAdjacentHTML('afterend', html);
+      }
+    });
+  }
+
+  bankInput?.addEventListener('input', () => {
+    const val = parseFloat(bankInput.value);
+    if (!isNaN(val) && val >= 0) localStorage.setItem('mlbedge_bankroll', val);
+    else localStorage.removeItem('mlbedge_bankroll');
+    refreshKellyStrips();
+  });
+
+  fracBtn?.addEventListener('click', () => {
+    const cur  = parseFloat(localStorage.getItem('mlbedge_kelly_fraction') || '0.5');
+    const next = cur >= 1.0 ? 0.25 : cur >= 0.5 ? 1.0 : 0.5;
+    localStorage.setItem('mlbedge_kelly_fraction', next);
+    fracBtn.textContent = _kellyFracLabel(next);
+    refreshKellyStrips();
   });
 }
 
@@ -653,6 +697,7 @@ function gameCardHTML(g) {
     </div>
     ${lineupStatusHTML(g)}
     ${vegasEdgeStripHTML(g)}
+    ${kellyStripHTML(g)}
     ${keySignalsHTML(g)}
     ${statusStrip(g)}
   </div>
@@ -858,6 +903,68 @@ function gameEdgeBannerHTML(g) {
   }
 
   return parts.join('');
+}
+
+// ── Kelly criterion stake strip ───────────────────────────────────────────────
+function _kellyFracLabel(frac) {
+  return frac >= 1.0 ? '1K' : frac >= 0.5 ? '½K' : '¼K';
+}
+
+function _underKellyWinProb(total) {
+  if (total <= 8.5)  return 0.565;
+  if (total <= 9.5)  return 0.590;
+  if (total <= 10.5) return 0.535;
+  return 0.515;
+}
+
+function kellyStripHTML(g) {
+  const bankroll = parseFloat(localStorage.getItem('mlbedge_bankroll') || '0');
+  if (!bankroll || bankroll <= 0) return '';
+  const status = g.game_status || 'preview';
+  if (status !== 'preview') return '';
+  const pred = g.prediction || {};
+  const odds = g.odds;
+  const fraction = parseFloat(localStorage.getItem('mlbedge_kelly_fraction') || '0.5');
+  const fracLabel = _kellyFracLabel(fraction);
+  const items = [];
+
+  // ML Kelly: show when |model_edge_ml| >= 0.03 and odds available
+  const mlEdge = pred.model_edge_ml;
+  if (mlEdge != null && Math.abs(mlEdge) >= 0.03 && odds?.home_ml != null && odds?.away_ml != null && pred.home_win_pct != null) {
+    const betHome  = mlEdge > 0;
+    const winProb  = betHome ? pred.home_win_pct : (1 - pred.home_win_pct);
+    const ml       = betHome ? odds.home_ml : odds.away_ml;
+    const decOdds  = americanToDecimal(ml);
+    const b        = decOdds - 1;
+    const fullK    = b > 0 ? (b * winProb - (1 - winProb)) / b : 0;
+    if (fullK > 0) {
+      const stake = Math.round(bankroll * fullK * fraction);
+      if (stake >= 1) {
+        const team = abbrev(betHome ? g.home_team : g.away_team);
+        items.push(`<span class="kelly-label">${fracLabel}</span><span class="kelly-amt">$${stake.toLocaleString()}</span><span class="kelly-on">${team} ML</span>`);
+      }
+    }
+  }
+
+  // UNDER Kelly: show when model leans UNDER by >= 0.5 and under_price available
+  if (pred.predicted_total != null && odds?.total != null && odds?.under_price != null) {
+    const lean = odds.total - pred.predicted_total;
+    if (lean >= 0.5) {
+      const winProb = _underKellyWinProb(odds.total);
+      const decOdds = americanToDecimal(odds.under_price);
+      const b       = decOdds - 1;
+      const fullK   = b > 0 ? (b * winProb - (1 - winProb)) / b : 0;
+      if (fullK > 0) {
+        const stake = Math.round(bankroll * fullK * fraction);
+        if (stake >= 1) {
+          items.push(`<span class="kelly-label kelly-under">${fracLabel}</span><span class="kelly-amt">$${stake.toLocaleString()}</span><span class="kelly-on">UNDER ${odds.total}</span>`);
+        }
+      }
+    }
+  }
+
+  if (!items.length) return '';
+  return `<div class="kelly-strip">${items.map(i => `<span class="kelly-item">${i}</span>`).join('<span class="kelly-sep">·</span>')}</div>`;
 }
 
 // ── Vegas edge strip (collapsed card) — surfaces ML and total model edge ──────

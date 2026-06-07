@@ -68,6 +68,11 @@ _HEADERS = {
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     )
 }
+_FG_API_URL = "https://www.fangraphs.com/api/leaders/major-league/data"
+_FG_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Referer":    "https://www.fangraphs.com/",
+}
 ROLLING_DAYS        = 21   # pitcher rolling window (days)
 ROLLING_DAYS_BATTER = 30   # batter rolling window (days)
 TIMEOUT = 45
@@ -111,16 +116,12 @@ def build_player_cache(games: list[dict], season: int | None = None) -> dict[int
     mlb_platoon_splits = _fetch_mlb_platoon_splits(list(batter_ids), season)
     mlb_pitcher_stats  = _fetch_mlb_pitcher_stats(season)            # K%/BB% fallback when FG unavailable
 
-    # --- ID crosswalk: MLBAM → FanGraphs (only needed when FG data is available) ---
-    crosswalk = _build_crosswalk(all_ids)
-
     # --- Build per-player cache ---
     cache: dict[int, dict] = {}
 
     for mlbam_id in sp_ids:
-        fg_id = crosswalk.get(mlbam_id)
         entry: dict = {"mlbam_id": mlbam_id, "role": "pitcher"}
-        _merge_fg_pitching(entry, fg_pitch, fg_id)               # FG (may be empty due to 403)
+        _merge_fg_pitching(entry, fg_pitch, mlbam_id)            # FG JSON API (direct MLBAM ID)
         _merge_savant_pitcher(entry, sav_pitch, mlbam_id)        # xwOBA against
         _merge_savant_pitcher_leaderboard(entry, sav_pitch_lead, mlbam_id)  # barrel%, EV
         # MLB Stats API K%/BB% — fills gap when FanGraphs returns 403
@@ -143,9 +144,8 @@ def build_player_cache(games: list[dict], season: int | None = None) -> dict[int
                  mlbam_id, entry.get("name", "?"), entry.get("era"), entry.get("xfip"), entry.get("k_pct"))
 
     for mlbam_id in batter_ids:
-        fg_id = crosswalk.get(mlbam_id)
         entry = cache.get(mlbam_id, {"mlbam_id": mlbam_id, "role": "batter"})
-        _merge_fg_batting(entry, fg_bat, fg_id)                  # FG (may be empty due to 403)
+        _merge_fg_batting(entry, fg_bat, mlbam_id)               # FG JSON API (direct MLBAM ID)
         _merge_savant_batter_expected(entry, sav_bat_expected, mlbam_id)  # xwOBA, wOBA, K%
         _merge_savant_batter_batted_ball(entry, sav_bat_batted, mlbam_id)
         _merge_batter_split(entry, sav_bat_vs_lhp, mlbam_id, "vs_lhp")   # no-op (empty DF)
@@ -206,89 +206,97 @@ def build_player_cache(games: list[dict], season: int | None = None) -> dict[int
 
 
 # ---------------------------------------------------------------------------
-# FanGraphs via pybaseball
+# FanGraphs via direct JSON API (new endpoint — no pybaseball crosswalk needed)
+# xMLBAMID field maps directly to MLBAM player IDs.
 # ---------------------------------------------------------------------------
 
-def _fetch_fg_pitching(season: int) -> pd.DataFrame:
+def _fetch_fg_json(season: int, stats: str, pageitems: int = 500) -> dict[int, dict]:
+    """Fetch FanGraphs JSON API. Returns {mlbam_id: {stat_key: value}}."""
+    qual = "1" if stats == "pit" else "50"
+    params = {
+        "age": "", "pos": "all", "stats": stats, "lg": "all",
+        "qual": qual, "season": str(season), "season1": str(season),
+        "startdate": "", "enddate": "", "month": "0",
+        "hand": "", "team": "0", "pageitems": str(pageitems), "pagenum": "1",
+        "ind": "0", "rost": "0", "players": "", "type": "8", "postseason": "",
+    }
+    pitch_cols = {
+        "SwStr%": "swstr_pct", "Zone%": "zone_pct", "F-Strike%": "f_strike_pct",
+        "SIERA": "siera", "GB%": "gb_pct", "xFIP": "xfip",
+        "K-BB%": "k_minus_bb_pct", "HR/9": "hr9",
+        "K%": "k_pct", "BB%": "bb_pct", "ERA": "era", "IP": "ip", "GS": "gs",
+        "Name": None,
+    }
+    bat_cols = {
+        "wRC+": "wrc_plus", "wOBA": "woba", "Contact%": "contact_pct",
+        "O-Swing%": "o_swing_pct_fg", "K%": "k_pct", "BB%": "bb_pct",
+        "Name": None,
+    }
+    col_map = pitch_cols if stats == "pit" else bat_cols
     try:
-        from pybaseball import pitching_stats
-        df = pitching_stats(season, qual=1)
-        log.info("FanGraphs pitching: %d rows", len(df))
-        return df
+        resp = requests.get(_FG_API_URL, params=params, headers=_FG_HEADERS, timeout=TIMEOUT)
+        resp.raise_for_status()
+        rows = resp.json().get("data", [])
     except Exception as exc:
-        log.warning("FanGraphs pitching fetch failed: %s", exc)
-        return pd.DataFrame()
-
-
-def _fetch_fg_batting(season: int) -> pd.DataFrame:
-    try:
-        from pybaseball import batting_stats
-        df = batting_stats(season, qual=1)
-        log.info("FanGraphs batting: %d rows", len(df))
-        return df
-    except Exception as exc:
-        log.warning("FanGraphs batting fetch failed: %s", exc)
-        return pd.DataFrame()
-
-
-def _merge_fg_pitching(entry: dict, df: pd.DataFrame, fg_id) -> None:
-    if df.empty or fg_id is None:
-        return
-    row = df[df["IDfg"] == fg_id]
-    if row.empty:
-        return
-    r = row.iloc[0]
-
-    def g(col, default=None):
+        log.warning("FanGraphs %s fetch failed for %d: %s", stats, season, exc)
+        return {}
+    result: dict[int, dict] = {}
+    for row in rows:
+        mlbam = row.get("xMLBAMID")
+        if not mlbam:
+            continue
         try:
-            v = r.get(col)
-            return float(v) if v is not None and str(v) not in ("", "nan") else default
-        except Exception:
-            return default
+            mlbam = int(mlbam)
+        except (TypeError, ValueError):
+            continue
+        stats_dict: dict = {}
+        if row.get("PlayerName"):
+            stats_dict["name"] = row["PlayerName"]
+        elif row.get("Name"):
+            stats_dict["name"] = row["Name"]
+        for fg_col, cache_key in col_map.items():
+            if cache_key is None:
+                continue
+            v = row.get(fg_col)
+            if v is not None:
+                try:
+                    stats_dict[cache_key] = float(v)
+                except (TypeError, ValueError):
+                    pass
+        if stats_dict:
+            result[mlbam] = stats_dict
+    log.info("FanGraphs %s %d: %d rows fetched", stats, season, len(rows))
+    return result
 
-    entry.update({
-        "name": r.get("Name", entry.get("name", "")),
-        "xfip": g("xFIP"),
-        "siera": g("SIERA"),
-        "k_pct": g("K%"),
-        "bb_pct": g("BB%"),
-        "k_minus_bb_pct": g("K-BB%"),
-        "hr9": g("HR/9"),
-        "stuff_plus": g("Stuff+"),
-        "era": g("ERA"),
-        "ip": g("IP"),
-        "gs": g("GS"),
-        # Plate discipline — used by walk_props
-        "zone_pct": g("Zone%"),
-        "f_strike_pct": g("F-Strike%"),
-        "swstr_pct": g("SwStr%"),
-    })
+
+def _fetch_fg_pitching(season: int) -> dict[int, dict]:
+    return _fetch_fg_json(season, "pit")
 
 
-def _merge_fg_batting(entry: dict, df: pd.DataFrame, fg_id) -> None:
-    if df.empty or fg_id is None:
+def _fetch_fg_batting(season: int) -> dict[int, dict]:
+    return _fetch_fg_json(season, "bat")
+
+
+def _merge_fg_pitching(entry: dict, fg_data: dict[int, dict], mlbam_id: int) -> None:
+    stats = fg_data.get(mlbam_id)
+    if not stats:
         return
-    row = df[df["IDfg"] == fg_id]
-    if row.empty:
+    for key, val in stats.items():
+        if key == "name" and not entry.get("name"):
+            entry["name"] = val
+        elif key != "name" and entry.get(key) is None:
+            entry[key] = val
+
+
+def _merge_fg_batting(entry: dict, fg_data: dict[int, dict], mlbam_id: int) -> None:
+    stats = fg_data.get(mlbam_id)
+    if not stats:
         return
-    r = row.iloc[0]
-
-    def g(col, default=None):
-        try:
-            v = r.get(col)
-            return float(v) if v is not None and str(v) not in ("", "nan") else default
-        except Exception:
-            return default
-
-    entry.update({
-        "name": r.get("Name", entry.get("name", "")),
-        "wrc_plus": g("wRC+"),
-        "woba": g("wOBA"),
-        "k_pct": g("K%"),
-        "bb_pct": g("BB%"),
-        "contact_pct": g("Contact%"),
-        "o_swing_pct_fg": g("O-Swing%"),
-    })
+    for key, val in stats.items():
+        if key == "name" and not entry.get("name"):
+            entry["name"] = val
+        elif key != "name" and entry.get(key) is None:
+            entry[key] = val
 
 
 # ---------------------------------------------------------------------------
