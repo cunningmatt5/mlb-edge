@@ -196,7 +196,8 @@ def build_player_cache(games: list[dict], season: int | None = None) -> dict[int
                 cache[pid]["avg_ip_per_start"] = round(ip / gs, 2)
 
     # --- Team bullpen aggregates (stored under "bullpen:{full_team_name}" keys) ---
-    bullpen_by_team = _build_team_bullpen_cache(season, set(sp_ids))
+    bullpen_by_team = _build_team_bullpen_cache(
+        season, set(sp_ids), fg_pitch_data=fg_pitch, pitch_lead_df=sav_pitch_lead)
     for full_name, bp_stats in bullpen_by_team.items():
         cache[f"bullpen:{full_name}"] = bp_stats
 
@@ -786,32 +787,24 @@ def _merge_batter_split(entry: dict, df: pd.DataFrame, mlbam_id: int, split: str
 # Team bullpen aggregation
 # ---------------------------------------------------------------------------
 
-def _build_team_bullpen_cache(season: int, sp_ids: set[int] | None = None) -> dict[str, dict]:
+def _build_team_bullpen_cache(
+    season: int,
+    sp_ids: set[int] | None = None,
+    fg_pitch_data: dict[int, dict] | None = None,
+    pitch_lead_df: "pd.DataFrame | None" = None,
+) -> dict[str, dict]:
     """Build IP-weighted bullpen xERA/K%/BB%/whiff% per team using roster-based pitcher mapping.
 
-    The old approach (position=RP on Savant leaderboard) returned batted-ball data with no
-    team column and no xERA. This version uses:
-      1. The same working pitcher leaderboard (min=5 to include low-inning relievers)
-      2. MLB Stats API bulk active roster to map team → pitcher IDs
-      3. sp_ids exclusion so today's starters aren't counted as bullpen arms
+    Uses pre-fetched data sources instead of a separate URL fetch:
+      1. pitch_lead_df (Savant pitcher leaderboard, min=10) — xera, k_percent (whole%),
+         bb_percent, whiff_percent, IP
+      2. fg_pitch_data (FanGraphs JSON, min=1 IP) — k_pct/bb_pct/swstr_pct as fractions,
+         siera as xERA proxy
+      3. MLB Stats API active roster — maps team → pitcher MLBAM IDs
+      4. sp_ids exclusion so today's starters aren't counted as bullpen arms
     """
     if sp_ids is None:
         sp_ids = set()
-
-    # Fetch pitcher leaderboard with lower min to capture relievers (min=5 IP)
-    url = (
-        f"{SAVANT_BASE}/leaderboard/statcast"
-        f"?type=pitcher&year={season}&position=&team=&min=5&csv=true"
-    )
-    df = _fetch_savant_csv(url, "pitcher-leaderboard-bp")
-    if df.empty:
-        log.warning("Bullpen: pitcher leaderboard returned empty — skipping")
-        return {}
-
-    id_col = _find_id_col(df)
-    if not id_col:
-        log.warning("Bullpen: no player ID column in pitcher leaderboard")
-        return {}
 
     def _safe_float(v):
         try:
@@ -820,14 +813,55 @@ def _build_team_bullpen_cache(season: int, sp_ids: set[int] | None = None) -> di
         except (TypeError, ValueError):
             return None
 
-    # Build MLBAM-id → row lookup for fast per-pitcher access
-    leaderboard: dict[int, pd.Series] = {}
-    for _, row in df.iterrows():
-        try:
-            pid = int(row[id_col])
-            leaderboard[pid] = row
-        except (ValueError, TypeError):
-            pass
+    # Build per-pitcher stat dict (Savant-scale: k_percent etc. as whole numbers 0-100).
+    # Savant leaderboard is primary; FanGraphs is fallback for pitchers below min=10.
+    pitcher_stats: dict[int, dict] = {}
+
+    if pitch_lead_df is not None and not pitch_lead_df.empty:
+        id_col = _find_id_col(pitch_lead_df)
+        if id_col:
+            for _, row in pitch_lead_df.iterrows():
+                try:
+                    pid = int(row[id_col])
+                except (ValueError, TypeError):
+                    continue
+                stats: dict = {}
+                for col in ("xera", "k_percent", "bb_percent", "whiff_percent",
+                            "p_formatted_ip", "ip", "innings_pitched"):
+                    v = row.get(col)
+                    if v is not None and str(v) not in ("", "nan"):
+                        try:
+                            stats[col] = float(v)
+                        except (ValueError, TypeError):
+                            pass
+                if stats:
+                    pitcher_stats[pid] = stats
+
+    # FanGraphs fallback — fractions × 100 → whole-number scale for uniform accumulation
+    if fg_pitch_data:
+        for mlbam_id, fg in fg_pitch_data.items():
+            stats = pitcher_stats.setdefault(mlbam_id, {})
+            for fg_key, sav_col, scale in [
+                ("k_pct",     "k_percent",     100.0),
+                ("bb_pct",    "bb_percent",    100.0),
+                ("swstr_pct", "whiff_percent", 100.0),
+                ("ip",        "ip",              1.0),
+            ]:
+                if stats.get(sav_col) is None and fg.get(fg_key) is not None:
+                    try:
+                        stats[sav_col] = float(fg[fg_key]) * scale
+                    except (ValueError, TypeError):
+                        pass
+            # Use SIERA as xERA proxy when Savant xera is missing
+            if stats.get("xera") is None and fg.get("siera") is not None:
+                try:
+                    stats["xera"] = float(fg["siera"])
+                except (ValueError, TypeError):
+                    pass
+
+    if not pitcher_stats:
+        log.warning("Bullpen: no pitcher stats available (pass pitch_lead_df or fg_pitch_data)")
+        return {}
 
     rosters = _fetch_all_active_rosters(season)
     if not rosters:
@@ -836,20 +870,16 @@ def _build_team_bullpen_cache(season: int, sp_ids: set[int] | None = None) -> di
 
     result: dict[str, dict] = {}
     for full_name, pitcher_ids in rosters.items():
-        # Exclude today's starting pitchers and pitchers with no leaderboard data
-        rp_rows = [
-            (pid, leaderboard[pid])
-            for pid in pitcher_ids
-            if pid not in sp_ids and pid in leaderboard
-        ]
-        if not rp_rows:
+        rp_ids = [pid for pid in pitcher_ids if pid not in sp_ids and pid in pitcher_stats]
+        if not rp_ids:
             continue
 
         total_ip = 0.0
         w_sum = {"xera": 0.0, "k_percent": 0.0, "bb_percent": 0.0, "whiff_percent": 0.0}
         ip_sum = {"xera": 0.0, "k_percent": 0.0, "bb_percent": 0.0, "whiff_percent": 0.0}
 
-        for _, row in rp_rows:
+        for pid in rp_ids:
+            row = pitcher_stats[pid]
             ip_raw = (
                 _safe_float(row.get("p_formatted_ip"))
                 or _safe_float(row.get("ip"))
@@ -873,11 +903,11 @@ def _build_team_bullpen_cache(season: int, sp_ids: set[int] | None = None) -> di
 
         result[full_name] = {
             "xera":       _wavg("xera"),
-            "k_pct":      _wavg("k_percent",     divisor=100.0),
-            "bb_pct":     _wavg("bb_percent",     divisor=100.0),
-            "whiff_pct":  _wavg("whiff_percent",  divisor=100.0),
+            "k_pct":      _wavg("k_percent",    divisor=100.0),
+            "bb_pct":     _wavg("bb_percent",   divisor=100.0),
+            "whiff_pct":  _wavg("whiff_percent", divisor=100.0),
             "ip":         round(total_ip, 1),
-            "n_pitchers": len(rp_rows),
+            "n_pitchers": len(rp_ids),
         }
 
     log.info("Bullpen cache: %d teams (IP-weighted xERA/K%%/BB%%)", len(result))

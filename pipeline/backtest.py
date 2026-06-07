@@ -130,7 +130,12 @@ def load_historical_pitcher_cache(sp_ids: set[int], season: int) -> dict[int, di
         log.info("Loading prior-season cache: %s (for %d games)", cache_path, season)
         with open(cache_path, "rb") as f:
             full_cache: dict = pickle.load(f)
-        return {pid: full_cache.get(pid, {}) for pid in sp_ids}
+        result: dict = {pid: full_cache.get(pid, {}) for pid in sp_ids}
+        # Also carry through bullpen team entries so score_game can use them
+        for key in full_cache:
+            if isinstance(key, str) and key.startswith("bullpen:"):
+                result[key] = full_cache[key]
+        return result
     log.warning(
         "Prior-season cache for %d not found at %s — "
         "falling back to current-season Savant (introduces lookahead bias)",
@@ -230,8 +235,11 @@ def score_game(
     home_sp = pitcher_cache.get(game["home_sp_id"], {})
     away_sp = pitcher_cache.get(game["away_sp_id"], {})
 
-    home_pitcher_score = _pitcher_score(home_sp)
-    away_pitcher_score = _pitcher_score(away_sp)
+    home_bullpen = pitcher_cache.get(f"bullpen:{game.get('home_team', '')}")
+    away_bullpen = pitcher_cache.get(f"bullpen:{game.get('away_team', '')}")
+
+    home_pitcher_score = _pitcher_score(home_sp, home_bullpen)
+    away_pitcher_score = _pitcher_score(away_sp, away_bullpen)
 
     # Use neutral lineup score (0.5) — no historical lineup data in V1
     home_lineup_score = 0.5

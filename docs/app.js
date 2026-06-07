@@ -2506,7 +2506,7 @@ function renderBacktestView() {
         </div>
       </div>
     </div>
-    <div class="bt-signal-note">${tsbYrNote} Signal scored using pitcher quality (xFIP/SIERA/barrel%) + park factor + lineup xwOBA where available. Weather and bullpen modifiers not applied historically.</div>` : '';
+    <div class="bt-signal-note">${tsbYrNote} Signal scored using pitcher quality (xFIP/SIERA/barrel%) + park factor + lineup xwOBA where available. Weather modifiers not applied historically. Bullpen xERA/K%/BB% applied from 2022 onward via prior-season caches.</div>` : '';
 
   const totalsSection = `
     <div class="bt-sec-head">
