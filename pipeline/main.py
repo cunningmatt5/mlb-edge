@@ -119,6 +119,23 @@ def main(dry_run: bool = False) -> None:
                 game["line_movement"] = movement
                 game_obj.setdefault("odds", {})["line_movement"] = movement
 
+        # Attach validated edge conditions (multi-season backtest findings)
+        try:
+            from pipeline.analytics.edge_detector import detect_edges
+            _closing_total    = (game_obj.get("odds") or {}).get("total")
+            _predicted_total  = (game_obj.get("prediction") or {}).get("predicted_total")
+            game_obj["edge_conditions"] = detect_edges(_closing_total, _predicted_total)
+        except Exception:
+            game_obj["edge_conditions"] = []
+
+        # Monte Carlo simulation — Statcast-pure win probability + run totals.
+        # Runs independently of the Vegas-anchored primary model; divergence is signal.
+        try:
+            from pipeline.analytics.monte_carlo import simulate_game
+            game_obj["mc_simulation"] = simulate_game(game_obj, n=5000)
+        except Exception:
+            game_obj["mc_simulation"] = None
+
         game_objects.append(game_obj)
 
         pred = game_obj["prediction"]
@@ -211,6 +228,19 @@ def main(dry_run: bool = False) -> None:
                 all_picks += score_game_total(game_p, cache)
                 all_picks += score_f5_totals(game_p, cache)
                 all_picks += score_moneyline_f5(game_p, cache)
+
+                # Apply edge-condition signal boosts to TOTAL UNDER picks
+                _game_obj = next((g for g in game_objects if g.get("gamePk") == game.get("gamePk")), None)
+                _edge_conds = (_game_obj or {}).get("edge_conditions", [])
+                if _edge_conds:
+                    from pipeline.analytics.edge_detector import detect_edges
+                    for pick in all_picks:
+                        if pick.get("bet_type") == "TOTAL" and pick.get("direction") == "UNDER":
+                            matching = [e for e in _edge_conds if e["direction"] == "UNDER"]
+                            if matching:
+                                boost = max(e["signal_boost"] for e in matching)
+                                pick["signal"] = round(min(10.0, pick["signal"] + boost), 1)
+                                pick["edge_tags"] = [e["tag"] for e in matching]
 
                 # Flag lineup-dependent picks when lineup came from proxy/TBD history
                 if game.get("lineup_status", "official") in ("proxy", "tbd"):

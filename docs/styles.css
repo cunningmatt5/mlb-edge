@@ -971,6 +971,19 @@ header {
 .score-est strong { color: var(--text); font-size: 16px; }
 .score-dash { color: var(--text-dim); }
 .total-label { font-size: 12px; color: var(--text-dim); margin-left: 4px; }
+.mc-total-lbl { font-size: 11px; color: var(--text-dim); }
+.mc-total-hi  { color: var(--amber); }  /* MC total differs from model by ≥1.5 runs */
+
+.mc-diverge {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 4px 12px;
+  background: rgba(217,119,6,.06);
+  border-top: 1px solid rgba(217,119,6,.14);
+  line-height: 1.4;
+}
+.mc-div-split { background: rgba(239,68,68,.05); border-top-color: rgba(239,68,68,.14); }
+.mc-div-gap   { font-weight: 700; color: var(--amber); margin-left: 3px; }
 
 .narrative {
   font-size: 13px;
@@ -3563,4 +3576,356 @@ header {
 .parlay-sgp-game-btn.active .parlay-sgp-pick-count {
   background: rgba(34,197,94,.18);
   color: var(--green-light);
+}
+
+/* ── Backtest: Validated Edges section ──────────────────────────────────── */
+.bt-edges-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 0 0 14px;
+}
+@media (max-width: 700px) {
+  .bt-edges-grid { grid-template-columns: 1fr; }
+}
+.bt-edge-card {
+  background: rgba(34,197,94,.04);
+  border: 1px solid rgba(34,197,94,.18);
+  border-radius: 10px;
+  padding: 14px 14px 10px;
+}
+.bt-edge-card-dim {
+  opacity: .55;
+}
+.bt-edge-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.bt-edge-band {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+}
+.bt-edge-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 10px;
+}
+.bt-edge-dead-zone {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: rgba(239,68,68,.06);
+  border: 1px solid rgba(239,68,68,.18);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  line-height: 1.6;
+}
+.bt-edge-takeaway {
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: rgba(34,197,94,.06);
+  border: 1px solid rgba(34,197,94,.18);
+  border-radius: 8px;
+  padding: 10px 14px;
+  line-height: 1.6;
+}
+
+/* ── Edge Condition Badge (game cards) ───────────────────────────────────── */
+.edge-cond-strip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 16px;
+  border-top: 1px solid rgba(34,197,94,.18);
+  background: rgba(34,197,94,.04);
+  flex-wrap: wrap;
+}
+.edge-cond-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+.edge-cond-badge.strong {
+  background: rgba(34,197,94,.14);
+  color: #6ee7b7;
+  border: 1px solid rgba(34,197,94,.28);
+}
+.edge-cond-badge.medium {
+  background: rgba(251,191,36,.10);
+  color: #fcd34d;
+  border: 1px solid rgba(251,191,36,.22);
+}
+.edge-cond-badge.new {
+  background: rgba(167,139,250,.12);
+  color: #c4b5fd;
+  border: 1px solid rgba(167,139,250,.24);
+}
+
+/* ── Edge Finder Tab ─────────────────────────────────────────────────────── */
+.ef-explainer {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 8px 16px 14px;
+  line-height: 1.6;
+}
+.ef-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 12px 24px;
+}
+.ef-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.ef-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 8px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
+.ef-matchup {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 140px;
+}
+.ef-total {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.ef-conf-badge {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.ef-conf-high   { background: rgba(34,197,94,.14);  color: #6ee7b7; border: 1px solid rgba(34,197,94,.28); }
+.ef-conf-medium { background: rgba(251,191,36,.10); color: #fcd34d; border: 1px solid rgba(251,191,36,.22); }
+.ef-conf-new    { background: rgba(167,139,250,.12);color: #c4b5fd; border: 1px solid rgba(167,139,250,.24); }
+.ef-cond-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.ef-cond-row:last-child { border-bottom: none; }
+.ef-cond-label  { font-weight: 600; color: var(--text-primary); }
+.ef-cond-roi    { font-weight: 700; color: #6ee7b7; white-space: nowrap; }
+.ef-cond-n      { color: var(--text-muted); white-space: nowrap; }
+.ef-cond-seasons {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding-top: 2px;
+}
+.ef-cond-row.ef-conf-high   { background: rgba(34,197,94,.03); }
+.ef-cond-row.ef-conf-medium { background: rgba(251,191,36,.03); }
+.ef-cond-row.ef-conf-new    { background: rgba(167,139,250,.03); }
+
+/* ── Backtest redesign — context bar, KPI row, section headers ───────────── */
+.bt-context-bar {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding-bottom: 16px;
+  margin-bottom: 4px;
+  letter-spacing: .01em;
+}
+.bt-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 4px;
+}
+@media (max-width: 700px) {
+  .bt-kpi-row { grid-template-columns: 1fr 1fr; }
+}
+.bt-kpi-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px 12px;
+}
+.bt-kpi-val {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--text);
+  margin-bottom: 5px;
+}
+.bt-kpi-val.kpi-green { color: var(--green-light); }
+.bt-kpi-val.kpi-red   { color: var(--red-light); }
+.bt-kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 2px;
+}
+.bt-kpi-sub {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.bt-sec-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 22px 0 10px;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+.bt-sec-head-log { margin-top: 0; }
+.bt-sec-num {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: .1em;
+  flex-shrink: 0;
+  min-width: 22px;
+}
+.bt-sec-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.bt-sec-sub {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: auto;
+  text-align: right;
+  flex-shrink: 0;
+}
+@media (max-width: 700px) { .bt-sec-sub { display: none; } }
+
+.bt-sec-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.65;
+  margin: 0 0 12px;
+}
+
+.bt-ml-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 4px;
+}
+@media (max-width: 700px) { .bt-ml-grid { grid-template-columns: 1fr; } }
+
+/* ── Backtest redesign — edge card v2 ────────────────────────────────────── */
+.bt-edge-card2 {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  background: rgba(34,211,153,.03);
+  border: 1px solid rgba(34,211,153,.16);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.bt-ec2-watch {
+  background: rgba(251,191,36,.02);
+  border-color: rgba(251,191,36,.18);
+}
+.bt-ec2-stat-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 10px;
+  gap: 4px;
+  background: rgba(34,211,153,.06);
+  border-right: 1px solid rgba(34,211,153,.14);
+  text-align: center;
+}
+.ec2-watch-col {
+  background: rgba(251,191,36,.06);
+  border-right-color: rgba(251,191,36,.14);
+}
+.bt-ec2-roi-num {
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+.ecr-green { color: var(--green-light); }
+.ecr-gold  { color: var(--gold); }
+.ecr-red   { color: var(--red-light); }
+.bt-ec2-roi-lbl {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--text-dim);
+  margin-top: 1px;
+}
+.bt-ec2-n-stat {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 6px;
+  margin-bottom: 6px;
+}
+.bt-ec2-body {
+  padding: 14px 14px 12px;
+}
+.bt-ec2-band-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 6px;
+  letter-spacing: -.2px;
+}
+.bt-ec2-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 10px;
+}
+@media (max-width: 700px) {
+  .bt-edge-card2 { grid-template-columns: 90px 1fr; }
+  .bt-ec2-roi-num { font-size: 22px; }
+}
+
+.bt-edge-footer-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+@media (max-width: 700px) { .bt-edge-footer-row { grid-template-columns: 1fr; } }
+.bt-edge-dead2 {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: rgba(239,68,68,.05);
+  border: 1px solid rgba(239,68,68,.16);
+  border-radius: 8px;
+  padding: 10px 14px;
+  line-height: 1.6;
+}
+.bt-edge-takeaway2 {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: rgba(34,197,94,.05);
+  border: 1px solid rgba(34,197,94,.16);
+  border-radius: 8px;
+  padding: 10px 14px;
+  line-height: 1.6;
 }

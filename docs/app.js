@@ -68,6 +68,7 @@ function setupNav() {
       document.getElementById('pitcher-view').hidden  = currentView !== 'pitcher';
       document.getElementById('simulate-view').hidden = currentView !== 'simulate';
       document.getElementById('support-view').hidden  = currentView !== 'support';
+      document.getElementById('edges-view').hidden    = currentView !== 'edges';
       if (currentView === 'record')   Promise.all([loadBacktest(), loadPropsHistory()]).then(renderRecordView);
       if (currentView === 'backtest') Promise.all([loadBacktest(), loadPropsHistory()]).then(renderBacktestView);
       if (currentView === 'pitcher')  Promise.all([loadPitcherData(), loadGames()]).then(renderPitcherView);
@@ -75,6 +76,7 @@ function setupNav() {
       if (currentView === 'parlay')   loadPicks().then(renderParlayView);
       if (currentView === 'simulate') loadGames().then(renderSimulateView);
       if (currentView === 'support')  renderSupportView();
+      if (currentView === 'edges')    loadGames().then(renderEdgesView);
     });
   });
 }
@@ -640,6 +642,7 @@ function gameCardHTML(g) {
     </div>
     ${lineupStatusHTML(g)}
     ${vegasEdgeStripHTML(g)}
+    ${edgeConditionsHTML(g)}
     ${keySignalsHTML(g)}
     ${statusStrip(g)}
   </div>
@@ -816,6 +819,24 @@ function vegasEdgeStripHTML(g) {
 
   if (!pills.length) return '';
   return `<div class="edge-strip">${pills.join('')}</div>`;
+}
+
+// ── Edge condition badge (game card) ──────────────────────────────────────────
+function edgeConditionsHTML(g) {
+  const conds = g.edge_conditions;
+  if (!conds || !conds.length) return '';
+  const status = g.game_status || 'preview';
+  if (status !== 'preview') return '';
+
+  const CONF_ICON = { high: '⚡', medium: '~', new: '★' };
+  const badges = conds.map(e => {
+    const icon = CONF_ICON[e.confidence] || '⚡';
+    const roiStr = `+${e.roi_pct.toFixed(1)}% ROI`;
+    const cls = e.confidence === 'high' ? 'edge-cond-badge strong' : e.confidence === 'new' ? 'edge-cond-badge new' : 'edge-cond-badge medium';
+    return `<span class="${cls}" title="${e.seasons}">${icon} ${e.label} · ${roiStr}</span>`;
+  }).join('');
+
+  return `<div class="edge-cond-strip">${badges}</div>`;
 }
 
 // ── Lineup status (collapsed card) — batter highlights moved to expanded lineup section ──
@@ -1064,8 +1085,31 @@ function predictionHTML(g) {
     <span>${g.away_team} <strong>${pred.predicted_away_runs}</strong></span>
     <span class="score-dash">–</span>
     <span><strong>${pred.predicted_home_runs}</strong> ${g.home_team}</span>
-    <span class="total-label">Total: ${pred.predicted_total}</span>
+    ${(() => {
+      const mc = g.mc_simulation;
+      const modelTotal = pred.predicted_total;
+      if (mc && mc.mc_total != null && modelTotal != null) {
+        const diff = Math.abs(mc.mc_total - modelTotal);
+        const diffCls = diff >= 1.5 ? 'mc-total-hi' : 'mc-total-lo';
+        return `<span class="total-label">Model <strong>${modelTotal}</strong> · <span class="mc-total-lbl ${diffCls}">Sim ${mc.mc_total}</span></span>`;
+      }
+      return `<span class="total-label">Total: ${modelTotal}</span>`;
+    })()}
   </div>` : ''}
+
+  ${(() => {
+    const mc = g.mc_simulation;
+    const status = g.game_status || 'preview';
+    if (!mc || status !== 'preview') return '';
+    const modelHome = pred.home_win_pct;
+    if (modelHome == null || mc.mc_win_pct == null) return '';
+    const gapPp = Math.round(Math.abs(mc.mc_win_pct - modelHome) * 100);
+    if (gapPp < 8) return '';
+    const mcFavors = mc.mc_win_pct >= 0.5 ? g.home_team : g.away_team;
+    const modelFavors = modelHome >= 0.5 ? g.home_team : g.away_team;
+    const agree = mcFavors === modelFavors;
+    return `<div class="mc-diverge ${agree ? 'mc-div-agree' : 'mc-div-split'}" title="Simulation uses Statcast only — gap often reflects market info (injuries, sharp money) the model can't see">⚡ Sim ${Math.round(mc.mc_win_pct * 100)}% home vs model ${Math.round(modelHome * 100)}% <span class="mc-div-gap">${gapPp}pp gap</span></div>`;
+  })()}
 
   ${vsVegasHTML(g)}
 
@@ -1939,6 +1983,7 @@ function renderBacktestView() {
   const pct      = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
   const roiCls   = v => v == null ? '' : v >= 0 ? 'roi-pos' : 'roi-neg';
   const segCls   = v => v == null ? '' : v >= 0 ? 'seg-pos' : 'seg-neg';
+  const roiColor = v => v == null ? '' : v >= 5 ? 'bt-val-green' : v >= 0 ? 'bt-val-pos' : 'bt-val-neg';
 
   // ── Compute away tier × pitcher advantage from games array ────────────────
   const awayTierDefs = [
@@ -2053,49 +2098,43 @@ function renderBacktestView() {
     }
   }
 
-  // ── SECTION 1: Intro callout ─────────────────────────────────────────────
+  // ── Hero KPIs ─────────────────────────────────────────────────────────────
   const totalGames = games.length;
-  const introSection = `
-    <div class="bt-intro">
-      Every prediction logged here — <strong>${totalGames.toLocaleString()} games since 2021</strong> — was scored using
-      the same model and checked against actual results. <strong>ROI</strong> is profit per $1 flat-bet
-      (e.g., +23% means a $100 bankroll grew to $123). <strong>Win Rate</strong> is how often the
-      predicted winner was correct. All odds are Pinnacle closing lines — the sharpest market available.
+  const roi = roi_stats || {};
+  const roiValCls = v => v == null ? '' : v > 0 ? 'kpi-green' : v < 0 ? 'kpi-red' : '';
+
+  const heroSection = `
+    <div class="bt-context-bar">${totalGames.toLocaleString()} games logged since 2021 &nbsp;·&nbsp; ROI = profit per $1 flat bet &nbsp;·&nbsp; Pinnacle closing lines</div>
+    <div class="bt-kpi-row">
+      <div class="bt-kpi-card">
+        <div class="bt-kpi-val ${roiValCls(roi.ml_roi_pct)}">${fmtRoi(roi.ml_roi_pct)}</div>
+        <div class="bt-kpi-label">2026 ML ROI</div>
+        <div class="bt-kpi-sub">${fmtUnits(roi.ml_units_won)} units · ${roi.ml_bets ?? 0} bets</div>
+      </div>
+      <div class="bt-kpi-card">
+        <div class="bt-kpi-val ${roiValCls(roi.total_roi_pct)}">${fmtRoi(roi.total_roi_pct)}</div>
+        <div class="bt-kpi-label">2026 Totals ROI</div>
+        <div class="bt-kpi-sub">${fmtUnits(roi.total_units_won)} units · ${roi.total_bets ?? 0} bets</div>
+      </div>
+      <div class="bt-kpi-card">
+        <div class="bt-kpi-val">${pct(stats.win_pct_overall)}</div>
+        <div class="bt-kpi-label">Prediction Accuracy</div>
+        <div class="bt-kpi-sub">${(stats.total_correct ?? 0).toLocaleString()} / ${(stats.total_decided ?? 0).toLocaleString()} games</div>
+      </div>
+      <div class="bt-kpi-card">
+        <div class="bt-kpi-val">${totalGames.toLocaleString()}</div>
+        <div class="bt-kpi-label">Games Tracked</div>
+        <div class="bt-kpi-sub">2021–2026 · all seasons</div>
+      </div>
     </div>`;
 
-  // ── SECTION 2: 2026 Live Performance ─────────────────────────────────────
-  const roi = roi_stats || {};
-  let liveSection = '';
-  if (roi.ml_bets > 0 || roi.total_bets > 0) {
-    liveSection = `
-      <div class="bt-narrative-header">
-        <div class="bt-narrative-title">2026 Live Performance</div>
-        <div class="bt-narrative-sub">Current season · flat $1 bet on model's pick · vs. Pinnacle closing lines</div>
-      </div>
-      <div class="bt-live-grid">
-        <div class="bt-live-card">
-          <div class="bt-live-val ${roiCls(roi.ml_roi_pct)}">${fmtRoi(roi.ml_roi_pct)}</div>
-          <div class="bt-live-label">Moneyline ROI</div>
-          <div class="bt-live-sub">${fmtUnits(roi.ml_units_won)} units · ${roi.ml_bets ?? 0} bets</div>
-        </div>
-        <div class="bt-live-card">
-          <div class="bt-live-val ${roiCls(roi.total_roi_pct)}">${fmtRoi(roi.total_roi_pct)}</div>
-          <div class="bt-live-label">Totals ROI</div>
-          <div class="bt-live-sub">${fmtUnits(roi.total_units_won)} units · ${roi.total_bets ?? 0} bets</div>
-        </div>
-        <div class="bt-live-card">
-          <div class="bt-live-val">${pct(stats.win_pct_overall)}</div>
-          <div class="bt-live-label">Prediction Win Rate</div>
-          <div class="bt-live-sub">${(stats.total_correct ?? 0).toLocaleString()} / ${(stats.total_decided ?? 0).toLocaleString()} games</div>
-        </div>
-      </div>`;
-  }
+  // liveSection replaced by heroSection above
 
-  // ── SECTION 3: The Away Advantage ────────────────────────────────────────
+  // ── Section 02: Moneyline Analysis ────────────────────────────────────────
   const awayTierRows = awayTierDefs.map((def, i) => {
     const sp    = fmtCell(awayTierData[i].sp);
     const no_sp = fmtCell(awayTierData[i].no_sp);
-    const isElite = i === 3; // Very Strong tier
+    const isElite = i === 3;
     return `<tr class="${isElite ? 'bt-away-elite-row' : ''}">
       <td class="bt-away-tier-label">
         ${def.label}
@@ -2116,61 +2155,46 @@ function renderBacktestView() {
     </tr>`;
   }).join('');
 
-  const awaySection = `
-    <div class="bt-narrative-header">
-      <div class="bt-narrative-title">The Away Advantage</div>
-      <div class="bt-narrative-sub">Where the model consistently finds value — 2021–2025 · ${totalGames.toLocaleString()} games</div>
+  const moneylineSection = `
+    <div class="bt-sec-head">
+      <span class="bt-sec-num">02</span>
+      <span class="bt-sec-title">Moneyline Analysis</span>
+      <span class="bt-sec-sub">Away edge vs. home favorite trap · 2021–2025</span>
     </div>
-    <p class="bt-section-intro">
-      The model compares its win probability estimate to what Vegas is pricing. When it strongly favors the
-      away team — and the away starting pitcher has better stats — the edge has been real and repeatable
-      across five seasons.
-    </p>
-    <div class="bt-away-grid-wrap">
-      <table class="bt-away-grid">
-        <thead>
-          <tr>
-            <th class="bt-away-tier-col">Model's Away Edge vs. Vegas</th>
-            <th class="bt-away-sp-col bt-col-sp">Away Pitcher Stronger</th>
-            <th class="bt-away-sp-col">Home Pitcher Stronger or Even</th>
-          </tr>
-        </thead>
-        <tbody>${awayTierRows}</tbody>
-      </table>
-    </div>
-    <div class="bt-signal-note">
-      <strong>Why does a 40% win rate beat a 73% win rate?</strong> The 10%+ / pitcher advantage picks
-      are on <em>underdogs</em> — priced around +170 or better. Winning 40% at those odds is very
-      profitable. The 73% column bets heavy favorites where you need ~75% just to break even — the
-      house edge erases the accuracy advantage.
-    </div>`;
-
-  // ── SECTION 3b: Home Favorite Trap ───────────────────────────────────────
-  const homeSection = `
-    <hr class="bt-rule">
-    <div class="bt-narrative-header">
-      <div class="bt-narrative-title">The Home Favorite Trap</div>
-      <div class="bt-narrative-sub">Why the model now dampens its home confidence — 2021–2025</div>
-    </div>
-    <p class="bt-section-intro">
-      When the model strongly favors the home team and Vegas already agrees, the combined
-      signal becomes over-confident. The model's home coefficient was cut from 1.0× to 0.4×
-      after this data showed that consensus home picks are consistently unprofitable.
-    </p>
-    <div class="bt-away-grid-wrap">
-      <table class="bt-away-grid">
-        <thead>
-          <tr>
-            <th class="bt-away-tier-col">Model's Home Edge vs. Vegas</th>
-            <th>Bets</th><th>Win Rate</th><th>ROI</th>
-          </tr>
-        </thead>
-        <tbody>${homeTierRows}</tbody>
-      </table>
-    </div>
-    <div class="bt-signal-note">
-      The 10%+ tier had a <strong>-9.4% ROI</strong> across five seasons — worse than random.
-      Dampening this signal lets the model trust Vegas pricing instead of doubling down on it.
+    <div class="bt-ml-grid">
+      <div>
+        <div class="bt-subsection-title">Away Advantage · Edge × Pitcher Quality</div>
+        <p class="bt-sec-desc">When the model strongly favors the away team and the away starter has better metrics, the combination has produced the highest ROI in the database — on underdogs priced around +170.</p>
+        <div class="bt-away-grid-wrap">
+          <table class="bt-away-grid">
+            <thead><tr>
+              <th class="bt-away-tier-col">Model Away Edge vs. Vegas</th>
+              <th class="bt-away-sp-col bt-col-sp">Away SP Better</th>
+              <th class="bt-away-sp-col">Home SP Better / Even</th>
+            </tr></thead>
+            <tbody>${awayTierRows}</tbody>
+          </table>
+        </div>
+        <div class="bt-signal-note">
+          <strong>Why does 40% win rate beat 73%?</strong> The 10%+ / pitcher advantage picks are on underdogs (~+170). Winning 40% at those odds is very profitable. The 73% column bets heavy favorites — you need ~75% just to break even.
+        </div>
+      </div>
+      <div>
+        <div class="bt-subsection-title">Home Favorite Trap</div>
+        <p class="bt-sec-desc">When the model and Vegas both strongly favor the home team, the combined signal becomes over-confident. The home coefficient was cut from 1.0× to 0.4× after this data.</p>
+        <div class="bt-away-grid-wrap">
+          <table class="bt-away-grid">
+            <thead><tr>
+              <th class="bt-away-tier-col">Model Home Edge vs. Vegas</th>
+              <th>Bets</th><th>Win%</th><th>ROI</th>
+            </tr></thead>
+            <tbody>${homeTierRows}</tbody>
+          </table>
+        </div>
+        <div class="bt-signal-note">
+          The 10%+ tier had <strong>-9.4% ROI</strong> across five seasons. Dampening this signal lets the model trust Vegas pricing rather than amplifying it.
+        </div>
+      </div>
     </div>`;
 
   // ── SECTION 4: Model Calibration ─────────────────────────────────────────
@@ -2202,28 +2226,27 @@ function renderBacktestView() {
   }).join('');
 
   const calibrationSection = `
-    <hr class="bt-rule">
-    <div class="bt-narrative-header">
-      <div class="bt-narrative-title">Model Accuracy</div>
-      <div class="bt-narrative-sub">How often the model picks the correct winner — by confidence level and by season</div>
+    <div class="bt-sec-head">
+      <span class="bt-sec-num">03</span>
+      <span class="bt-sec-title">Model Accuracy</span>
+      <span class="bt-sec-sub">Win rate by confidence level and by season</span>
     </div>
-    <p class="bt-section-intro">
+    <p class="bt-sec-desc">
       Higher model confidence correlates directly with better accuracy. At 65%+, the model has been right
-      nearly 4 out of 5 times — but these high-confidence picks are rare by design (the model only expresses
-      that level of certainty when pitcher stats are very lopsided).
+      nearly 4 out of 5 times — but these picks are rare by design (only when pitcher stats are very lopsided).
     </p>
     <div class="bt-two-col">
       <div>
         <div class="bt-subsection-title">By Confidence Level</div>
         <div class="bt-table-wrap">
           <table class="seg-table">
-            <thead><tr><th>Model Says</th><th>Games</th><th>Actual Win%</th><th>vs. Coin Flip</th></tr></thead>
+            <thead><tr><th>Model Confidence</th><th>Games</th><th>Actual Win%</th><th>vs. Coin Flip</th></tr></thead>
             <tbody>${confRows}</tbody>
           </table>
         </div>
       </div>
       <div>
-        <div class="bt-subsection-title">Year-over-Year Consistency</div>
+        <div class="bt-subsection-title">Year-over-Year</div>
         <div class="bt-table-wrap">
           <table class="seg-table">
             <thead><tr><th>Season</th><th>Games</th><th>Win Rate</th></tr></thead>
@@ -2300,16 +2323,16 @@ function renderBacktestView() {
     </div>
     <div class="bt-signal-note">${tsbYrNote} Signal scored using pitcher quality (xFIP/SIERA/barrel%) + park factor + lineup xwOBA where available. Weather and bullpen modifiers not applied historically.</div>` : '';
 
-  const totalsSection = (totalsYrRows || tsbDirRows) ? `
-    <hr class="bt-rule">
-    <div class="bt-narrative-header">
-      <div class="bt-narrative-title">Totals: The UNDER Edge</div>
-      <div class="bt-narrative-sub">Run total predictions vs. Vegas line · historical seasons only</div>
+  const totalsSection = `
+    <div class="bt-sec-head">
+      <span class="bt-sec-num">04</span>
+      <span class="bt-sec-title">Totals Performance</span>
+      <span class="bt-sec-sub">OVER/UNDER prediction accuracy · historical seasons</span>
     </div>
-    <p class="bt-section-intro">
-      MLB totals tend to be set slightly high — the market knows casual bettors prefer overs.
-      Our model has consistently predicted fewer runs than the Vegas line, and that lean has been
-      correct 52–53% of the time every single season. UNDER bets generate small but steady returns.
+    <p class="bt-sec-desc">
+      The model consistently predicts fewer runs than the Vegas line — a lean that has been correct 52–53%
+      of the time every season. Combined with the edge-band findings above, UNDER bets generate the
+      steadiest returns in the database.
     </p>
     ${totalsYrRows ? `<div class="bt-table-wrap">
       <table class="seg-table">
@@ -2317,19 +2340,143 @@ function renderBacktestView() {
         <tbody>${totalsYrRows}</tbody>
       </table>
     </div>` : ''}
-    ${signalRoiBlock}` : '';
+    ${signalRoiBlock}`;
 
-  // ── SECTION 6: Props ─────────────────────────────────────────────────────
+  // ── SECTION 6: Validated Edges ───────────────────────────────────────────
+  // Compute edge-band UNDER ROI from backtest games (same methodology as edge_research.py)
+  function computeUnderBandRoi(lo, hi, allGames) {
+    const bySeason = {};
+    let totalUnits = 0, totalBets = 0, totalWins = 0;
+    for (const g of allGames) {
+      const ct = g.closing_total;
+      const over = g.total_went_over;
+      const uPrice = g.under_price;
+      if (ct == null || over == null || uPrice == null) continue;
+      if (ct < lo || ct >= hi) continue;
+      const yr = g.season || parseInt(g.date);
+      if (!yr || yr < 2022) continue;
+      if (!bySeason[yr]) bySeason[yr] = { bets: 0, wins: 0, units: 0 };
+      const s = bySeason[yr];
+      const won = !over; // betting UNDER wins when total does NOT go over
+      const dec = uPrice >= 0 ? 1 + uPrice / 100 : 1 - 100 / uPrice;
+      s.bets++; totalBets++;
+      if (won) { s.wins++; totalWins++; s.units += dec - 1; totalUnits += dec - 1; }
+      else      { s.units -= 1; totalUnits -= 1; }
+    }
+    const roi = totalBets ? (totalUnits / totalBets * 100) : null;
+    return { bySeason, totalBets, totalWins, roi };
+  }
+
+  const edge8to85  = computeUnderBandRoi(8.0, 8.5, games);
+  const edge9to95  = computeUnderBandRoi(9.0, 9.5, games);
+  const edge85to9  = computeUnderBandRoi(8.5, 9.0, games); // the dead zone — for contrast
+
+  function edgeSeasonRows(bandData) {
+    return Object.keys(bandData.bySeason).sort().map(yr => {
+      const s = bandData.bySeason[yr];
+      const roi = s.bets ? (s.units / s.bets * 100) : null;
+      const wr  = s.bets ? (s.wins / s.bets * 100) : null;
+      const isLive = parseInt(yr) >= 2026;
+      const roiCl = roi == null ? '' : roi >= 0 ? 'seg-pos' : 'seg-neg';
+      const roiStr = roi == null ? '—' : (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%';
+      return `<tr${isLive ? ' class="yr-live"' : ''}>
+        <td><strong>${yr}${isLive ? ' <span class="live-tag">live</span>' : ''}</strong></td>
+        <td>${s.bets.toLocaleString()}</td>
+        <td>${wr != null ? wr.toFixed(1) + '%' : '—'}</td>
+        <td class="${roiCl}">${roiStr}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Determine confidence based on how many seasons are profitable
+  function bandConf(bySeason) {
+    const yrs = Object.keys(bySeason).filter(y => parseInt(y) < 2026);
+    const pos = yrs.filter(y => bySeason[y].units > 0).length;
+    if (pos >= 4) return 'high';
+    if (pos >= 3) return 'medium';
+    return 'low';
+  }
+
+  const ec8Roi = edge8to85.roi;
+  const ec9Roi = edge9to95.roi;
+  const ec8RoiStr = ec8Roi != null ? (ec8Roi >= 0 ? '+' : '') + ec8Roi.toFixed(1) + '%' : '—';
+  const ec9RoiStr = ec9Roi != null ? (ec9Roi >= 0 ? '+' : '') + ec9Roi.toFixed(1) + '%' : '—';
+  const ec9Conf = bandConf(edge9to95.bySeason);
+
+  const edgesSection = `
+    <div class="bt-sec-head">
+      <span class="bt-sec-num">01</span>
+      <span class="bt-sec-title">Validated Edges</span>
+      <span class="bt-sec-sub">Structural market inefficiencies · 9,400+ games · 2022–2026</span>
+    </div>
+    <p class="bt-sec-desc">
+      A systematic scan of every game found two total-line bands where a flat $1 bet on the UNDER
+      produces consistent positive ROI across multiple seasons — structural market inefficiencies, not model signals.
+      The <strong>Edges tab</strong> flags today's qualifying games.
+    </p>
+    <div class="bt-edges-grid">
+
+      <div class="bt-edge-card2">
+        <div class="bt-ec2-stat-col">
+          <div class="bt-ec2-roi-num ecr-green">${ec8RoiStr}</div>
+          <div class="bt-ec2-roi-lbl">avg ROI</div>
+          <div class="bt-ec2-n-stat">${edge8to85.totalBets.toLocaleString()} games</div>
+          <span class="edge-cond-badge strong">⚡ Strong</span>
+        </div>
+        <div class="bt-ec2-body">
+          <div class="bt-ec2-band-label">UNDER · Total 8.0 – 8.5</div>
+          <p class="bt-ec2-desc">Games at the pitcher's duel boundary. The market shades toward the over, leaving UNDER value. Profitable in 4 of 5 full seasons — 2023 was the only losing year.</p>
+          <div class="bt-table-wrap">
+            <table class="seg-table">
+              <thead><tr><th>Season</th><th>Games</th><th>Win%</th><th>ROI</th></tr></thead>
+              <tbody>${edgeSeasonRows(edge8to85)}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="bt-edge-card2 ${ec9Conf === 'medium' ? 'bt-ec2-watch' : ''}">
+        <div class="bt-ec2-stat-col ${ec9Conf === 'medium' ? 'ec2-watch-col' : ''}">
+          <div class="bt-ec2-roi-num ${ec9Conf === 'medium' ? 'ecr-gold' : 'ecr-green'}">${ec9RoiStr}</div>
+          <div class="bt-ec2-roi-lbl">avg ROI</div>
+          <div class="bt-ec2-n-stat">${edge9to95.totalBets.toLocaleString()} games</div>
+          <span class="edge-cond-badge medium">~ Watch</span>
+        </div>
+        <div class="bt-ec2-body">
+          <div class="bt-ec2-band-label">UNDER · Total 9.0 – 9.5</div>
+          <p class="bt-ec2-desc">Strong 2022–2025 record (+10–14% each year), but 2026 has reversed sharply. May be market adjustment or early-season variance. Treat as a secondary signal.</p>
+          <div class="bt-table-wrap">
+            <table class="seg-table">
+              <thead><tr><th>Season</th><th>Games</th><th>Win%</th><th>ROI</th></tr></thead>
+              <tbody>${edgeSeasonRows(edge9to95)}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="bt-edge-footer-row">
+      <div class="bt-edge-dead2">
+        <strong>Dead Zone (8.5–9.0):</strong> UNDER shows negative ROI in this band
+        ${edge85to9.roi != null ? `(${edge85to9.roi >= 0 ? '+' : ''}${edge85to9.roi.toFixed(1)}% · ${edge85to9.totalBets.toLocaleString()} games)` : ''}.
+        Avoid betting UNDER when the total is in this range.
+      </div>
+      <div class="bt-edge-takeaway2">
+        <strong>How to use:</strong> When the Edges tab highlights a game, its closing total falls in one of these bands — the strongest structural signal found in five years of data.
+      </div>
+    </div>`;
+
+  // ── Section 05: Props ──────────────────────────────────────────────────────
   const propCounts = {};
   for (const p of (propsHistData || [])) {
     if (p.hit != null) propCounts[p.bet_type] = (propCounts[p.bet_type] || 0) + 1;
   }
   const hasEnoughProps = Object.values(propCounts).some(v => v >= 30);
   const propsSection = `
-    <hr class="bt-rule">
-    <div class="bt-narrative-header">
-      <div class="bt-narrative-title">Props Performance</div>
-      <div class="bt-narrative-sub">HR, strikeout, and hits prop picks</div>
+    <div class="bt-sec-head">
+      <span class="bt-sec-num">05</span>
+      <span class="bt-sec-title">Props Performance</span>
+      <span class="bt-sec-sub">HR, strikeout, and hits prop picks</span>
     </div>
     ${hasEnoughProps ? renderPropsPerformance() : `
     <div class="bt-props-holding">
@@ -2337,7 +2484,7 @@ function renderBacktestView() {
       <div class="bt-props-sub">Hit-rate analysis by signal strength appears once we have 30+ resolved picks per prop type.</div>
     </div>`}`;
 
-  // ── SECTION 7: Game Log ───────────────────────────────────────────────────
+  // ── Section 06: Game Log ──────────────────────────────────────────────────
   const logRows = games.slice(0, 200).map(g => {
     const winnerTeam = g.predicted_winner === 'home' ? g.home_team : g.away_team;
     const actualTeam = g.actual_winner === 'home' ? g.home_team : g.away_team;
@@ -2361,17 +2508,16 @@ function renderBacktestView() {
 
   el.innerHTML = `
     <div class="backtest-wrap">
-      ${introSection}
-      ${liveSection}
-      ${awaySection}
-      ${homeSection}
+      ${heroSection}
+      ${edgesSection}
+      ${moneylineSection}
       ${calibrationSection}
       ${totalsSection}
       ${propsSection}
-      <hr class="bt-rule">
-      <div class="bt-narrative-header">
-        <div class="bt-narrative-title">Game Log</div>
-        <div class="bt-narrative-sub">${games.length.toLocaleString()} games · most recent first</div>
+      <div class="bt-sec-head bt-sec-head-log">
+        <span class="bt-sec-num">06</span>
+        <span class="bt-sec-title">Game Log</span>
+        <span class="bt-sec-sub">${games.length.toLocaleString()} games · most recent first</span>
       </div>
       <div class="bt-table-wrap">
         <table class="bt-table">
@@ -4179,6 +4325,73 @@ function _copyParlayText(opt, btn) {
 }
 
 // ── Support view ──────────────────────────────────────────────────────────────
+
+// ── Edges View ────────────────────────────────────────────────────────────────
+function renderEdgesView() {
+  const el = document.getElementById('edges-view');
+
+  const allGames = gamesData?.games || [];
+  const edgeGames = allGames
+    .filter(g => g.edge_conditions?.length && (g.game_status || 'preview') === 'preview')
+    .sort((a, b) => {
+      const topRoi = g => Math.max(...g.edge_conditions.map(e => e.roi_pct));
+      return topRoi(b) - topRoi(a);
+    });
+
+  if (!edgeGames.length) {
+    el.innerHTML = `
+      <div class="view-header"><h1>Edge Finder</h1></div>
+      <div class="empty-state">No edge conditions matched today's games.</div>`;
+    return;
+  }
+
+  const CONF_LABEL = { high: 'Strong', medium: 'Watch', new: 'Emerging' };
+  const CONF_CLASS = { high: 'ef-conf-high', medium: 'ef-conf-medium', new: 'ef-conf-new' };
+
+  const cards = edgeGames.map(g => {
+    const total = g.odds?.total;
+    const pred  = g.prediction?.predicted_total;
+    const totalStr = total != null ? `${total}` : '—';
+    const devStr   = (total != null && pred != null) ? ` (model: ${pred.toFixed(1)})` : '';
+
+    const condRows = g.edge_conditions.map(e => `
+      <div class="ef-cond-row ${CONF_CLASS[e.confidence] || ''}">
+        <span class="ef-cond-label">${e.label}</span>
+        <span class="ef-cond-roi">+${e.roi_pct.toFixed(1)}% ROI</span>
+        <span class="ef-cond-n">${e.n_games.toLocaleString()} games</span>
+        <span class="ef-cond-seasons">${e.seasons}</span>
+      </div>`).join('');
+
+    const confBadge = (() => {
+      const top = g.edge_conditions.reduce((best, e) => e.roi_pct > (best?.roi_pct ?? 0) ? e : best, null);
+      return top ? `<span class="ef-conf-badge ${CONF_CLASS[top.confidence] || ''}">${CONF_LABEL[top.confidence] || top.confidence}</span>` : '';
+    })();
+
+    return `
+    <div class="ef-card">
+      <div class="ef-card-header">
+        <span class="ef-matchup">${escapeHtml(g.away_team)} @ ${escapeHtml(g.home_team)}</span>
+        ${confBadge}
+        <span class="ef-total">Total ${totalStr}${escapeHtml(devStr)}</span>
+      </div>
+      ${condRows}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="view-header">
+      <h1>Edge Finder</h1>
+      <span class="sub-label">${edgeGames.length} game${edgeGames.length !== 1 ? 's' : ''} matched today</span>
+    </div>
+    <div class="ef-explainer">
+      Edges are derived from 9,400+ games (2022–2026). Only UNDER conditions on specific
+      total-line bands are validated as multi-season edges. Confidence:
+      <span class="ef-conf-badge ef-conf-high">Strong</span> = 4+ seasons,
+      <span class="ef-conf-badge ef-conf-medium">Watch</span> = 4 seasons / 2026 reversal,
+      <span class="ef-conf-badge ef-conf-new">Emerging</span> = 2026 data only.
+    </div>
+    <div class="ef-list">${cards}</div>`;
+}
 
 function renderSupportView() {
   document.getElementById('support-view').innerHTML = `
