@@ -22,25 +22,28 @@ _COMPS_WIN_BLEND = 0.0   # comps are anti-correlated with outcomes in backtest (
 
 # Pitcher strength weights: (weight, invert, (lo, hi))
 # invert=True means lower value = better pitcher
+# Weight order derived from regression analysis (9k+ games): xwoba_against > xera > barrel_pct_against
 _P_WEIGHTS: dict[str, tuple[float, bool, tuple[float, float]]] = {
-    "xera":               (0.20, True,  (1.5,   6.0)),
-    "barrel_pct_against": (0.20, True,  (0.03,  0.15)),  # quality of contact allowed; already fetched, previously unused
-    "stuff_plus":         (0.15, False, (80,    120)),    # pitch quality composite; midpoint=100 = league avg
-    "whiff_pct":          (0.12, False, (0.10,  0.40)),
-    "o_swing_pct":        (0.12, False, (0.20,  0.40)),   # chase%
-    "k_pct":              (0.10, False, (0.10,  0.40)),
-    "bb_pct":             (0.06, True,  (0.04,  0.15)),
-    "xba_against":        (0.05, True,  (0.150, 0.310)),  # barrel_pct_against captures this signal better
+    "xwoba_against":      (0.25, True,  (0.250, 0.380)),  # strongest single SP predictor (r=-0.162, Lasso -0.53)
+    "xera":               (0.20, True,  (1.5,   6.0)),    # RF importance #1; captures run prevention holistically
+    "barrel_pct_against": (0.13, True,  (0.03,  0.15)),   # quality of contact; partially captured by xwoba_against
+    "stuff_plus":         (0.12, False, (80,    120)),
+    "whiff_pct":          (0.10, False, (0.10,  0.40)),
+    "o_swing_pct":        (0.10, False, (0.20,  0.40)),   # chase%
+    "k_pct":              (0.07, False, (0.10,  0.40)),
+    "bb_pct":             (0.03, True,  (0.04,  0.15)),
 }
 
 # Lineup strength weights
+# xwoba is the only batter stat with clear significance (r=0.130 on 4,444 games);
+# barrel_pct (p=0.07) and hard_hit_pct (p=0.05) are marginal — weight reduced accordingly
 _L_WEIGHTS: dict[str, tuple[float, bool, tuple[float, float]]] = {
-    "xwoba":        (0.28, False, (0.260, 0.380)),
-    "xslg":         (0.20, False, (0.280, 0.580)),  # power/extra-base production; already fetched, previously unused
-    "barrel_pct":   (0.15, False, (0.03,  0.20)),   # elite contact quality; already fetched, previously unused
-    "hard_hit_pct": (0.15, False, (0.25,  0.55)),
-    "avg_ev":       (0.10, False, (84.0,  94.0)),   # reduced — largely captured by barrel_pct and hard_hit_pct
-    "k_pct":        (0.07, True,  (0.10,  0.35)),   # inverted: lower K% is better
+    "xwoba":        (0.35, False, (0.260, 0.380)),
+    "xslg":         (0.20, False, (0.280, 0.580)),
+    "barrel_pct":   (0.12, False, (0.03,  0.20)),
+    "hard_hit_pct": (0.12, False, (0.25,  0.55)),
+    "avg_ev":       (0.08, False, (84.0,  94.0)),
+    "k_pct":        (0.08, True,  (0.10,  0.35)),   # inverted: lower K% is better
     "bb_pct":       (0.05, False, (0.04,  0.15)),
 }
 
