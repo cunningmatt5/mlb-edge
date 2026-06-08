@@ -1,8 +1,7 @@
-"""Score game total (over/under runs) opportunities.
+"""Score game total UNDER opportunities.
 
-Signal logic: Evaluates run environment from all angles — both SPs' expected
-ERA metrics, both lineups' offensive quality, and park run factor. Computes
-independent OVER and UNDER signals so either direction can surface.
+Signal logic: Evaluates run suppression from all angles — both SPs' expected
+ERA metrics (xFIP/SIERA/barrel%), both bullpens, lineup xwOBA, and park run factor.
 
 Enhancement: wind and temperature apply a weather modifier.
 """
@@ -60,10 +59,8 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
     avg_xwoba  = (home_xwoba + away_xwoba) / 2.0
     offense_s  = normalize(avg_xwoba, lo=0.260, hi=0.380)
 
-    over_raw  = weighted_avg([(offense_s, 0.40), (park_s, 0.25), (1.0 - avg_suppression, 0.35)])
     under_raw = weighted_avg([(1.0 - offense_s, 0.40), (1.0 - park_s, 0.25), (avg_suppression, 0.35)])
 
-    over_signal  = max(0.0, min(10.0, round(over_raw  * 10 + weather_mod, 1)))
     under_signal = max(0.0, min(10.0, round(under_raw * 10 - weather_mod, 1)))
 
     home_name = game.get("homeTeam", "Home")
@@ -82,37 +79,34 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
     line_movement = game.get("line_movement") or {}
     total_move    = line_movement.get("total_move")  # positive = sharp money on OVER
 
-    for direction, base_signal in [("OVER", over_signal), ("UNDER", under_signal)]:
+    for direction, base_signal in [("UNDER", under_signal)]:
         ump_mod, ump_reason = compute_umpire_modifier(umpire, "TOTAL", direction)
-        # run tendency: positive trend boosts OVER, suppresses UNDER
-        tend_mod = run_tend if direction == "OVER" else -run_tend
-        # line movement: +0.3 when sharp money confirms our direction
+        # run tendency: negative value suppresses runs — boosts UNDER signal
+        tend_mod = -run_tend
+        # line movement: +0.3 when sharp money confirms UNDER
         lm_mod = 0.0
         lm_reason = None
         if total_move is not None and abs(total_move) >= 1.0:
-            agrees = (direction == "OVER" and total_move > 0) or (direction == "UNDER" and total_move < 0)
-            if agrees:
+            if total_move < 0:
                 lm_mod = 0.3
                 move_dir = "up" if total_move > 0 else "down"
                 opening_t = line_movement.get("opening_total", "?")
                 current_t = line_movement.get("current_total", "?")
-                lm_reason = f"Total moved {move_dir} ({opening_t} → {current_t}) — sharp money confirms {direction}"
+                lm_reason = f"Total moved {move_dir} ({opening_t} → {current_t}) — sharp money confirms UNDER"
         signal = max(0.0, min(10.0, round(base_signal + ump_mod + tend_mod + lm_mod, 1)))
-        # OVER bets historically have -14% ROI; raise threshold sharply to require very
-        # high conviction before surfacing. UNDER 6.0+ tier has +1.5% ROI; 5.0-5.9 tier
-        # has -0.44% ROI (76% of volume) — raise floor to 6.0 to keep only profitable picks.
-        threshold = 8.0 if direction == "OVER" else 6.0
+        # UNDER 6.0+ tier: +1.51% ROI; 5.0-5.9 was -0.44% ROI (76% of volume) — floor raised.
+        threshold = 6.0
         # UNDER picks in avg-quality pitcher matchups (suppression < 0.50) have -1.6% ROI;
-        # Good-tier matchups (>= 0.50) have +2.2% ROI — gate UNDER on pitcher quality.
-        if direction == "UNDER" and avg_suppression < 0.50:
+        # Good-tier matchups (>= 0.50) have +2.2% ROI — gate on pitcher quality.
+        if avg_suppression < 0.50:
             continue
         if signal >= threshold:
-            reasons = _build_reasons(direction, home_sp, away_sp, avg_xwoba, park_run, venue)
+            reasons = _build_reasons(home_sp, away_sp, park_run, venue)
             if weather_reason:
                 reasons = (reasons + [weather_reason])[:4]
             if ump_reason:
                 reasons = (reasons + [ump_reason])[:4]
-            if run_tend_reason and direction == ("OVER" if run_tend > 0 else "UNDER"):
+            if run_tend_reason and run_tend < 0:
                 reasons = (reasons + [run_tend_reason])[:4]
             if lm_reason:
                 reasons = (reasons + [lm_reason])[:4]
@@ -148,29 +142,19 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
     return picks
 
 
-def _build_reasons(direction, home_sp, away_sp, avg_xwoba, park_run, venue) -> list[str]:
+def _build_reasons(home_sp, away_sp, park_run, venue) -> list[str]:
     reasons = []
     home_name = home_sp.get("name", "Home SP")
     away_name = away_sp.get("name", "Away SP")
-
-    if direction == "OVER":
-        if avg_xwoba:
-            reasons.append(f"Combined lineup xwOBA of {avg_xwoba:.3f} — above-average run environment")
-        if park_run > 102:
-            reasons.append(f"{venue} run factor of {park_run} — offense-friendly park")
-        xfip_avg = _avg_xfip(home_sp, away_sp)
-        if xfip_avg and xfip_avg > 4.20:
-            reasons.append(f"Both SPs project to weak xFIP ({xfip_avg:.2f} combined avg)")
-    else:
-        xfip_avg = _avg_xfip(home_sp, away_sp)
-        if xfip_avg and xfip_avg < 3.60:
-            reasons.append(f"Elite pitching matchup: combined xFIP avg of {xfip_avg:.2f}")
-        if home_sp.get("siera"):
-            reasons.append(f"{home_name} SIERA: {home_sp['siera']:.2f}")
-        if away_sp.get("siera"):
-            reasons.append(f"{away_name} SIERA: {away_sp['siera']:.2f}")
-        if park_run < 97:
-            reasons.append(f"{venue} run factor of {park_run} — suppresses scoring")
+    xfip_avg = _avg_xfip(home_sp, away_sp)
+    if xfip_avg and xfip_avg < 3.60:
+        reasons.append(f"Elite pitching matchup: combined xFIP avg of {xfip_avg:.2f}")
+    if home_sp.get("siera"):
+        reasons.append(f"{home_name} SIERA: {home_sp['siera']:.2f}")
+    if away_sp.get("siera"):
+        reasons.append(f"{away_name} SIERA: {away_sp['siera']:.2f}")
+    if park_run < 97:
+        reasons.append(f"{venue} run factor of {park_run} — suppresses scoring")
     return reasons[:4]
 
 
