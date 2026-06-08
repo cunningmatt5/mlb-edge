@@ -64,7 +64,7 @@ def score_total_bases_props(game: dict, cache: dict) -> list[dict]:
             pa_mult = _PA_MULT[order - 1] if order <= 9 else 1.0
             signal  = max(0.0, min(10.0, round(base_signal * pa_mult, 1)))
 
-            if signal >= 5.0:
+            if signal >= 99.0:  # disabled: no signal separation across tiers (28-33% flat)
                 batter_name = b.get("name", f"Batter {batter_id}")
                 picks.append({
                     "bet_type":   "TB_PROP",

@@ -30,12 +30,10 @@ _MIN_SIGNAL = 5.0
 # Resolution thresholds — what "OVER" means for each prop type
 # HR_PROP:  anytime home run → binary (≥1 HR)
 # HIT_PROP: anytime hit → binary (≥1 H)
-# TB_PROP:  total bases over 1.5 → ≥2 TB  (standard market line)
 # K_PROP:   SP strikeouts over 4.5 → ≥5 K  (common low anchor)
 RESOLUTION_THRESHOLDS = {
     "HR_PROP":  ("batting",  "homeRuns",    1),
     "HIT_PROP": ("batting",  "hits",        1),
-    "TB_PROP":  ("batting",  "totalBases",  2),
     "K_PROP":   ("pitching", "strikeOuts",  5),
 }
 

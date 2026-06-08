@@ -23,7 +23,6 @@ _PROP_MARKET_MAP = {
     "K_PROP":  "pitcher_strikeouts",
     "HR_PROP": "batter_home_runs",
     "HIT_PROP":"batter_hits",
-    "TB_PROP": "batter_total_bases",
 }
 
 
@@ -99,6 +98,8 @@ def fetch_mlb_props(api_key: str, event_id: str) -> dict:
     Requires the paid Odds API tier. Returns {} on any failure.
     """
     if not api_key or not event_id:
+        if api_key and not event_id:
+            log.debug("fetch_mlb_props: event_id is None — skipping props fetch for this game")
         return {}
     markets_str = ",".join(_PROP_MARKET_MAP.values())
     try:
@@ -142,7 +143,7 @@ def fetch_mlb_props(api_key: str, event_id: str) -> dict:
                         }
         return result
     except Exception as exc:
-        log.debug("Props fetch failed for event %s: %s", event_id, exc)
+        log.warning("Props fetch failed for event %s: %s", event_id, exc)
         return {}
 
 
