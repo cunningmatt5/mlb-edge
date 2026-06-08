@@ -50,17 +50,19 @@ def score_hr_props(game: dict, cache: dict) -> list[dict]:
             xwoba_val = (b.get(f"xwoba{suffix}") if suffix else None) or b.get("xwoba")
             if xwoba_val is None and b.get("barrel_pct") is None:
                 continue  # no Statcast data — skip rather than emit a 0.5-neutral fake signal
+            if (b.get("barrel_pct") or 0) < 0.05:
+                continue  # below-average power; no HR edge for contact/speed hitters
 
             barrel_s = normalize(b.get("barrel_pct"),       lo=0.03, hi=0.20)
             hh_s     = normalize(b.get("hard_hit_pct"),     lo=0.25, hi=0.55)
             xwoba_s  = normalize(xwoba_val,                 lo=0.280, hi=0.420)
-            la_s     = normalize(b.get("avg_launch_angle"), lo=5,    hi=22)
+            la_s     = normalize(b.get("avg_launch_angle"), lo=10,   hi=30)
 
             batter_comp = weighted_avg([
-                (barrel_s, 0.40),
-                (hh_s,     0.25),
-                (xwoba_s,  0.20),
-                (la_s,     0.15),
+                (barrel_s, 0.45),   # strongest single HR predictor
+                (xwoba_s,  0.25),   # more HR-informative than raw hard-hit%
+                (hh_s,     0.20),
+                (la_s,     0.10),
             ])
 
             combined    = (batter_comp ** 0.55) * (context_comp ** 0.45)
@@ -68,7 +70,7 @@ def score_hr_props(game: dict, cache: dict) -> list[dict]:
             # weather_mod is position-independent — add after PA scaling, not before
             signal      = max(0.0, min(10.0, round(combined * 10 * pa_mult + weather_mod, 1)))
 
-            if signal >= 5.0:
+            if signal >= 7.0:
                 batter_name = b.get("name", f"Batter {batter_id}")
                 reasons = _build_reasons(b, opp_sp, venue, hr_park, sp_throws, xwoba_val)
                 if weather_reason:
