@@ -227,13 +227,13 @@ function timeAgo(ts) {
   return `${min} min ago`;
 }
 
-// ── Best Bets section (Elite Away + High Confidence) ─────────────────────────
+// ── Best Bets section (Model-leans-away [informational] + High Confidence) ───
 function renderBestBetsSection(games) {
   const previewGames = games.filter(g => (g.game_status || 'preview') === 'preview');
 
-  const eliteGames = previewGames.filter(g => g.prediction?.pick_tier === 'elite_away');
+  const eliteGames = previewGames.filter(g => g.prediction?.pick_tier === 'model_away_lean');
   const hiConfGames = previewGames.filter(g => {
-    if (g.prediction?.pick_tier === 'elite_away') return false;
+    if (g.prediction?.pick_tier === 'model_away_lean') return false;
     const hwp = g.prediction?.home_win_pct;
     if (hwp == null) return false;
     return Math.max(hwp, 1 - hwp) >= 0.62;
@@ -348,10 +348,10 @@ function renderBestBetsSection(games) {
   <div class="bb-subsection">
     <div class="bb-sub-hdr">
       <div class="bb-sub-title-row">
-        <span class="bb-sub-title">◆ Elite Away Signal</span>
+        <span class="bb-sub-title">◇ Model Leans Away (vs Vegas)</span>
         <span class="bb-badge bb-badge-elite">${eliteGames.length} game${eliteGames.length > 1 ? 's' : ''} today</span>
       </div>
-      <div class="bb-sub-desc">Model &amp; away pitcher both lean strongly against Vegas · <strong>+9.2% ROI</strong> on 884 bets (2022–2026)</div>
+      <div class="bb-sub-desc">Model favors the away side by &ge;10 pts vs the no-vig line. Informational only — season-by-season validation found this is <strong>not</strong> a reliably profitable flat-stake edge.</div>
     </div>
     <div class="ea-cards">${eliteCards}</div>
   </div>`;
@@ -716,7 +716,7 @@ function gameTier(homeWinPct) {
 }
 
 // Returns a small "good/moderate/heavy-fav" badge for the away team odds.
-// Near-even or plus-money = highest historical ROI for Elite Away picks.
+// Shown alongside the informational "model leans away" flag (price context only).
 function oddsQualityBadge(awayMl) {
   if (awayMl == null) return '';
   if (awayMl >= -130) return '<span class="odds-q odds-q-good">Good odds</span>';
@@ -801,10 +801,8 @@ function statusStrip(g) {
   const tierLabel = tier === 'elite' ? 'ELITE' : tier === 'great' ? 'GREAT' : tier === 'good' ? 'GOOD' : '';
   const tierBadge = tier ? `<span class="tier-badge tier-${tier}">${tierLabel}</span>` : '';
   const pickTier = pred.pick_tier;
-  const pickTierBadge = pickTier === 'elite_away'
-    ? `<span class="pick-tier-badge tier-elite-away">◆ Elite Away</span>`
-    : pickTier === 'strong_away'
-    ? `<span class="pick-tier-badge tier-strong-away">▲ Strong Away</span>`
+  const pickTierBadge = pickTier === 'model_away_lean'
+    ? `<span class="pick-tier-badge tier-strong-away">◇ Model leans away</span>`
     : '';
   const oddsQual   = pickTier ? oddsQualityBadge(g.odds?.away_ml) : '';
   const pickReason = buildPickReasoning(g);
@@ -861,29 +859,19 @@ function gameEdgeBannerHTML(g) {
 
   const pk = g.gamePk;
 
-  if (tier === 'elite_away') {
+  if (tier === 'model_away_lean') {
     const edgePct = pred.model_edge_ml != null
       ? `Model +${(Math.abs(pred.model_edge_ml) * 100).toFixed(1)}% vs Vegas`
-      : 'Model strongly disagrees with Vegas';
+      : 'Model disagrees with Vegas';
     parts.push(`
-<div class="game-edge-banner banner-tier-elite" onclick="toggleCard(${pk})">
-  <span class="geb-icon">◆</span>
+<div class="game-edge-banner banner-tier-strong" onclick="toggleCard(${pk})">
+  <span class="geb-icon">◇</span>
   <div class="geb-body">
-    <span class="geb-label">Elite Away</span>
+    <span class="geb-label">Model leans away</span>
     <span class="geb-sep"></span>
     <span class="geb-detail">${edgePct}</span>
   </div>
-  <span class="geb-sub">+9.2% ROI · 884 bets</span>
-</div>`);
-  } else if (tier === 'strong_away') {
-    parts.push(`
-<div class="game-edge-banner banner-tier-strong" onclick="toggleCard(${pk})">
-  <span class="geb-icon">▲</span>
-  <div class="geb-body">
-    <span class="geb-label">Strong Away</span>
-    <span class="geb-sep"></span>
-    <span class="geb-detail">SP edge + model tilt</span>
-  </div>
+  <span class="geb-sub">informational — not a validated edge</span>
 </div>`);
   }
 

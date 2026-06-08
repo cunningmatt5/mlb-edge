@@ -777,26 +777,25 @@ def build_game(
     if vegas_home_prob is not None:
         model_edge_ml = round(home_win_pct - vegas_home_prob, 4)
 
-    # Pick tier — grid search on 2024-2026 hold-out (4,729 games with Vegas lines) showed:
-    #   edge >= 0.10 + pdiff >= 0.07 => +10.69% ROI on 197 hold-out games
-    #   edge >= 0.11 + pdiff >= 0.07 => +12.97% ROI on 173 hold-out games
-    #   strong_home: negative ROI (-5% to -20%) across ALL tested combinations
-    # Eliminating home picks and raising pitcher diff bar to 0.07 aligns with the signal evidence.
+    # Model–Vegas moneyline disagreement (model_edge_ml <= -0.10 means model favors
+    # away by >=10 pts vs the no-vig line).
+    # DEMOTED 2026-06-08 (research_moneyline.py): the former elite_away/strong_away
+    # tiers were OVERFIT. They were grid-searched on 2024-26 (~+14% in-window) but
+    # returned ~-12% on 2022-23 OOS and failed season-by-season validation (2022 = -31%).
+    # No away-ML threshold is a robustly profitable flat-stake edge, and the pitcher
+    # filter actively HURT (pdiff<-0.07 ROI < pdiff<-0.05 < none). So the tiers collapse
+    # to a single INFORMATIONAL "model leans away" flag — not a validated bet claim.
     pitcher_score_diff = round(home_pitcher_score - away_pitcher_score, 4)
     pick_tier: Optional[str] = None
-    if model_edge_ml is not None and model_edge_ml <= -0.10 and pitcher_score_diff < -0.07:
-        pick_tier = "elite_away"
-    elif model_edge_ml is not None and model_edge_ml <= -0.10 and pitcher_score_diff < -0.05:
-        pick_tier = "strong_away"
-    # strong_home removed: hold-out data shows home picks lose money in every tested combination
+    if model_edge_ml is not None and model_edge_ml <= -0.10:
+        pick_tier = "model_away_lean"
 
-    # pick_signal: primary driver of the pick — surfaces in UI reasoning panel.
-    # pitcher is always confirmed for any pick_tier (pick_tier requires pitcher_score_diff ≤ -0.05).
-    # Signal is 'pitcher_lineup' when lineup also independently favors away; else 'pitcher'.
+    # pick_signal: which model components drive the away lean — surfaces in UI reasoning.
     pick_signal: Optional[str] = None
-    if pick_tier in ("elite_away", "strong_away"):
+    if pick_tier == "model_away_lean":
         lineup_diff = home_lineup_score - away_lineup_score  # negative = away lineup better
-        pick_signal = "pitcher_lineup" if lineup_diff < -0.03 else "pitcher"
+        pick_signal = "pitcher_lineup" if (pitcher_score_diff < -0.05 and lineup_diff < -0.03) \
+            else "pitcher" if pitcher_score_diff < -0.05 else "model"
 
     vegas_total: Optional[float] = odds_out.get("total") if odds_out else None
     pred_home, pred_away = _predicted_runs(

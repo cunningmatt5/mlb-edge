@@ -2514,10 +2514,8 @@ header {
 .bb-sub-desc { font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; }
 .bb-conf-card { border-left-color: #10b981 !important; }
 
-/* ── Game card left-border accent by pick tier ───────────────────────────── */
-.game-card[data-pick-tier="elite_away"]  { border-left: 3px solid #7c3aed; }
-.game-card[data-pick-tier="strong_away"] { border-left: 3px solid rgba(99,102,241,.5); }
-.game-card[data-pick-tier="strong_home"] { border-left: 3px solid rgba(251,146,60,.5); }
+/* ── Game card left-border accent: informational "model leans away" flag ──── */
+.game-card[data-pick-tier="model_away_lean"] { border-left: 3px solid rgba(99,102,241,.5); }
 
 /* Combo signal decay section */
 .combo-section {
