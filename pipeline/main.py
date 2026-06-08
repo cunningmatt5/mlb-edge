@@ -167,9 +167,11 @@ def main(dry_run: bool = False) -> None:
         # Attach validated edge conditions (multi-season backtest findings)
         try:
             from pipeline.analytics.edge_detector import detect_edges
-            _closing_total    = (game_obj.get("odds") or {}).get("total")
+            _odds             = game_obj.get("odds") or {}
+            _closing_total    = _odds.get("total")
             _predicted_total  = (game_obj.get("prediction") or {}).get("predicted_total")
-            game_obj["edge_conditions"] = detect_edges(_closing_total, _predicted_total)
+            game_obj["edge_conditions"] = detect_edges(
+                _closing_total, _predicted_total, _odds.get("under_price"))
         except Exception:
             game_obj["edge_conditions"] = []
 
@@ -278,7 +280,6 @@ def main(dry_run: bool = False) -> None:
                 _game_obj = next((g for g in game_objects if g.get("gamePk") == game.get("gamePk")), None)
                 _edge_conds = (_game_obj or {}).get("edge_conditions", [])
                 if _edge_conds:
-                    from pipeline.analytics.edge_detector import detect_edges
                     for pick in all_picks:
                         if pick.get("bet_type") == "TOTAL" and pick.get("direction") == "UNDER":
                             matching = [e for e in _edge_conds if e["direction"] == "UNDER"]
