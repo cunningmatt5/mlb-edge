@@ -911,8 +911,8 @@ function _kellyFracLabel(frac) {
 }
 
 function _underKellyWinProb(total) {
-  if (total <= 8.5)  return 0.565;
-  if (total <= 9.5)  return 0.590;
+  if (total <= 8.5)  return 0.565;   // 2022-2025 LOYO 56.5%; 2026 YTD 54.7% (n=558)
+  if (total <= 9.5)  return 0.566;   // blended down from 0.590: 2026 YTD 49.3% (n=146, -2.3σ)
   if (total <= 10.5) return 0.535;
   return 0.515;
 }

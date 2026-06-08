@@ -32,6 +32,7 @@ _P_WEIGHTS: dict[str, tuple[float, bool, tuple[float, float]]] = {
     "o_swing_pct":        (0.10, False, (0.20,  0.40)),   # chase%
     "k_pct":              (0.07, False, (0.10,  0.40)),
     "bb_pct":             (0.03, True,  (0.04,  0.15)),
+    "fb_mph":             (0.06, False, (90.0,  95.0)),  # fastball velo: higher = better
 }
 
 # Lineup strength weights

@@ -99,8 +99,9 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
                 lm_reason = f"Total moved {move_dir} ({opening_t} → {current_t}) — sharp money confirms {direction}"
         signal = max(0.0, min(10.0, round(base_signal + ump_mod + tend_mod + lm_mod, 1)))
         # OVER bets historically have -14% ROI; raise threshold sharply to require very
-        # high conviction before surfacing. UNDER has +1% ROI so keep threshold lower.
-        threshold = 8.0 if direction == "OVER" else 4.5
+        # high conviction before surfacing. UNDER 6.0+ tier has +1.5% ROI; 5.0-5.9 tier
+        # has -0.44% ROI (76% of volume) — raise floor to 6.0 to keep only profitable picks.
+        threshold = 8.0 if direction == "OVER" else 6.0
         # UNDER picks in avg-quality pitcher matchups (suppression < 0.50) have -1.6% ROI;
         # Good-tier matchups (>= 0.50) have +2.2% ROI — gate UNDER on pitcher quality.
         if direction == "UNDER" and avg_suppression < 0.50:

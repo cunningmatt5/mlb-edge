@@ -226,6 +226,7 @@ def _fetch_fg_json(season: int, stats: str, pageitems: int = 500) -> dict[int, d
         "SIERA": "siera", "GB%": "gb_pct", "xFIP": "xfip",
         "K-BB%": "k_minus_bb_pct", "HR/9": "hr9",
         "K%": "k_pct", "BB%": "bb_pct", "ERA": "era", "IP": "ip", "GS": "gs",
+        "FBv": "fb_mph",
         "Name": None,
     }
     bat_cols = {

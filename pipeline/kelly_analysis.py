@@ -28,7 +28,7 @@ ROOT = Path(__file__).parent.parent
 BACKTEST_PATH = ROOT / "docs" / "backtest.json"
 
 STARTING_BANKROLL = 10_000.0
-SEASONS = [2022, 2023, 2024, 2025]
+SEASONS = [2022, 2023, 2024, 2025, 2026]
 
 STRATEGIES = [
     ("Flat $100",  None,  100.0),   # (name, kelly_fraction, flat_stake)
