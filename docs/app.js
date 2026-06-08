@@ -1308,10 +1308,9 @@ function predictionHTML(g) {
     if (modelHome == null || mc.mc_win_pct == null) return '';
     const gapPp = Math.round(Math.abs(mc.mc_win_pct - modelHome) * 100);
     if (gapPp < 8) return '';
-    const mcFavors = mc.mc_win_pct >= 0.5 ? g.home_team : g.away_team;
-    const modelFavors = modelHome >= 0.5 ? g.home_team : g.away_team;
-    const agree = mcFavors === modelFavors;
-    return `<div class="mc-diverge ${agree ? 'mc-div-agree' : 'mc-div-split'}" title="Simulation uses Statcast only — gap often reflects market info (injuries, sharp money) the model can't see">⚡ Sim ${Math.round(mc.mc_win_pct * 100)}% home vs model ${Math.round(modelHome * 100)}% <span class="mc-div-gap">${gapPp}pp gap</span></div>`;
+    // Exploratory only — a 2024-25 backtest found MC divergence does NOT predict
+    // outcomes, so this is shown as neutral info, not a betting signal.
+    return `<div class="mc-diverge mc-div-info" title="Statcast-pure sim vs the model — exploratory only; divergence is NOT a validated betting signal">◇ Sim ${Math.round(mc.mc_win_pct * 100)}% vs model ${Math.round(modelHome * 100)}% home <span class="mc-div-gap">${gapPp}pp</span></div>`;
   })()}
 
   ${vsVegasHTML(g)}
@@ -3237,23 +3236,28 @@ function mcSimulateGame(game, nSims, scenario) {
     awayScores.push(awayRuns);
   }
 
+  // Win% is from the RAW sim (weather scales both teams symmetrically → it moves the
+  // total, not who wins). Rest is asymmetric → small win% nudge. Weather is applied to
+  // the RUN outputs below. Mirrors pipeline/analytics/monte_carlo.py — keep both in sync.
   const homeWins = homeScores.filter((h, i) => h > awayScores[i]).length;
   const rawHomeWinPct = homeWins / nSims;
-
-  // Apply weather and rest modifiers — model uses logit += weather*0.2 + rest; at p≈0.5, dp≈dlogit*0.25
   const msig = game.prediction?.model_signals || {};
-  const weatherAdj = (msig.weather_modifier ?? 0) * 0.2 * 0.25;
-  const restAdj    = (msig.rest_modifier    ?? 0) * 0.25;
-  const homeWinPct = Math.max(0.05, Math.min(0.95, rawHomeWinPct + weatherAdj + restAdj));
+  const restAdj    = (msig.rest_modifier ?? 0) * 0.25;
+  const homeWinPct = Math.max(0.05, Math.min(0.95, rawHomeWinPct + restAdj));
+
+  // Weather scales the run environment for both teams (same weather_mult as the model).
+  const weatherMult = 1 + (msig.weather_modifier ?? 0) * 0.05;
+  const hAdj = homeScores.map(s => Math.round(s * weatherMult));
+  const aAdj = awayScores.map(s => Math.round(s * weatherMult));
 
   // 95% CI using Wilson score interval for proportions
   const z = 1.96;
   const ci = z * Math.sqrt((homeWinPct * (1 - homeWinPct)) / nSims);
 
-  // Over/under probability
+  // Over/under probability (weather-adjusted runs)
   const ouLine = game.odds?.total;
   const overProb = ouLine != null
-    ? homeScores.filter((h, i) => (h + awayScores[i]) > ouLine).length / nSims
+    ? hAdj.filter((h, i) => (h + aAdj[i]) > ouLine).length / nSims
     : null;
 
   // Score distributions (0–9+ buckets)
@@ -3265,21 +3269,21 @@ function mcSimulateGame(game, nSims, scenario) {
 
   // Most likely specific score
   const scoreCounts = {};
-  homeScores.forEach((h, i) => {
-    const key = `${h}-${awayScores[i]}`;
+  hAdj.forEach((h, i) => {
+    const key = `${h}-${aAdj[i]}`;
     scoreCounts[key] = (scoreCounts[key] || 0) + 1;
   });
   const modeEntry = Object.entries(scoreCounts).sort((a, b) => b[1] - a[1])[0];
   const [modeHome, modeAway] = modeEntry[0].split('-').map(Number);
   const modePct = modeEntry[1] / nSims;
 
-  // Median and mean scores
-  const sorted = [...homeScores].sort((a, b) => a - b);
+  // Median and mean scores (weather-adjusted)
+  const sorted = [...hAdj].sort((a, b) => a - b);
   const medianHome = sorted[Math.floor(nSims / 2)];
-  const meanHome = homeScores.reduce((s, v) => s + v, 0) / nSims;
-  const sortedAway = [...awayScores].sort((a, b) => a - b);
+  const meanHome = hAdj.reduce((s, v) => s + v, 0) / nSims;
+  const sortedAway = [...aAdj].sort((a, b) => a - b);
   const medianAway = sortedAway[Math.floor(nSims / 2)];
-  const meanAway = awayScores.reduce((s, v) => s + v, 0) / nSims;
+  const meanAway = aAdj.reduce((s, v) => s + v, 0) / nSims;
 
   return {
     homeWinPct: Math.round(homeWinPct * 1000) / 10,
@@ -3287,8 +3291,8 @@ function mcSimulateGame(game, nSims, scenario) {
     winCI: Math.round(ci * 1000) / 10,
     overProb: overProb != null ? Math.round(overProb * 1000) / 10 : null,
     underProb: overProb != null ? Math.round((1 - overProb) * 1000) / 10 : null,
-    homeDist: buildDist(homeScores),
-    awayDist: buildDist(awayScores),
+    homeDist: buildDist(hAdj),
+    awayDist: buildDist(aAdj),
     mostLikelyHome: modeHome, mostLikelyAway: modeAway, modePct: Math.round(modePct * 1000) / 10,
     meanHome: meanHome.toFixed(1), meanAway: meanAway.toFixed(1),
     medianHome, medianAway,
@@ -3573,6 +3577,14 @@ function renderSimulateView() {
 <div class="sim-header">
   <div class="sim-title">Game Simulations</div>
   <div class="sim-subtitle">Full plate-appearance Monte Carlo · ${dateStr}</div>
+</div>
+<div class="sim-caveat">
+  <strong>Exploratory tool — not a validated betting edge.</strong>
+  This is a Statcast-pure simulation, run independently of the betting market. A 2024–25
+  backtest found that its divergence from Vegas did <strong>not</strong> predict outcomes
+  (and was mildly anti-predictive on the moneyline). Use it to explore game shape and
+  scenarios — not as a bet signal. We're now tracking the live sim point-in-time to validate
+  it properly over time.
 </div>
 ${cards}`;
 }

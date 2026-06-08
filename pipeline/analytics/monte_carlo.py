@@ -333,13 +333,18 @@ def simulate_game(g: dict, n: int = 5000, seed: Optional[int] = None) -> dict:
 
     raw_win_pct = home_wins / n
 
-    # Small post-hoc adjustments for weather and rest (same weights as primary model)
-    weather_adj = (sig.get('weather_modifier') or 0) * 0.2 * 0.25
-    rest_adj    = (sig.get('rest_modifier')    or 0) * 0.25
-    mc_win_pct  = _clamp(raw_win_pct + weather_adj + rest_adj, 0.05, 0.95)
+    # Weather is a run-ENVIRONMENT effect: it scales both teams' runs symmetrically
+    # (same weather_mult the primary model uses, predictor.py), so it moves the TOTAL
+    # but not who wins. Applying it to runs (not win%) fixes the prior inconsistency
+    # where weather nudged win% while the run total / O-U ignored it.
+    # Rest is asymmetric (one team's readiness) → stays a small win% adjustment.
+    # NOTE: this logic is mirrored in docs/app.js mcSimulateGame() — keep both in sync.
+    weather_mult = 1.0 + (sig.get('weather_modifier') or 0) * 0.05
+    rest_adj     = (sig.get('rest_modifier') or 0) * 0.25
+    mc_win_pct   = _clamp(raw_win_pct + rest_adj, 0.05, 0.95)
 
-    avg_h = sum(home_runs_list) / n
-    avg_a = sum(away_runs_list) / n
+    avg_h = (sum(home_runs_list) / n) * weather_mult
+    avg_a = (sum(away_runs_list) / n) * weather_mult
 
     return {
         'mc_win_pct':   round(mc_win_pct, 4),

@@ -984,7 +984,10 @@ header {
   line-height: 1.4;
 }
 .mc-div-split { background: rgba(239,68,68,.05); border-top-color: rgba(239,68,68,.14); }
+/* Neutral, exploratory styling — MC divergence is not a validated signal */
+.mc-div-info  { background: rgba(148,163,184,.05); border-top-color: rgba(148,163,184,.16); }
 .mc-div-gap   { font-weight: 700; color: var(--amber); margin-left: 3px; }
+.mc-div-info .mc-div-gap { color: var(--text-muted); }
 
 .narrative {
   font-size: 13px;
@@ -2792,6 +2795,17 @@ header {
   color: var(--text-muted);
   line-height: 1.55;
 }
+.sim-caveat {
+  margin: 10px 16px 4px;
+  padding: 10px 14px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  background: rgba(148,163,184,.06);
+  border: 1px solid rgba(148,163,184,.18);
+  border-radius: 8px;
+}
+.sim-caveat strong { color: var(--text-primary); }
 
 .sim-empty {
   padding: 48px 20px;
