@@ -227,7 +227,7 @@ function timeAgo(ts) {
   return `${min} min ago`;
 }
 
-// ── Best Bets section (Model-leans-away [informational] + High Confidence) ───
+// ── Model Signals section (model-leans-away + model's-most-confident; both informational) ──
 function renderBestBetsSection(games) {
   const previewGames = games.filter(g => (g.game_status || 'preview') === 'preview');
 
@@ -362,10 +362,10 @@ function renderBestBetsSection(games) {
   <div class="bb-subsection${eliteGames.length ? ' bb-subsection-sep' : ''}">
     <div class="bb-sub-hdr">
       <div class="bb-sub-title-row">
-        <span class="bb-sub-title">High Confidence</span>
+        <span class="bb-sub-title">Model's Most Confident</span>
         <span class="bb-badge bb-badge-conf">${hiConfGames.length} game${hiConfGames.length > 1 ? 's' : ''} today</span>
       </div>
-      <div class="bb-sub-desc">Model ≥62% confident · Pitcher + lineup signals align · <strong>68.0% win rate</strong> at 65%+ confidence (2022–2026)</div>
+      <div class="bb-sub-desc">Model ≥62% confident — its highest-conviction sides. Informational: these are favorites, so they win often (~64%) but are <strong>not</strong> a profitable moneyline bet at these prices.</div>
     </div>
     <div class="ea-cards">${hiConfCards}</div>
   </div>`;
@@ -375,8 +375,8 @@ function renderBestBetsSection(games) {
   return `
 <div class="bb-section">
   <div class="bb-section-hdr">
-    <span class="bb-section-title">Today's Best Bets</span>
-    <span class="bb-total-count">${totalCount} pick${totalCount !== 1 ? 's' : ''}</span>
+    <span class="bb-section-title">Today's Model Signals</span>
+    <span class="bb-total-count">${totalCount} signal${totalCount !== 1 ? 's' : ''}</span>
   </div>
   ${eliteBlock}${hiConfBlock}
 </div>`;
