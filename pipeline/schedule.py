@@ -52,9 +52,10 @@ def get_team_rest_days(game_date: date) -> dict[str, int]:
 
 
 def fetch_schedule(game_date: date) -> list[dict]:
-    """Return a list of game dicts for games with both probable pitchers posted.
+    """Return a list of game dicts for all scheduled (non-postponed) games.
 
-    Each dict has keys:
+    Games with TBD probable pitchers are included; scoring modules use neutral
+    defaults for missing starters.  Each dict has keys:
         gamePk, gameTime (ISO-8601 UTC), homeTeam, awayTeam, venue,
         home_sp_id, home_sp_name, away_sp_id, away_sp_name,
         home_lineup (list of MLBAM IDs, may be empty),
@@ -106,8 +107,9 @@ def fetch_schedule(game_date: date) -> list[dict]:
             g.setdefault("away_rest_days", 1)
 
     total_batters = sum(len(g.get("home_lineup", [])) + len(g.get("away_lineup", [])) for g in games)
-    log.info("Schedule: %d games with probable starters for %s (%d batter IDs collected)",
-             len(games), game_date, total_batters)
+    tbd_count = sum(1 for g in games if not g.get("home_sp_id") or not g.get("away_sp_id"))
+    log.info("Schedule: %d games for %s (%d TBD starter(s), %d batter IDs collected)",
+             len(games), game_date, tbd_count, total_batters)
     return games
 
 
@@ -136,7 +138,7 @@ def _fetch_pitcher_handedness(sp_ids: list[int]) -> dict[int, str]:
 
 
 def _parse_game(raw: dict) -> dict | None:
-    """Parse a single game entry. Returns None if game is postponed/cancelled or either starter is missing."""
+    """Parse a single game entry. Returns None only if game is postponed/cancelled."""
     status = raw.get("status", {})
     if status.get("codedGameState") in _SKIP_STATES:
         log.debug("Skipping game %s: %s", raw.get("gamePk"), status.get("detailedState"))
@@ -145,10 +147,12 @@ def _parse_game(raw: dict) -> dict | None:
     home = raw.get("teams", {}).get("home", {})
     away = raw.get("teams", {}).get("away", {})
 
-    home_sp = home.get("probablePitcher")
-    away_sp = away.get("probablePitcher")
-    if not home_sp or not away_sp:
-        return None
+    home_sp = home.get("probablePitcher") or {}
+    away_sp = away.get("probablePitcher") or {}
+    if not home_sp:
+        log.debug("Game %s: home SP not yet posted (TBD)", raw.get("gamePk"))
+    if not away_sp:
+        log.debug("Game %s: away SP not yet posted (TBD)", raw.get("gamePk"))
 
     abstract_state = status.get("abstractGameState", "Preview")  # "Preview" | "Live" | "Final"
     linescore   = raw.get("linescore", {})
@@ -178,11 +182,11 @@ def _parse_game(raw: dict) -> dict | None:
         "homeTeamId":      home.get("team", {}).get("id"),
         "awayTeamId":      away.get("team", {}).get("id"),
         "venue":           raw.get("venue", {}).get("name", "Unknown"),
-        "home_sp_id":      home_sp["id"],
-        "home_sp_name":    home_sp.get("fullName", ""),
+        "home_sp_id":      home_sp.get("id"),
+        "home_sp_name":    home_sp.get("fullName", "TBD"),
         "home_sp_throws":  home_sp.get("pitchHand", {}).get("code"),
-        "away_sp_id":      away_sp["id"],
-        "away_sp_name":    away_sp.get("fullName", ""),
+        "away_sp_id":      away_sp.get("id"),
+        "away_sp_name":    away_sp.get("fullName", "TBD"),
         "away_sp_throws":  away_sp.get("pitchHand", {}).get("code"),
         "home_lineup":     home_lineup_ids,
         "away_lineup":     away_lineup_ids,
