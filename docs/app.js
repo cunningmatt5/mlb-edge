@@ -1010,18 +1010,45 @@ function vegasEdgeStripHTML(g) {
 }
 
 // ── Edge condition badge (game card) ──────────────────────────────────────────
+// Canonical edge-confidence presentation (back-compat with legacy medium/new).
+const EDGE_CONF = {
+  high:     { label: 'Strong',   cls: 'strong', efCls: 'ef-conf-high',   icon: '⚡' },
+  watch:    { label: 'Watch',    cls: 'watch',  efCls: 'ef-conf-watch',  icon: '⚠' },
+  emerging: { label: 'Emerging', cls: 'new',    efCls: 'ef-conf-new',    icon: '★' },
+  medium:   { label: 'Watch',    cls: 'medium', efCls: 'ef-conf-medium', icon: '~' },
+  new:      { label: 'Emerging', cls: 'new',    efCls: 'ef-conf-new',    icon: '★' },
+};
+const edgeConf = e => EDGE_CONF[e.confidence] || EDGE_CONF.high;
+// Edge strength for ranking = the actual (vig-adjusted) signal boost; ROI breaks ties.
+const edgeStrength = g => Math.max(0, ...(g.edge_conditions || []).map(e => e.signal_boost ?? 0));
+const edgeTopRoi   = g => Math.max(...(g.edge_conditions || []).map(e => e.roi_pct ?? 0));
+
+// Compact per-season ROI chips (green/red by sign). Empty if the pipeline hasn't
+// emitted season_roi yet (older games.json).
+function seasonRoiStripHTML(e) {
+  if (!e.season_roi || !Object.keys(e.season_roi).length) return '';
+  const chips = Object.entries(e.season_roi).map(([yr, roi]) => {
+    const pos = roi >= 0;
+    return `<span class="ef-season-chip ${pos ? 'pos' : 'neg'}">`
+         + `${yr.slice(2)} ${pos ? '+' : ''}${roi.toFixed(0)}%</span>`;
+  }).join('');
+  return `<div class="ef-season-strip" title="Historical ROI by season">${chips}</div>`;
+}
+
 function edgeConditionsHTML(g) {
   const conds = g.edge_conditions;
   if (!conds || !conds.length) return '';
   const status = g.game_status || 'preview';
   if (status !== 'preview') return '';
 
-  const CONF_ICON = { high: '⚡', medium: '~', new: '★' };
-  const badges = conds.map(e => {
-    const icon = CONF_ICON[e.confidence] || '⚡';
-    const roiStr = `+${e.roi_pct.toFixed(1)}% ROI`;
-    const cls = e.confidence === 'high' ? 'edge-cond-badge strong' : e.confidence === 'new' ? 'edge-cond-badge new' : 'edge-cond-badge medium';
-    return `<span class="${cls}" title="${e.seasons}">${icon} ${e.label} · ${roiStr}</span>`;
+  // Strongest (highest live boost) first so the actionable edge leads.
+  const ordered = [...conds].sort((a, b) => (b.signal_boost ?? 0) - (a.signal_boost ?? 0));
+  const badges = ordered.map(e => {
+    const c = edgeConf(e);
+    const roiStr = `${e.roi_pct >= 0 ? '+' : ''}${e.roi_pct.toFixed(1)}% ROI`;
+    const muted = (e.signal_boost ?? 0) === 0 ? ' muted' : '';
+    return `<span class="edge-cond-badge ${c.cls}${muted}" title="${e.seasons}">`
+         + `${c.icon} ${e.label} · ${roiStr}</span>`;
   }).join('');
 
   return `<div class="edge-cond-strip">${badges}</div>`;
@@ -4537,12 +4564,10 @@ function renderEdgesView() {
   const el = document.getElementById('edges-view');
 
   const allGames = gamesData?.games || [];
+  // Rank by actionable edge strength (live vig-adjusted boost), then ROI as tiebreak.
   const edgeGames = allGames
     .filter(g => g.edge_conditions?.length && (g.game_status || 'preview') === 'preview')
-    .sort((a, b) => {
-      const topRoi = g => Math.max(...g.edge_conditions.map(e => e.roi_pct));
-      return topRoi(b) - topRoi(a);
-    });
+    .sort((a, b) => (edgeStrength(b) - edgeStrength(a)) || (edgeTopRoi(b) - edgeTopRoi(a)));
 
   if (!edgeGames.length) {
     el.innerHTML = `
@@ -4551,27 +4576,34 @@ function renderEdgesView() {
     return;
   }
 
-  const CONF_LABEL = { high: 'Strong', medium: 'Watch', new: 'Emerging' };
-  const CONF_CLASS = { high: 'ef-conf-high', medium: 'ef-conf-medium', new: 'ef-conf-new' };
-
   const cards = edgeGames.map(g => {
     const total = g.odds?.total;
     const pred  = g.prediction?.predicted_total;
     const totalStr = total != null ? `${total}` : '—';
     const devStr   = (total != null && pred != null) ? ` (model: ${pred.toFixed(1)})` : '';
 
-    const condRows = g.edge_conditions.map(e => `
-      <div class="ef-cond-row ${CONF_CLASS[e.confidence] || ''}">
-        <span class="ef-cond-label">${e.label}</span>
-        <span class="ef-cond-roi">+${e.roi_pct.toFixed(1)}% ROI</span>
-        <span class="ef-cond-n">${e.n_games.toLocaleString()} games</span>
-        <span class="ef-cond-seasons">${e.seasons}</span>
-      </div>`).join('');
+    // Strongest edge first; watch (zero-boost) edges sink to the bottom of the card.
+    const ordered = [...g.edge_conditions].sort((a, b) => (b.signal_boost ?? 0) - (a.signal_boost ?? 0));
+    const condRows = ordered.map(e => {
+      const c = edgeConf(e);
+      const isWatch = (e.signal_boost ?? 0) === 0;
+      const warn = isWatch
+        ? `<div class="ef-cond-warn">⚠ informational only — not boosting today's pick (live season negative)</div>`
+        : '';
+      return `
+      <div class="ef-cond-row ${c.efCls}${isWatch ? ' ef-cond-muted' : ''}">
+        <span class="ef-cond-label">${c.icon} ${escapeHtml(e.label)}</span>
+        <span class="ef-cond-roi">${e.roi_pct >= 0 ? '+' : ''}${e.roi_pct.toFixed(1)}% ROI</span>
+        <span class="ef-cond-n">n=${e.n_games.toLocaleString()}</span>
+        <span class="ef-cond-seasons">${escapeHtml(e.seasons)}</span>
+        ${seasonRoiStripHTML(e)}
+        ${warn}
+      </div>`;
+    }).join('');
 
-    const confBadge = (() => {
-      const top = g.edge_conditions.reduce((best, e) => e.roi_pct > (best?.roi_pct ?? 0) ? e : best, null);
-      return top ? `<span class="ef-conf-badge ${CONF_CLASS[top.confidence] || ''}">${CONF_LABEL[top.confidence] || top.confidence}</span>` : '';
-    })();
+    const top = ordered[0];
+    const c = edgeConf(top);
+    const confBadge = `<span class="ef-conf-badge ${c.efCls}">${c.label}</span>`;
 
     return `
     <div class="ef-card">
@@ -4587,13 +4619,14 @@ function renderEdgesView() {
   el.innerHTML = `
     <div class="view-header">
       <h1>Edge Finder</h1>
-      <span class="sub-label">${edgeGames.length} game${edgeGames.length !== 1 ? 's' : ''} matched today</span>
+      <span class="sub-label">${edgeGames.length} game${edgeGames.length !== 1 ? 's' : ''} matched · ranked by edge strength</span>
     </div>
     <div class="ef-explainer">
-      Edges are derived from 9,400+ games (2022–2026). Only UNDER conditions on specific
-      total-line bands are validated as multi-season edges. Confidence:
-      <span class="ef-conf-badge ef-conf-high">Strong</span> = 4+ seasons,
-      <span class="ef-conf-badge ef-conf-medium">Watch</span> = 4 seasons / 2026 reversal,
+      Edges are derived from 9,400+ games (2021–2026). Only UNDER conditions on specific
+      total lines are validated as multi-season edges; each shows real per-season ROI.
+      Confidence:
+      <span class="ef-conf-badge ef-conf-high">Strong</span> = profitable across seasons,
+      <span class="ef-conf-badge ef-conf-watch">Watch</span> = historically strong but live season reversed (not bet),
       <span class="ef-conf-badge ef-conf-new">Emerging</span> = 2026 data only.
     </div>
     <div class="ef-list">${cards}</div>`;

@@ -3670,6 +3670,12 @@ header {
   color: #c4b5fd;
   border: 1px solid rgba(167,139,250,.24);
 }
+.edge-cond-badge.watch {
+  background: rgba(248,113,113,.10);
+  color: #fca5a5;
+  border: 1px solid rgba(248,113,113,.24);
+}
+.edge-cond-badge.muted { opacity: 0.6; }
 
 /* ── Edge Finder Tab ─────────────────────────────────────────────────────── */
 .ef-explainer {
@@ -3720,6 +3726,7 @@ header {
 .ef-conf-high   { background: rgba(34,197,94,.14);  color: #6ee7b7; border: 1px solid rgba(34,197,94,.28); }
 .ef-conf-medium { background: rgba(251,191,36,.10); color: #fcd34d; border: 1px solid rgba(251,191,36,.22); }
 .ef-conf-new    { background: rgba(167,139,250,.12);color: #c4b5fd; border: 1px solid rgba(167,139,250,.24); }
+.ef-conf-watch  { background: rgba(248,113,113,.10);color: #fca5a5; border: 1px solid rgba(248,113,113,.24); }
 .ef-cond-row {
   display: grid;
   grid-template-columns: 1fr auto auto;
@@ -3742,6 +3749,32 @@ header {
 .ef-cond-row.ef-conf-high   { background: rgba(34,197,94,.03); }
 .ef-cond-row.ef-conf-medium { background: rgba(251,191,36,.03); }
 .ef-cond-row.ef-conf-new    { background: rgba(167,139,250,.03); }
+.ef-cond-row.ef-conf-watch  { background: rgba(248,113,113,.03); }
+.ef-cond-row.ef-cond-muted  { opacity: 0.72; }
+
+/* Per-season ROI chips under each edge condition */
+.ef-season-strip {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+.ef-season-chip {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.2px;
+}
+.ef-season-chip.pos { background: rgba(34,197,94,.12);  color: #6ee7b7; }
+.ef-season-chip.neg { background: rgba(248,113,113,.14); color: #fca5a5; }
+.ef-cond-warn {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: #fca5a5;
+  padding-top: 3px;
+}
 
 /* ── Backtest redesign — context bar, KPI row, section headers ───────────── */
 .bt-context-bar {

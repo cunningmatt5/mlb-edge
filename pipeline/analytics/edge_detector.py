@@ -36,6 +36,7 @@ EDGE_METADATA: dict[str, dict] = {
         "n_games":    458,
         "confidence": "high",
         "seasons":    "6/6 seasons profitable (2021–2026) at standard vig",
+        "season_roi": {"2021": 8.2, "2022": 16.8, "2023": 6.1, "2024": 15.8, "2025": 9.3, "2026": 19.5},
         "signal_boost": 0.8,   # full boost; tiered down by vig in detect_edges()
     },
     "UNDER_LINE_9_0": {
@@ -47,6 +48,7 @@ EDGE_METADATA: dict[str, dict] = {
         "n_games":    1699,
         "confidence": "watch",
         "seasons":    "strong 2021–2025 (+11.9%) but COLLAPSED in 2026 (-13.9%) — watch only",
+        "season_roi": {"2021": 21.9, "2022": 9.9, "2023": 12.0, "2024": 12.2, "2025": 13.8, "2026": -13.9},
         "signal_boost": 0.0,   # do not move live signals: the live season is negative
     },
     "UNDER_MODEL_DEV": {
@@ -54,10 +56,11 @@ EDGE_METADATA: dict[str, dict] = {
         "label":      "Under Edge: Model–Vegas Gap",
         "direction":  "UNDER",
         "bet_type":   "TOTAL",
-        "roi_pct":    24.0,
+        "roi_pct":    35.86,
         "n_games":    42,
         "confidence": "emerging",
         "seasons":    "2026-only by construction (predicted_total was Vegas-anchored pre-2026); lines ≤9.0, small n",
+        "season_roi": {"2026": 35.9},
         "signal_boost": 0.3,   # single season, small sample → modest boost
     },
 }
