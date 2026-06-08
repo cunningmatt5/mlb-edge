@@ -33,7 +33,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 ROOT = Path(__file__).parent.parent
-LINE = 8.0
+LINE = 8.0  # overridden by --line; the edge under study (8.0 default, 9.0 for T2, etc.)
 TOL = 1e-6
 MIN_SEASON_N = 20   # a season needs this many games at the slice to "count" for robustness
 MIN_SLICE_N = 100   # balanced floor: a refinement must clear this total sample
@@ -188,11 +188,11 @@ def run() -> None:
     print("BASELINES — the bar to beat")
     print("=" * 92)
     base_blind = evaluate(blind)
-    line("BLIND  UNDER @ 8.0  (2021-2026)", base_blind)
+    line(f"BLIND  UNDER @ {LINE}  (2021-2026)", base_blind)
     print_seasons(base_blind)
     model_under = model[model["model_under"]]
     base_model = evaluate(model_under)
-    line("MODEL  UNDER @ 8.0 + model leans under (2022-2026)", base_model)
+    line(f"MODEL  UNDER @ {LINE} + model leans under (2022-2026)", base_model)
     print_seasons(base_model)
     print("  ^ current edge_detector.py UNDER_LINE_8_0 rule is the MODEL line above.")
 
@@ -245,10 +245,10 @@ def run() -> None:
     print("\n── Model-filtered (2022-2026 only) ──")
 
     print("\n  lift from the model-under filter:")
-    line("  blind @8.0, 2022-2026 (no model filter)", evaluate(model))
-    line("  + model leans under (predicted < 8.0)", evaluate(model[model["model_under"]]))
+    line(f"  blind @{LINE}, 2022-2026 (no model filter)", evaluate(model))
+    line(f"  + model leans under (predicted < {LINE})", evaluate(model[model["model_under"]]))
 
-    print("\n  model deviation magnitude (predicted_total below 8.0):")
+    print(f"\n  model deviation magnitude (predicted_total below {LINE}):")
     for thr, lbl in [(-0.25, "dev ≤ -0.25"), (-0.50, "dev ≤ -0.50"), (-0.75, "dev ≤ -0.75")]:
         sub = model[model["total_deviation"] <= thr]
         res = evaluate(sub)
@@ -317,4 +317,9 @@ def _verdict(blind, model, base_blind, base_model) -> None:
 
 
 if __name__ == "__main__":
+    import argparse
+    p = argparse.ArgumentParser(description="UNDER total-line deep-dive (vig/model refinement sweep)")
+    p.add_argument("--line", type=float, default=8.0, help="closing total to study (e.g. 8.0, 9.0)")
+    args = p.parse_args()
+    LINE = args.line
     run()
