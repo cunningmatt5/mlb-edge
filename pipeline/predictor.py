@@ -18,7 +18,6 @@ HOME_ADVANTAGE   = 0.525  # baseline home win probability (calibrated: actual 52
 _PITCHER_WEIGHT  = 0.80  # run-suppression weight (reduced from 0.85 to address -0.275 run bias)
 _LINEUP_WEIGHT   = 0.65  # run-production weight (increased from 0.55 to address -0.275 run bias)
 _RAW_EDGE_MULT   = 2.0   # logit-space multiplier; 2.0 widens output to ~0.35-0.70 vs old 0.43-0.61
-_COMPS_WIN_BLEND = 0.0   # comps are anti-correlated with outcomes in backtest (−10.5 Brier pts); disabled
 
 # Pitcher strength weights: (weight, invert, (lo, hi))
 # invert=True means lower value = better pitcher
@@ -178,11 +177,7 @@ def _win_probability(
 
     logit_stats = logit_base + raw_edge * edge_mult
 
-    if comps_home_win_rate is not None and _COMPS_WIN_BLEND > 0:
-        logit_comps = _logit(comps_home_win_rate)
-        logit_blend = logit_stats * (1 - _COMPS_WIN_BLEND) + logit_comps * _COMPS_WIN_BLEND
-    else:
-        logit_blend = logit_stats
+    logit_blend = logit_stats
 
     logit_blend += park_modifier * 0.5 + weather_modifier * 0.2
 
@@ -550,24 +545,17 @@ def build_game(
 
     home_lineup_ids = game.get("home_lineup", [])
     away_lineup_ids = game.get("away_lineup", [])
-    _proxy_used = False
+    _used_proxy = False
     if not home_lineup_ids:
-        _home_proxy = game.get("home_lineup_proxy", [])
-        if _home_proxy:
-            home_lineup_ids = _home_proxy
-            _proxy_used = True
+        home_lineup_ids = game.get("home_lineup_proxy", [])
+        if home_lineup_ids:
+            _used_proxy = True
     if not away_lineup_ids:
-        _away_proxy = game.get("away_lineup_proxy", [])
-        if _away_proxy:
-            away_lineup_ids = _away_proxy
-            _proxy_used = True
+        away_lineup_ids = game.get("away_lineup_proxy", [])
+        if away_lineup_ids:
+            _used_proxy = True
 
-    if _proxy_used:
-        lineup_status = "proxy"
-    elif home_lineup_ids or away_lineup_ids:
-        lineup_status = "official"
-    else:
-        lineup_status = "tbd"
+    lineup_status = "proxy" if _used_proxy else "official" if (home_lineup_ids or away_lineup_ids) else "tbd"
 
     home_lineup_players = [cache[b] for b in home_lineup_ids if b in cache]
     away_lineup_players = [cache[b] for b in away_lineup_ids if b in cache]

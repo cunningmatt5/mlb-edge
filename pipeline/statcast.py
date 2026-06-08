@@ -20,7 +20,8 @@ import requests
 
 log = logging.getLogger(__name__)
 
-SAVANT_BASE = "https://baseballsavant.mlb.com"
+SAVANT_BASE    = "https://baseballsavant.mlb.com"
+MLB_STATS_BASE = "https://statsapi.mlb.com/api/v1"
 
 # Full team name → Savant abbreviation
 _TEAM_ABBREVS: dict[str, str] = {
@@ -1074,9 +1075,6 @@ def _build_bullpen_last3_ip_map(today: date) -> dict[str, float]:
 # ---------------------------------------------------------------------------
 # Pitcher last-start deviation (MLB Stats API — most recent start ERA estimate)
 # ---------------------------------------------------------------------------
-
-MLB_STATS_BASE = "https://statsapi.mlb.com/api/v1"
-
 
 def _ip_to_decimal(ip_str: str) -> float | None:
     """Convert MLB innings-pitched string (e.g. '5.1', '6.2') to decimal."""

@@ -79,65 +79,58 @@ def score_game_total(game: dict, cache: dict) -> list[dict]:
     line_movement = game.get("line_movement") or {}
     total_move    = line_movement.get("total_move")  # positive = sharp money on OVER
 
-    for direction, base_signal in [("UNDER", under_signal)]:
-        ump_mod, ump_reason = compute_umpire_modifier(umpire, "TOTAL", direction)
-        # run tendency: negative value suppresses runs — boosts UNDER signal
-        tend_mod = -run_tend
-        # line movement: +0.3 when sharp money confirms UNDER
-        lm_mod = 0.0
-        lm_reason = None
-        if total_move is not None and abs(total_move) >= 1.0:
-            if total_move < 0:
-                lm_mod = 0.3
-                move_dir = "up" if total_move > 0 else "down"
-                opening_t = line_movement.get("opening_total", "?")
-                current_t = line_movement.get("current_total", "?")
-                lm_reason = f"Total moved {move_dir} ({opening_t} → {current_t}) — sharp money confirms UNDER"
-        signal = max(0.0, min(10.0, round(base_signal + ump_mod + tend_mod + lm_mod, 1)))
-        # UNDER 6.0+ tier: +1.51% ROI; 5.0-5.9 was -0.44% ROI (76% of volume) — floor raised.
-        threshold = 6.0
-        # UNDER picks in avg-quality pitcher matchups (suppression < 0.50) have -1.6% ROI;
-        # Good-tier matchups (>= 0.50) have +2.2% ROI — gate on pitcher quality.
-        if avg_suppression < 0.50:
-            continue
-        if signal >= threshold:
-            reasons = _build_reasons(home_sp, away_sp, park_run, venue)
-            if weather_reason:
-                reasons = (reasons + [weather_reason])[:4]
-            if ump_reason:
-                reasons = (reasons + [ump_reason])[:4]
-            if run_tend_reason and run_tend < 0:
-                reasons = (reasons + [run_tend_reason])[:4]
-            if lm_reason:
-                reasons = (reasons + [lm_reason])[:4]
+    ump_mod, ump_reason = compute_umpire_modifier(umpire, "TOTAL", "UNDER")
+    # run tendency: negative value suppresses runs — boosts UNDER signal
+    tend_mod = -run_tend
+    # line movement: +0.3 when sharp money confirms UNDER (total moves down)
+    lm_mod = 0.0
+    lm_reason = None
+    if total_move is not None and abs(total_move) >= 1.0 and total_move < 0:
+        lm_mod = 0.3
+        opening_t = line_movement.get("opening_total", "?")
+        current_t = line_movement.get("current_total", "?")
+        lm_reason = f"Total moved down ({opening_t} → {current_t}) — sharp money confirms UNDER"
+    signal = max(0.0, min(10.0, round(under_signal + ump_mod + tend_mod + lm_mod, 1)))
+    # UNDER 6.0+ tier: +1.51% ROI; 5.0-5.9 was -0.44% ROI (76% of volume) — floor raised.
+    # Suppression gate: < 0.50 avg suppression has -1.6% ROI; >= 0.50 has +2.2% ROI.
+    if avg_suppression >= 0.50 and signal >= 6.0:
+        reasons = _build_reasons(home_sp, away_sp, park_run, venue)
+        if weather_reason:
+            reasons = (reasons + [weather_reason])[:4]
+        if ump_reason:
+            reasons = (reasons + [ump_reason])[:4]
+        if run_tend_reason and run_tend < 0:
+            reasons = (reasons + [run_tend_reason])[:4]
+        if lm_reason:
+            reasons = (reasons + [lm_reason])[:4]
 
-            picks.append({
-                "bet_type":  "TOTAL",
-                "subject":   matchup,
-                "direction": direction,
-                "headline":  f"{matchup} Total Runs — {direction}",
-                "signal":    signal,
-                "reasons":   reasons,
-                "raw_scores": {
-                    "home_sp_xfip":       home_sp.get("xfip"),
-                    "away_sp_xfip":       away_sp.get("xfip"),
-                    "home_sp_siera":      home_sp.get("siera"),
-                    "away_sp_siera":      away_sp.get("siera"),
-                    "home_bullpen_xera":  home_bp.get("xera") if home_bp else None,
-                    "away_bullpen_xera":  away_bp.get("xera") if away_bp else None,
-                    "avg_lineup_xwoba":   round(avg_xwoba, 3),
-                    "park_run_factor":    park_run,
-                    "avg_suppression":    round(avg_suppression, 3),
-                    "offense_score":      round(offense_s, 3),
-                    "lineup_data":        (home_xwoba != 0.320 and bool(home_lineup)) or (away_xwoba != 0.320 and bool(away_lineup)),
-                    "weather_modifier":   round(weather_mod, 2) if weather_mod else None,
-                    "umpire_modifier":    round(ump_mod, 2) if ump_mod else None,
-                    "run_tendency":       round(run_tend, 2) if run_tend else None,
-                    "umpire":             umpire or None,
-                    "line_movement_mod":  round(lm_mod, 2) if lm_mod else None,
-                    "total_move":         total_move,
-                },
-            })
+        picks.append({
+            "bet_type":  "TOTAL",
+            "subject":   matchup,
+            "direction": "UNDER",
+            "headline":  f"{matchup} Total Runs — UNDER",
+            "signal":    signal,
+            "reasons":   reasons,
+            "raw_scores": {
+                "home_sp_xfip":       home_sp.get("xfip"),
+                "away_sp_xfip":       away_sp.get("xfip"),
+                "home_sp_siera":      home_sp.get("siera"),
+                "away_sp_siera":      away_sp.get("siera"),
+                "home_bullpen_xera":  home_bp.get("xera") if home_bp else None,
+                "away_bullpen_xera":  away_bp.get("xera") if away_bp else None,
+                "avg_lineup_xwoba":   round(avg_xwoba, 3),
+                "park_run_factor":    park_run,
+                "avg_suppression":    round(avg_suppression, 3),
+                "offense_score":      round(offense_s, 3),
+                "lineup_data":        (home_xwoba != 0.320 and bool(home_lineup)) or (away_xwoba != 0.320 and bool(away_lineup)),
+                "weather_modifier":   round(weather_mod, 2) if weather_mod else None,
+                "umpire_modifier":    round(ump_mod, 2) if ump_mod else None,
+                "run_tendency":       round(run_tend, 2) if run_tend else None,
+                "umpire":             umpire or None,
+                "line_movement_mod":  round(lm_mod, 2) if lm_mod else None,
+                "total_move":         total_move,
+            },
+        })
 
     return picks
 
