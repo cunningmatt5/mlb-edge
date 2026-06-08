@@ -77,10 +77,16 @@ def append_today(history: list[dict], games: list[dict], today_str: str) -> list
                 existing["pick_tier"] = pred.get("pick_tier")
             if existing.get("pitcher_score_diff") is None and pred.get("pitcher_score_diff") is not None:
                 existing["pitcher_score_diff"] = pred.get("pitcher_score_diff")
+            # Patch MC outputs if missing (record may predate MC persistence)
+            _mc = g.get("mc_simulation") or {}
+            if existing.get("mc_win_pct") is None and _mc.get("mc_win_pct") is not None:
+                existing["mc_win_pct"] = _mc.get("mc_win_pct")
+                existing["mc_total"]   = _mc.get("mc_total")
             continue
         pred    = g.get("prediction", {})
         signals = pred.get("model_signals", {})
         odds    = g.get("odds") or {}
+        mc      = g.get("mc_simulation") or {}
 
         # Compute model edge vs Pinnacle no-vig ML probability
         home_ml = odds.get("home_ml")
@@ -101,6 +107,10 @@ def append_today(history: list[dict], games: list[dict], today_str: str) -> list
             "predicted_winner":        "home" if pred.get("home_win_pct", 0) >= 0.5 else "away",
             "home_win_pct":            pred.get("home_win_pct"),
             "predicted_total":         pred.get("predicted_total"),
+            # Monte Carlo (Statcast-pure) outputs — persisted point-in-time so the MC
+            # divergence signal can be validated against outcomes going forward.
+            "mc_win_pct":              mc.get("mc_win_pct"),
+            "mc_total":                mc.get("mc_total"),
             "predicted_home_sp_id":    g.get("home_sp_id"),
             "predicted_away_sp_id":    g.get("away_sp_id"),
             "pitcher_score_home":      signals.get("pitcher_score_home"),

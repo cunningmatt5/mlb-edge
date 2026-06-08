@@ -15,3 +15,6 @@ data/seasons/**
 !data/seasons/**/closing_lines.parquet
 !data/seasons/**/player_cache.pkl
 data/backtest_results.parquet
+
+# Regenerable MC research artifact (rebuild with pipeline/mc_backfill.py) — not published
+docs/mc_history.json
