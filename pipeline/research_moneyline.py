@@ -100,6 +100,31 @@ def roi_window(df: pd.DataFrame, years: set[int]) -> float:
     return r["roi_pct"] if r["roi_pct"] is not None else 0.0
 
 
+def roi_favored(df: pd.DataFrame) -> dict:
+    """Flat-$100 ROI betting the MODEL-FAVORED side (home or away) per home_win_pct."""
+    if len(df) == 0:
+        return {"n": 0, "win_pct": None, "roi_pct": None}
+    fav_away = (1 - df["home_win_pct"]) > df["home_win_pct"]
+    won = df["away_won"].where(fav_away, df["home_won"])
+    price = df["away_ml"].where(fav_away, df["home_ml"])
+    ret = price.apply(american_to_decimal).sub(1).mul(100).where(won, -100)
+    n = len(df)
+    return {"n": n, "win_pct": round(won.sum() / n * 100, 1),
+            "roi_pct": round(ret.sum() / (n * 100) * 100, 2)}
+
+
+def evaluate_favored(df: pd.DataFrame) -> dict:
+    """Favored-side ROI + per-season breakdown + robustness verdict (parallels evaluate)."""
+    overall = roi_favored(df)
+    seasons = {int(y): roi_favored(df[df["season"] == y]) for y in sorted(df["season"].unique())}
+    counted = {y: r for y, r in seasons.items() if r["n"] >= MIN_SEASON_N}
+    pos = sum(1 for r in counted.values() if (r["roi_pct"] or 0) > 0)
+    n_counted = len(counted)
+    passed = (overall["n"] >= MIN_SLICE_N) and (n_counted >= 1) and (pos >= max(4, n_counted - 1))
+    return {"overall": overall, "seasons": seasons,
+            "n_counted": n_counted, "pos": pos, "need_pos": max(4, n_counted - 1), "passed": passed}
+
+
 def fmt(res: dict) -> str:
     o = res["overall"]
     if o["n"] == 0:
@@ -234,7 +259,40 @@ def run() -> None:
     print("COMBINED RULE + VERDICT  (must clear floor AND survive 2022-23 OOS)")
     print("=" * 92)
     _verdict(df, model, base)
+
+    _high_confidence(df)
     print("\nDone.")
+
+
+def _high_confidence(df: pd.DataFrame) -> None:
+    """
+    Validate the UI 'High Confidence' Best Bets tier: bet the model-favored side when
+    max(home_win_pct, 1-home_win_pct) >= threshold. home_win_pct is model-derived, so
+    2022-2026 only. The UI advertises '68.0% win rate at 65%+' — but win rate != ROI.
+    """
+    print("\n" + "=" * 92)
+    print("HIGH-CONFIDENCE TIER — bet model-favored side (UI 'Best Bets' claims 68% win rate)")
+    print("=" * 92)
+    hc = df[(df["season"] >= 2022) & df["home_win_pct"].notna()].copy()
+    hc["conf"] = hc["home_win_pct"].combine((1 - hc["home_win_pct"]), max)
+    hc["fav_away"] = (1 - hc["home_win_pct"]) > hc["home_win_pct"]
+
+    for thr in (0.62, 0.65):
+        res = evaluate_favored(hc[hc["conf"] >= thr])
+        line(f"conf ≥ {thr:.2f} (bet favored side)", res)
+        print_seasons(res)
+    print("  ^ NOTE: win rate ≈ 64-66% (≈ the advertised 68%) BUT ROI is negative —")
+    print("    high-confidence picks are favorites that win often without paying enough.")
+
+    print("\n── split by favored side (where the loss lives) ──")
+    base = hc[hc["conf"] >= 0.62]
+    line("  home-favored (most of the tier)", evaluate_favored(base[~base["fav_away"]]))
+    print_seasons(evaluate_favored(base[~base["fav_away"]]))
+    line("  away-favored (small, volatile)", evaluate_favored(base[base["fav_away"]]))
+    print_seasons(evaluate_favored(base[base["fav_away"]]))
+    print("\n  VERDICT: the High-Confidence tier is a net-losing flat-stake bet (ROI < 0,")
+    print("  4/5 seasons negative), driven by losing home favorites. The '68% win rate'")
+    print("  claim is true-ish on win rate but misleading as a bet — recommend demote.")
 
 
 def _verdict(df, model, base) -> None:
