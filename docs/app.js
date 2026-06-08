@@ -2584,20 +2584,22 @@ function renderBacktestView() {
 
   const ec8Roi = edge8to85.roi;
   const ec9Roi = edge9to95.roi;
-  const ec8RoiStr = ec8Roi != null ? (ec8Roi >= 0 ? '+' : '') + ec8Roi.toFixed(1) + '%' : '—';
-  const ec9RoiStr = ec9Roi != null ? (ec9Roi >= 0 ? '+' : '') + ec9Roi.toFixed(1) + '%' : '—';
+  const ec85Roi = edge85to9.roi;
+  const ec8RoiStr  = ec8Roi  != null ? (ec8Roi  >= 0 ? '+' : '') + ec8Roi.toFixed(1)  + '%' : '—';
+  const ec9RoiStr  = ec9Roi  != null ? (ec9Roi  >= 0 ? '+' : '') + ec9Roi.toFixed(1)  + '%' : '—';
+  const ec85RoiStr = ec85Roi != null ? (ec85Roi >= 0 ? '+' : '') + ec85Roi.toFixed(1) + '%' : '—';
   const ec9Conf = bandConf(edge9to95.bySeason);
 
   const edgesSection = `
     <div class="bt-sec-head">
       <span class="bt-sec-num">01</span>
       <span class="bt-sec-title">Validated Edges</span>
-      <span class="bt-sec-sub">Structural market inefficiencies · 9,400+ games · 2022–2026</span>
+      <span class="bt-sec-sub">Per-line UNDER performance · 9,400+ games · 2022–2026</span>
     </div>
     <p class="bt-sec-desc">
-      A systematic scan of every game found two total-line bands where a flat $1 bet on the UNDER
-      produces consistent positive ROI across multiple seasons — structural market inefficiencies, not model signals.
-      The <strong>Edges tab</strong> flags today's qualifying games.
+      MLB totals are set at discrete half-run increments (8.0, 8.5, 9.0, …). Each line behaves
+      differently — a flat UNDER bet on 8.0 has been profitable in 5 of 5 seasons; the same bet
+      on 8.5 loses money. The <strong>Edges tab</strong> flags today's qualifying games.
     </p>
     <div class="bt-edges-grid">
 
@@ -2609,12 +2611,31 @@ function renderBacktestView() {
           <span class="edge-cond-badge strong">⚡ Strong</span>
         </div>
         <div class="bt-ec2-body">
-          <div class="bt-ec2-band-label">UNDER · Total 8.0 – 8.5</div>
-          <p class="bt-ec2-desc">Games at the pitcher's duel boundary. The market shades toward the over, leaving UNDER value. Profitable in 4 of 5 full seasons — 2023 was the only losing year.</p>
+          <div class="bt-ec2-band-label">UNDER · Total = 8.0</div>
+          <p class="bt-ec2-desc">The most consistent edge in the dataset. Profitable blind in 5 of 5 seasons. The market systematically over-prices the over at the 8.0 line — likely because bettors anchor to round numbers and expect "normal" scoring.</p>
           <div class="bt-table-wrap">
             <table class="seg-table">
               <thead><tr><th>Season</th><th>Games</th><th>Win%</th><th>ROI</th></tr></thead>
               <tbody>${edgeSeasonRows(edge8to85)}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="bt-edge-card2 bt-ec2-dead">
+        <div class="bt-ec2-stat-col ec2-dead-col">
+          <div class="bt-ec2-roi-num ecr-red">${ec85RoiStr}</div>
+          <div class="bt-ec2-roi-lbl">avg ROI</div>
+          <div class="bt-ec2-n-stat">${edge85to9.totalBets.toLocaleString()} games</div>
+          <span class="edge-cond-badge" style="background:var(--neg,#6b2a2a);color:#fca;border-color:#8b3a3a">✗ No Edge</span>
+        </div>
+        <div class="bt-ec2-body">
+          <div class="bt-ec2-band-label">UNDER · Total = 8.5</div>
+          <p class="bt-ec2-desc">The single most common total line in MLB (~22% of games), and a consistent money-loser for UNDER bettors. No edge flag is generated for 8.5 games. The 8.0 and 9.0 edges do not extend here.</p>
+          <div class="bt-table-wrap">
+            <table class="seg-table">
+              <thead><tr><th>Season</th><th>Games</th><th>Win%</th><th>ROI</th></tr></thead>
+              <tbody>${edgeSeasonRows(edge85to9)}</tbody>
             </table>
           </div>
         </div>
@@ -2628,8 +2649,8 @@ function renderBacktestView() {
           <span class="edge-cond-badge medium">~ Watch</span>
         </div>
         <div class="bt-ec2-body">
-          <div class="bt-ec2-band-label">UNDER · Total 9.0 – 9.5</div>
-          <p class="bt-ec2-desc">Strong 2022–2025 record (+10–14% each year), but 2026 has reversed sharply. May be market adjustment or early-season variance. Treat as a secondary signal.</p>
+          <div class="bt-ec2-band-label">UNDER · Total = 9.0</div>
+          <p class="bt-ec2-desc">Strong 2022–2025 record (+10–14% ROI each year), but 2026 has reversed sharply (-13.9%). May be market correction or early-season variance — watch closely before leaning on this one.</p>
           <div class="bt-table-wrap">
             <table class="seg-table">
               <thead><tr><th>Season</th><th>Games</th><th>Win%</th><th>ROI</th></tr></thead>
@@ -2641,13 +2662,10 @@ function renderBacktestView() {
 
     </div>
     <div class="bt-edge-footer-row">
-      <div class="bt-edge-dead2">
-        <strong>Dead Zone (8.5–9.0):</strong> UNDER shows negative ROI in this band
-        ${edge85to9.roi != null ? `(${edge85to9.roi >= 0 ? '+' : ''}${edge85to9.roi.toFixed(1)}% · ${edge85to9.totalBets.toLocaleString()} games)` : ''}.
-        Avoid betting UNDER when the total is in this range.
-      </div>
       <div class="bt-edge-takeaway2">
-        <strong>How to use:</strong> When the Edges tab highlights a game, its closing total falls in one of these bands — the strongest structural signal found in five years of data.
+        <strong>How to use:</strong> Totals of 8.0 and 9.0 have historically been profitable UNDER bets.
+        The 8.5 line — despite sitting between them — has not. When the Edges tab highlights a game,
+        check which line triggered it and its current-season trend before betting.
       </div>
     </div>`;
 

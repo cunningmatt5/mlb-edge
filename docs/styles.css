@@ -3847,6 +3847,10 @@ header {
   background: rgba(251,191,36,.02);
   border-color: rgba(251,191,36,.18);
 }
+.bt-ec2-dead {
+  background: rgba(220,38,38,.02);
+  border-color: rgba(220,38,38,.16);
+}
 .bt-ec2-stat-col {
   display: flex;
   flex-direction: column;
@@ -3861,6 +3865,10 @@ header {
 .ec2-watch-col {
   background: rgba(251,191,36,.06);
   border-right-color: rgba(251,191,36,.14);
+}
+.ec2-dead-col {
+  background: rgba(220,38,38,.06);
+  border-right-color: rgba(220,38,38,.14);
 }
 .bt-ec2-roi-num {
   font-size: 28px;
