@@ -911,8 +911,11 @@ function _kellyFracLabel(frac) {
 }
 
 function _underKellyWinProb(total) {
-  if (total <= 8.5)  return 0.565;   // 2022-2025 LOYO 56.5%; 2026 YTD 54.7% (n=558)
-  if (total <= 9.5)  return 0.566;   // blended down from 0.590: 2026 YTD 49.3% (n=146, -2.3σ)
+  // MLB totals are discrete 0.5-run increments — each line has its own win rate
+  if (total < 8.5)  return 0.565;  // 7.5–8.0: 56.9% blind win rate, confirmed edge
+  if (total < 9.0)  return 0.507;  // 8.5: 50.7% blind win rate — no edge; fullK → negative, no stake
+  if (total < 9.5)  return 0.550;  // 9.0: 58% blind but 2026 reversing; conservative estimate
+  if (total < 10.0) return 0.507;  // 9.5: -4.7% blind ROI — no edge; fullK → negative, no stake
   if (total <= 10.5) return 0.535;
   return 0.515;
 }
