@@ -26,6 +26,10 @@ _PROP_MARKET_MAP = {
     "HIT_PROP":"batter_hits",
 }
 
+# Book preference for player props: Pinnacle is sharpest, but carries a thin menu
+# (no hits) — fall back to DK/FanDuel, which post broad prop coverage.
+_PROP_BOOK_PREF = ("pinnacle", "draftkings", "fanduel")
+
 
 def _next_day(date_str: str) -> str:
     """Return the ISO date string for the day after date_str (YYYY-MM-DD)."""
@@ -110,9 +114,8 @@ def fetch_mlb_props(api_key: str, event_id: str) -> dict:
     try:
         params = {
             "apiKey": api_key,
-            "regions": "us",
+            "regions": "us",          # all US books (cost is markets×regions, not per-book)
             "markets": markets_str,
-            "bookmakers": "pinnacle",
             "oddsFormat": "american",
             "dateFormat": "iso",
         }
@@ -126,10 +129,12 @@ def fetch_mlb_props(api_key: str, event_id: str) -> dict:
                         r.status_code, event_id, (r.text or "")[:200])
             return {}
         data = r.json()
-        result: dict[str, dict] = {}
+        # Collect every book's two-sided line per (player_key, market), then keep the most
+        # preferred book — Pinnacle is sharpest; DK/FanDuel cover markets Pinnacle skips
+        # (notably batter_hits). Cost is unchanged by adding books (same us region).
+        by_pm: dict[str, dict[str, dict]] = {}    # "player:market" -> {book: {line,over,under}}
         for bm in data.get("bookmakers", []):
-            if bm.get("key") != "pinnacle":
-                continue
+            book = bm.get("key", "")
             for mkt in bm.get("markets", []):
                 mkt_key = mkt["key"]
                 players: dict[str, dict] = {}
@@ -138,20 +143,26 @@ def fetch_mlb_props(api_key: str, event_id: str) -> dict:
                     player = outcome.get("description") or (name.rsplit(" ", 1)[0] if " " in name else name)
                     side = "Over" if "Over" in name else "Under"
                     players.setdefault(player, {})[side] = {
-                        "price": outcome["price"],
-                        "point": outcome.get("point"),
+                        "price": outcome["price"], "point": outcome.get("point"),
                     }
                 for player, sides in players.items():
                     if "Over" in sides and "Under" in sides:
-                        key = f"{_norm_player(player)}:{mkt_key}"
-                        result[key] = {
+                        pm = f"{_norm_player(player)}:{mkt_key}"
+                        by_pm.setdefault(pm, {})[book] = {
                             "line":        sides["Over"]["point"],
                             "over_price":  sides["Over"]["price"],
                             "under_price": sides["Under"]["price"],
                         }
+        result: dict[str, dict] = {}
+        for pm, books in by_pm.items():
+            book = next((b for b in _PROP_BOOK_PREF if b in books), next(iter(books)))
+            result[pm] = {**books[book], "book": book}
         if result:                                 # cache only real results; errors retry
             cache["events"][event_id] = result
             _prop_cache_save()
+        log.info("Props event=%s cost=%s remaining=%s lines=%d",
+                 event_id, r.headers.get("x-requests-last"),
+                 r.headers.get("x-requests-remaining"), len(result))
         return result
     except Exception as exc:
         log.warning("Props fetch failed for event %s: %s", event_id, exc)
