@@ -76,10 +76,10 @@ def snapshot_picks(today_str: str | None = None) -> int:
 
     resolvable = set(RESOLUTION_THRESHOLDS.keys())
     history    = load_props_history()
-    existing   = {(r["gamePk"], r["bet_type"], r.get("subject_id"), r["date"])
+    existing   = {(r["gamePk"], r["bet_type"], r.get("subject_id"), r["date"]): r
                   for r in history}
 
-    added = 0
+    added = patched = 0
     for game in picks_data.get("games", []):
         pk = game.get("gamePk")
         if not pk:
@@ -94,10 +94,18 @@ def snapshot_picks(today_str: str | None = None) -> int:
 
             subject_id = pick.get("subject_id")
             key = (pk, bt, subject_id, today_str)
+            odds = pick.get("odds") or {}
             if key in existing:
+                # Patch odds onto an already-snapshotted record if they've since become
+                # available (props fetched after the day's first snapshot).
+                rec = existing[key]
+                if rec.get("odds_line") is None and odds.get("line") is not None:
+                    rec["odds_line"]    = odds.get("line")
+                    rec["implied_prob"] = odds.get("implied_prob")
+                    rec["ev_pct"]       = odds.get("edge_pct")
+                    patched += 1
                 continue
 
-            odds = pick.get("odds") or {}
             history.append({
                 "date":         today_str,
                 "gamePk":       pk,
@@ -115,11 +123,11 @@ def snapshot_picks(today_str: str | None = None) -> int:
                 "hit":          None,
                 "actual_value": None,
             })
-            existing.add(key)
+            existing[key] = history[-1]
             added += 1
 
     save_props_history(history)
-    log.info("Props snapshot: %d new records for %s", added, today_str)
+    log.info("Props snapshot: %d new, %d odds-patched for %s", added, patched, today_str)
     return added
 
 
