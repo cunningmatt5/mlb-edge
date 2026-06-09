@@ -4689,6 +4689,36 @@ function renderSupportView() {
       </div>
 
       <div class="support-section">
+        <h2 class="support-section-title">What We Test — and What We Don't Bet</h2>
+        <p class="support-body">
+          Every signal in this app is held to one standard: it must beat real closing odds,
+          across multiple seasons, and survive out-of-sample testing — not just look good on
+          recent data. Most betting angles fail that bar. We've run season-by-season ROI
+          backtests (2021–2026) on every bet type and model signal the app produces; the table
+          below summarizes what we found and why most are shown as informational context rather
+          than recommended picks. The only angle that has cleared the bar is the UNDER on
+          specific low total lines — notably 8.0 at standard vig — which is profitable in every
+          season tested and forms the basis of the recommended edges. Everything else either
+          failed validation, was driven by a single lucky season, or proved statistically
+          indistinguishable from random noise.
+        </p>
+        <table class="val-table">
+          <thead><tr><th>Bet / Angle</th><th>What the data showed</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>UNDER total = 8.0 (standard vig)</td><td>+12.6% ROI, profitable 6 of 6 seasons (2021–26)</td><td><span class="val-tag val-yes">Active edge</span></td></tr>
+            <tr><td>UNDER total = 9.0</td><td>Strong 2021–25, then collapsed in 2026 (−13.9%)</td><td><span class="val-tag val-watch">Watch only</span></td></tr>
+            <tr><td>Model–Vegas total gap (UNDER)</td><td>+36% in 2026 but only one season of data</td><td><span class="val-tag val-watch">Emerging</span></td></tr>
+            <tr><td>Moneyline — "Elite Away"</td><td>Overfit: ~+14% in-sample vs ~−12% out-of-sample</td><td><span class="val-tag val-no">Not used</span></td></tr>
+            <tr><td>Moneyline — "High Confidence"</td><td>64% win rate but −2% ROI (favorites don't pay)</td><td><span class="val-tag val-no">Not used</span></td></tr>
+            <tr><td>Monte Carlo divergence</td><td>No predictive edge; mildly anti-predictive on the moneyline</td><td><span class="val-tag val-no">Informational</span></td></tr>
+            <tr><td>Player props (HR / Hit / K)</td><td>−EV on hit rate; real-odds validation now in progress</td><td><span class="val-tag val-watch">Testing</span></td></tr>
+            <tr><td>Pitcher moneyline "consistent edge"</td><td>Zero persistence (r ≈ 0) — small-sample noise</td><td><span class="val-tag val-no">Removed</span></td></tr>
+            <tr><td>Team totals</td><td>No skill vs a fair line (+0.4 pp over a blind bet)</td><td><span class="val-tag val-no">Not pursued</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="support-section">
         <h2 class="support-section-title">Monte Carlo Simulations</h2>
         <p class="support-body">
           The Monte Carlo simulation plays out your selected game 100,000 times from scratch,
