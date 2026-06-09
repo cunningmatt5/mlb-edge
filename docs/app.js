@@ -2764,7 +2764,7 @@ function renderPitcherView() {
 
   const fmtRoi    = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
   const fmtWr     = v => v == null ? '—' : (v * 100).toFixed(1) + '%';
-  const roiCls    = v => v == null ? '' : v >= 30 ? 'pv-exceptional' : v >= 0 ? 'seg-pos' : 'seg-neg';
+  const roiCls    = v => v == null ? '' : v >= 0 ? 'seg-pos' : 'seg-neg';  // no "exceptional" tier — extremes are noise
   const baseRoiCls = v => v == null ? '' : v >= 0 ? 'seg-pos' : 'seg-neg';
 
   function _renderTable() {
@@ -2791,7 +2791,9 @@ function renderPitcherView() {
     });
 
     const rows = filtered.map(p => {
-      const star     = (p.ml.roi_pct >= 5 && p.ml.n >= 30) ? '<span class="pv-star" title="Consistent edge: ML ROI ≥ +5% with 30+ starts">★</span>' : '';
+      // ★ "consistent edge" removed 2026-06-09: a split-half persistence test (r≈0,
+      // n=227) showed per-pitcher ML ROI has zero predictive persistence — it's
+      // small-sample noise, not an edge.
       const todayCls = _todaySpIds.has(p.id) ? ' pv-row-today' : '';
       const teamName = _liveTeam.get(p.id) || p.team;
       const pvSlug   = TEAM_LOGO[teamName];
@@ -2799,7 +2801,7 @@ function renderPitcherView() {
         ? `<img src="https://a.espncdn.com/combiner/i?img=/i/teamlogos/mlb/500/${pvSlug}.png&h=32&w=32" width="14" height="14" alt="${abbrev(teamName)}" class="pv-team-logo" onerror="this.style.display='none'">`
         : '';
       return `<tr class="${todayCls}">
-        <td class="pv-name">${star}${p.name}</td>
+        <td class="pv-name">${p.name}</td>
         <td class="pv-team">${pvLogoHtml}${abbrev(teamName)}</td>
         <td class="pv-n">${p.ml.n}</td>
         <td class="pv-n">${p.starts_2026 ?? 0}</td>
@@ -2850,13 +2852,16 @@ function renderPitcherView() {
     <div class="pv-wrap">
       <div class="pv-header">
         <div class="bt-narrative-title">Pitcher Value</div>
-        <div class="bt-narrative-sub">Historical ROI betting team ML or UNDER · ${seasons.join(', ')} · Pinnacle closing lines</div>
+        <div class="bt-narrative-sub">Historical record · ${seasons.join(', ')} · descriptive, not predictive</div>
       </div>
-      <p class="bt-section-intro">
-        Each row shows what would have happened if you flat-bet $1 on the pitcher's team to win (ML ROI) or bet the
-        game UNDER every time they started (Under ROI). <strong>★</strong> marks pitchers with
-        sustained ML edge — ≥5% ROI over 30+ starts. Sort any column to surface the strongest edges.
-      </p>
+      <div class="sim-caveat">
+        <strong>Descriptive history — not betting signals.</strong>
+        Each row shows the past record of flat-betting $1 on the pitcher's team ML, or the game UNDER,
+        every time they started. These are <strong>small-sample</strong> records: a split-half test found
+        per-pitcher ML ROI has <strong>essentially zero persistence (r≈0)</strong> — a pitcher's past ROI
+        does <strong>not</strong> predict future ROI. Use this for context (who has pitched in winning or
+        low-scoring spots), not as an edge.
+      </div>
       <div class="pv-controls">
         <input type="text" id="pv-search" class="pv-search" placeholder="Search pitcher…" value="${_pvSearch}">
         <div class="pv-toggle" role="group" aria-label="Min career starts">
