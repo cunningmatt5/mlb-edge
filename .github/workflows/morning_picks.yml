@@ -133,6 +133,7 @@ jobs:
           git add docs/props_history.json 2>/dev/null || true
           git add data/calibration.json 2>/dev/null || true
           git add data/opening_lines.json 2>/dev/null || true
+          git add data/prop_cache.json 2>/dev/null || true
           git diff --staged --quiet || git commit -m "chore: update picks [skip ci]"
           # Stash any remaining unstaged changes so rebase doesn't abort
           git stash --include-untracked || true

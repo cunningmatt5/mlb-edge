@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import unicodedata
 from datetime import date as _date_cls, datetime, timezone
 from functools import lru_cache
 import math
@@ -93,16 +94,19 @@ def fetch_mlb_game_lines(api_key: str, date_str: str) -> dict:
 
 
 def fetch_mlb_props(api_key: str, event_id: str) -> dict:
-    """Return player prop lines keyed by '{normalized_player}:{market}'.
+    """Return player prop lines keyed by '{player_key}:{market}'. Paid tier required.
 
-    Requires the paid Odds API tier. Returns {} on any failure.
+    Throttle: results are cached per event for the day (data/prop_cache.json), so the
+    every-30-min reruns don't refetch — prop lines lock at pick time. Only non-empty
+    results are cached, so we keep retrying until props post, then stop. Returns {} on
+    any failure.
     """
     if not api_key or not event_id:
-        if api_key and not event_id:
-            log.debug("fetch_mlb_props: event_id is None — skipping props fetch for this game")
         return {}
+    cache = _prop_cache()
+    if event_id in cache["events"]:
+        return cache["events"][event_id]          # already fetched today → no API call
     markets_str = ",".join(_PROP_MARKET_MAP.values())
-    log.info("PROPDIAG: calling props for event=%s markets=%s", event_id, markets_str)
     try:
         params = {
             "apiKey": api_key,
@@ -117,17 +121,11 @@ def fetch_mlb_props(api_key: str, event_id: str) -> dict:
             params=params,
             timeout=TIMEOUT,
         )
-        # DIAGNOSTIC: surface status, per-call credit cost, and the API error body.
-        log.info("PROPDIAG: event=%s status=%s cost=%s remaining=%s",
-                 event_id, r.status_code,
-                 r.headers.get("x-requests-last"), r.headers.get("x-requests-remaining"))
         if r.status_code != 200:
-            log.warning("PROPDIAG: props HTTP %s for event %s — body: %s",
-                        r.status_code, event_id, (r.text or "")[:400])
+            log.warning("Props fetch HTTP %s for event %s: %s",
+                        r.status_code, event_id, (r.text or "")[:200])
             return {}
         data = r.json()
-        _bm_keys = [bm.get("key") for bm in data.get("bookmakers", [])]
-        log.info("PROPDIAG: event=%s bookmakers=%s", event_id, _bm_keys)
         result: dict[str, dict] = {}
         for bm in data.get("bookmakers", []):
             if bm.get("key") != "pinnacle":
@@ -145,13 +143,15 @@ def fetch_mlb_props(api_key: str, event_id: str) -> dict:
                     }
                 for player, sides in players.items():
                     if "Over" in sides and "Under" in sides:
-                        key = f"{_norm(player)}:{mkt_key}"
+                        key = f"{_norm_player(player)}:{mkt_key}"
                         result[key] = {
                             "line":        sides["Over"]["point"],
                             "over_price":  sides["Over"]["price"],
                             "under_price": sides["Under"]["price"],
                         }
-        log.info("PROPDIAG: event=%s matched %d player-prop lines", event_id, len(result))
+        if result:                                 # cache only real results; errors retry
+            cache["events"][event_id] = result
+            _prop_cache_save()
         return result
     except Exception as exc:
         log.warning("Props fetch failed for event %s: %s", event_id, exc)
@@ -323,7 +323,7 @@ def match_prop_line(pick: dict, prop_lines: dict) -> Optional[dict]:
     if not mkt:
         return None
     subject = pick.get("subject", "")
-    matched = prop_lines.get(f"{_norm(subject)}:{mkt}")
+    matched = prop_lines.get(f"{_norm_player(subject)}:{mkt}")
     if not matched:
         return None
     fair_over, fair_under = no_vig_prob(matched["over_price"], matched["under_price"])
@@ -501,6 +501,50 @@ def compute_line_movement(game: dict, game_lines: dict, opening_lines: dict) -> 
 def _norm(name: str) -> str:
     """Normalize team/player name for fuzzy matching (lowercase alphanum only)."""
     return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
+_NAME_SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v"}
+
+
+def _norm_player(name: str) -> str:
+    """Order/accent-insensitive player key for prop matching.
+
+    Strips diacritics (Jiménez→jimenez), drops jr/sr/ii suffixes, and token-sorts so
+    'Seigler, Anthony' and 'Anthony Seigler' both normalize to 'anthonyseigler'.
+    """
+    ascii_name = "".join(
+        c for c in unicodedata.normalize("NFKD", name.lower())
+        if not unicodedata.combining(c)
+    )
+    tokens = [t for t in re.findall(r"[a-z0-9]+", ascii_name) if t not in _NAME_SUFFIXES]
+    return "".join(sorted(tokens))
+
+
+# ── Player-prop day cache (throttle: fetch each event's props once per day) ─────
+_PROP_CACHE_PATH = Path(__file__).parent.parent / "data" / "prop_cache.json"
+_prop_cache_mem: Optional[dict] = None
+
+
+def _prop_cache() -> dict:
+    """Today's prop cache {date, events:{event_id: lines}} — loaded once per process."""
+    global _prop_cache_mem
+    today = _date_cls.today().isoformat()
+    if _prop_cache_mem is None:
+        try:
+            d = json.loads(_PROP_CACHE_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            d = {}
+        _prop_cache_mem = d if d.get("date") == today else {"date": today, "events": {}}
+    return _prop_cache_mem
+
+
+def _prop_cache_save() -> None:
+    try:
+        _PROP_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _PROP_CACHE_PATH.write_text(
+            json.dumps(_prop_cache_mem, separators=(",", ":")), encoding="utf-8")
+    except Exception:
+        pass
 
 
 # Map Odds API team name variants → canonical normalized form that matches
