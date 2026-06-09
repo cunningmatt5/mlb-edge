@@ -344,6 +344,7 @@ def match_prop_line(pick: dict, prop_lines: dict) -> Optional[dict]:
         "under_price":     matched["under_price"],
         "fair_over_prob":  fair_over,
         "fair_under_prob": fair_under,
+        "book":            matched.get("book"),
     }
 
 
@@ -380,7 +381,7 @@ def compute_ev(pick: dict, matched_line: dict) -> dict:
         "price":        price,
         "over_price":   matched_line["over_price"],
         "under_price":  matched_line["under_price"],
-        "book":         "pinnacle",
+        "book":         matched_line.get("book") or "pinnacle",
     }
 
 

@@ -300,7 +300,7 @@ function renderBestBetsSection(games) {
       </div>
       <div class="ea-right">
         <div class="ea-bet-row">
-          <span class="ea-bet-label">BET AWAY</span>
+          <span class="ea-bet-label">LEAN AWAY</span>
           ${awayMl ? `<span class="ea-ml">${awayMl}</span>` : ''}
         </div>
         <div class="ea-win-pct">${awayPct}% model win</div>
@@ -342,7 +342,7 @@ function renderBestBetsSection(games) {
       </div>
       <div class="ea-right">
         <div class="ea-bet-row">
-          <span class="ea-bet-label">BET ${awayFav ? 'AWAY' : 'HOME'}</span>
+          <span class="ea-bet-label">LEAN ${awayFav ? 'AWAY' : 'HOME'}</span>
           ${favMlStr ? `<span class="ea-ml">${favMlStr}</span>` : ''}
         </div>
         <div class="ea-win-pct">${favPct}% model win</div>
@@ -394,6 +394,58 @@ function renderBestBetsSection(games) {
 }
 
 // ── Games view ────────────────────────────────────────────────────────────────
+// Switch tabs programmatically (used by in-card links).
+function gotoView(v) {
+  const b = document.querySelector(`.nav-btn[data-view="${v}"]`);
+  if (b) b.click();
+}
+
+// Landing block that leads with TODAY'S VALIDATED edge plays (actionable edges only —
+// signal_boost > 0, i.e. the 8.0 UNDERs, not the 9.0 watch). Reuses the edge-confidence
+// map, per-season ROI chips, and the Kelly sizer.
+function todaysEdgePlaysHTML(games) {
+  const isActionable = e => e.direction === 'UNDER' && (e.signal_boost ?? 0) > 0;
+  const plays = (games || [])
+    .filter(g => (g.game_status || 'preview') === 'preview'
+                 && (g.edge_conditions || []).some(isActionable))
+    .sort((a, b) => edgeStrength(b) - edgeStrength(a));
+
+  if (!plays.length) {
+    return `
+    <div class="edge-plays">
+      <div class="ep-hdr"><span class="ep-title">⚡ Today's Edge Plays</span></div>
+      <div class="ep-empty">No validated edge plays on today's slate — full game list below.
+        <span class="ep-link" onclick="gotoView('edges')">View season performance →</span></div>
+    </div>`;
+  }
+
+  const cards = plays.map(g => {
+    const top = [...g.edge_conditions].filter(isActionable)
+      .sort((a, b) => (b.signal_boost ?? 0) - (a.signal_boost ?? 0))[0];
+    const c = edgeConf(top);
+    const kelly = kellyStripHTML(g);   // '' if no bankroll set
+    return `
+    <div class="ep-card" onclick="toggleCard(${g.gamePk})">
+      <div class="ep-row">
+        <span class="ep-match">${escapeHtml(abbrev(g.away_team))} @ ${escapeHtml(abbrev(g.home_team))}</span>
+        <span class="ep-bet ${c.cls}">${c.icon} ${escapeHtml(top.label)}</span>
+        <span class="ep-roi sb-pos">${top.roi_pct >= 0 ? '+' : ''}${top.roi_pct.toFixed(1)}% hist</span>
+      </div>
+      ${seasonRoiStripHTML(top)}
+      ${kelly}
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="edge-plays">
+      <div class="ep-hdr">
+        <span class="ep-title">⚡ Today's Edge Plays</span>
+        <span class="ep-sub">${plays.length} validated · <span class="ep-link" onclick="gotoView('edges')">scoreboard →</span></span>
+      </div>
+      ${cards}
+    </div>`;
+}
+
 function renderGamesView() {
   const view = document.getElementById('games-view');
   if (!gamesData || !gamesData.games.length) {
@@ -419,6 +471,7 @@ function renderGamesView() {
              placeholder="10000" min="0" step="100" value="${savedBank}">
       <button class="kelly-frac-btn" id="kelly-frac-btn">${fracLabel}</button>
     </div>
+    ${todaysEdgePlaysHTML(gamesData.games)}
     ${eliteHtml}
     <div class="game-list" id="game-list">
       ${gamesData.games.map(g => gameCardHTML(g)).join('')}
@@ -3735,11 +3788,12 @@ function renderPropsView() {
   <span class="sub-label">${ts}</span>
 </div>
 <div class="sim-caveat">
-  <strong>Exploratory Statcast leans — not validated betting edges.</strong>
-  Prop odds aren't ingested, so the "edge %" shown is a model estimate, not a
-  market-validated number. On 2026 results, these props have <strong>not</strong>
-  shown a profitable edge — every type is −EV by hit rate (HR ~13%, HIT ~50%, K ~47%).
-  Team-total / F5 / ML picks are untested. Use these as analysis, not bet signals.
+  <strong>Real market odds now shown — profitability still under validation.</strong>
+  Player-prop lines (best of DraftKings / FanDuel / Pinnacle) are now ingested, and the
+  "model edge" is computed against the real no-vig price. We only recently began
+  collecting these odds, so there is <strong>not yet</strong> a validated ROI track
+  record — treat these as model leans under active testing, not recommended bets.
+  (Early hit-rate read was −EV; the odds-based validation is in progress.)
 </div>
 <div class="props-filter-row">${tabsHtml}</div>
 <div class="picks-list">
@@ -3887,11 +3941,13 @@ function renderPickOdds(p) {
   const edgeCls = (o.edge_pct >= 0.03) ? 'edge-pos' : (o.edge_pct <= -0.03) ? 'edge-neg' : 'edge-neu';
   const price   = p.direction === 'OVER' ? o.over_price : o.under_price;
   const edgePct = o.edge_pct != null ? `${(o.edge_pct * 100).toFixed(1)}%` : '—';
+  const bookChip = o.book ? `<span class="odds-book">${escapeHtml(o.book)}</span>` : '';
   return `
 <div class="pick-odds-row">
   <span class="odds-line">Line: ${o.line}</span>
+  ${bookChip}
   <span class="odds-price">${price > 0 ? '+' : ''}${price}</span>
-  <span class="edge-badge ${edgeCls}">Edge ${edgePct}</span>
+  <span class="edge-badge ${edgeCls}">Model edge ${edgePct}</span>
 </div>`;
 }
 

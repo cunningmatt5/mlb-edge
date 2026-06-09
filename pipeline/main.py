@@ -342,6 +342,7 @@ def main(dry_run: bool = False) -> None:
                                     "line":         ev.get("line"),
                                     "over_price":   ev["over_price"],
                                     "under_price":  ev["under_price"],
+                                    "book":         ev.get("book"),
                                     "edge_pct":     None if pick["bet_type"] in _UNCALIBRATED else ev["edge_pct"],
                                     "model_prob":   None if pick["bet_type"] in _UNCALIBRATED else ev["model_prob"],
                                     "implied_prob": None if pick["bet_type"] in _UNCALIBRATED else ev["implied_prob"],

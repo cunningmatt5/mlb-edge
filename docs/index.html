@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>MLB Edge</title>
-  <link rel="stylesheet" href="styles.css?v=75" />
+  <link rel="stylesheet" href="styles.css?v=76" />
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#0f1117" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -28,13 +28,13 @@
       </div>
       <nav class="nav-tabs">
         <button class="nav-btn active" data-view="games">Games</button>
+        <button class="nav-btn" data-view="edges">Edges</button>
         <button class="nav-btn" data-view="props">Props</button>
         <button class="nav-btn" data-view="parlay">Parlay</button>
         <button class="nav-btn" data-view="record">Record</button>
         <button class="nav-btn" data-view="backtest">Backtest</button>
         <button class="nav-btn" data-view="pitcher">Pitchers</button>
         <button class="nav-btn" data-view="simulate">Simulate</button>
-        <button class="nav-btn" data-view="edges">Edges</button>
         <button class="nav-btn" data-view="support">Support</button>
       </nav>
     </div>
@@ -52,7 +52,7 @@
     <div id="edges-view" hidden></div>
   </main>
 
-  <script src="app.js?v=75"></script>
+  <script src="app.js?v=76"></script>
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js').catch(() => {});
