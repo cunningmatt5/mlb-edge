@@ -3728,8 +3728,8 @@ function renderPropsView() {
 
   const tabs = [
     { id: 'all',      label: 'All Picks' },
-    { id: 'highconf', label: 'High Confidence' },
-    { id: 'value',    label: 'Value (Edge ≥3%)' },
+    { id: 'highconf', label: 'High Signal' },
+    { id: 'value',    label: 'Model Edge ≥3%' },
   ];
   const tabsHtml = tabs.map(t =>
     `<button class="pf-tab${propsFilter === t.id ? ' active' : ''}" data-filter="${t.id}">${t.label}</button>`
@@ -3743,6 +3743,13 @@ function renderPropsView() {
 <div class="view-header">
   <h1>Props</h1>
   <span class="sub-label">${ts}</span>
+</div>
+<div class="sim-caveat">
+  <strong>Exploratory Statcast leans — not validated betting edges.</strong>
+  Prop odds aren't ingested, so the "edge %" shown is a model estimate, not a
+  market-validated number. On 2026 results, these props have <strong>not</strong>
+  shown a profitable edge — every type is −EV by hit rate (HR ~13%, HIT ~50%, K ~47%).
+  Team-total / F5 / ML picks are untested. Use these as analysis, not bet signals.
 </div>
 <div class="props-filter-row">${tabsHtml}</div>
 <div class="picks-list">
