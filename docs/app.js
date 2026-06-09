@@ -7,6 +7,7 @@ const BACKTEST_URL      = './backtest.json';
 const PICKS_URL         = './picks.json';
 const PROPS_HIST_URL    = './props_history.json';
 const PITCHER_VALUE_URL = './pitcher_value.json';
+const EDGE_SCOREBOARD_URL = './edge_scoreboard.json';
 
 // ── Team logo map (ESPN CDN abbreviations) ────────────────────────────────────
 const TEAM_LOGO = {
@@ -35,6 +36,7 @@ let backtestData  = null;
 let picksData     = null;
 let propsHistData = null;
 let pitcherData   = null;
+let scoreboardData = null;
 let expandedPk   = null;
 let currentView  = 'games';
 let lastCheckedAt = null;
@@ -76,7 +78,7 @@ function setupNav() {
       if (currentView === 'parlay')   loadPicks().then(renderParlayView);
       if (currentView === 'simulate') loadGames().then(renderSimulateView);
       if (currentView === 'support')  renderSupportView();
-      if (currentView === 'edges')    loadGames().then(renderEdgesView);
+      if (currentView === 'edges')    Promise.all([loadGames(), loadEdgeScoreboard()]).then(renderEdgesView);
     });
   });
 }
@@ -137,6 +139,15 @@ async function loadPicks() {
     if (r.ok) picksData = await r.json();
   } catch {
     picksData = null;
+  }
+}
+
+async function loadEdgeScoreboard() {
+  try {
+    const r = await fetch(EDGE_SCOREBOARD_URL + '?v=' + Date.now());
+    if (r.ok) scoreboardData = await r.json();
+  } catch {
+    scoreboardData = null;
   }
 }
 
@@ -4541,6 +4552,42 @@ function _copyParlayText(opt, btn) {
 // ── Support view ──────────────────────────────────────────────────────────────
 
 // ── Edges View ────────────────────────────────────────────────────────────────
+// Realized "Edge Scoreboard" — live ROI of the edges the system recommends, graded
+// vs outcomes (docs/edge_scoreboard.json, computed in the pipeline from history.json).
+function edgeScoreboardHTML() {
+  const sb = scoreboardData;
+  if (!sb || !sb.edges || !sb.edges.length) return '';
+  const t = sb.actionable_total || {};
+  const sgn = v => (v >= 0 ? '+' : '');
+  const cls = v => (v == null ? '' : (v >= 0 ? 'sb-pos' : 'sb-neg'));
+  const rows = sb.edges.map(e => {
+    const c = edgeConf({ confidence: e.confidence });
+    const recent = (e.recent_n >= 5 && e.recent_roi_pct != null)
+      ? `<span class="ef-sb-recent ${cls(e.recent_roi_pct)}">30d ${sgn(e.recent_roi_pct)}${e.recent_roi_pct}%</span>` : '';
+    const tag = e.actionable ? '' : ' <span class="ef-sb-tag">watch</span>';
+    return `
+      <div class="ef-sb-row${e.actionable ? '' : ' ef-sb-muted'}">
+        <span class="ef-sb-label">${c.icon} ${escapeHtml(e.label)}${tag}</span>
+        <span class="ef-sb-roi ${cls(e.roi_pct)}">${sgn(e.roi_pct)}${e.roi_pct}%</span>
+        <span class="ef-sb-n">${e.win_pct}% · ${e.n} bets</span>
+        ${recent}
+      </div>`;
+  }).join('');
+  const headline = (t.roi_pct != null)
+    ? `<span class="ef-sb-headline ${cls(t.roi_pct)}">${sgn(t.roi_pct)}${t.roi_pct}% · ${t.n} bets</span>` : '';
+  const recentHead = (t.recent_n >= 5 && t.recent_roi_pct != null)
+    ? ` · last 30d ${sgn(t.recent_roi_pct)}${t.recent_roi_pct}%` : '';
+  return `
+    <div class="ef-scoreboard">
+      <div class="ef-sb-hdr">
+        <span class="ef-sb-title">${sb.season} Realized — Edge Scoreboard</span>
+        ${headline}
+      </div>
+      <div class="ef-sb-sub">Live ROI of the actionable edges this system recommends, graded vs outcomes${recentHead}. Flat $1/bet.</div>
+      ${rows}
+    </div>`;
+}
+
 function renderEdgesView() {
   const el = document.getElementById('edges-view');
 
@@ -4553,6 +4600,7 @@ function renderEdgesView() {
   if (!edgeGames.length) {
     el.innerHTML = `
       <div class="view-header"><h1>Edge Finder</h1></div>
+      ${edgeScoreboardHTML()}
       <div class="empty-state">No edge conditions matched today's games.</div>`;
     return;
   }
@@ -4602,6 +4650,7 @@ function renderEdgesView() {
       <h1>Edge Finder</h1>
       <span class="sub-label">${edgeGames.length} game${edgeGames.length !== 1 ? 's' : ''} matched · ranked by edge strength</span>
     </div>
+    ${edgeScoreboardHTML()}
     <div class="ef-explainer">
       Edges are derived from 9,400+ games (2021–2026). Only UNDER conditions on specific
       total lines are validated as multi-season edges; each shows real per-season ROI.

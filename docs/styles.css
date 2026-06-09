@@ -3689,6 +3689,45 @@ header {
 }
 .edge-cond-badge.muted { opacity: 0.6; }
 
+/* ── Edge Scoreboard (realized ROI) ──────────────────────────────────────── */
+.ef-scoreboard {
+  margin: 8px 12px 14px;
+  padding: 12px 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.ef-sb-hdr {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ef-sb-title { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.ef-sb-headline { font-size: 16px; font-weight: 800; }
+.ef-sb-sub { font-size: 11px; color: var(--text-muted); line-height: 1.5; padding: 4px 0 8px; }
+.ef-sb-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+.ef-sb-muted { opacity: 0.72; }
+.ef-sb-label { font-weight: 600; color: var(--text-primary); }
+.ef-sb-tag {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+  color: #fca5a5; background: rgba(248,113,113,.12); padding: 1px 5px; border-radius: 4px; margin-left: 4px;
+}
+.ef-sb-roi { font-weight: 800; white-space: nowrap; text-align: right; }
+.ef-sb-n   { color: var(--text-muted); white-space: nowrap; }
+.ef-sb-recent { grid-column: 1 / -1; font-size: 10px; color: var(--text-dim); }
+.sb-pos { color: #6ee7b7; }
+.sb-neg { color: #fca5a5; }
+
 /* ── Edge Finder Tab ─────────────────────────────────────────────────────── */
 .ef-explainer {
   font-size: 12px;

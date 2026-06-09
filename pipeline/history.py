@@ -290,5 +290,12 @@ if __name__ == "__main__":
             save_props_history(props)
         except Exception as exc:
             log.warning("Props resolution failed (non-fatal): %s", exc)
+
+        # Refresh the realized edge scoreboard from the just-resolved history.
+        try:
+            from pipeline.edge_scoreboard import build_scoreboard
+            build_scoreboard()
+        except Exception as exc:
+            log.warning("Edge scoreboard build failed (non-fatal): %s", exc)
     else:
         parser.print_help()
