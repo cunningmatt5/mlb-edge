@@ -898,58 +898,32 @@ function _kellyFracLabel(frac) {
   return frac >= 1.0 ? '1K' : frac >= 0.5 ? '½K' : '¼K';
 }
 
-function _underKellyWinProb(total) {
-  // MLB totals are discrete 0.5-run increments — each line has its own win rate
-  if (total < 8.5)  return 0.565;  // 7.5–8.0: 56.9% blind win rate, confirmed edge
-  if (total < 9.0)  return 0.507;  // 8.5: 50.7% blind win rate — no edge; fullK → negative, no stake
-  if (total < 9.5)  return 0.550;  // 9.0: 58% blind but 2026 reversing; conservative estimate
-  if (total < 10.0) return 0.507;  // 9.5: -4.7% blind ROI — no edge; fullK → negative, no stake
-  if (total <= 10.5) return 0.535;
-  return 0.515;
-}
-
 function kellyStripHTML(g) {
   const bankroll = parseFloat(localStorage.getItem('mlbedge_bankroll') || '0');
   if (!bankroll || bankroll <= 0) return '';
   const status = g.game_status || 'preview';
   if (status !== 'preview') return '';
-  const pred = g.prediction || {};
   const odds = g.odds;
   const fraction = parseFloat(localStorage.getItem('mlbedge_kelly_fraction') || '0.5');
   const fracLabel = _kellyFracLabel(fraction);
   const items = [];
 
-  // ML Kelly: show when |model_edge_ml| >= 0.03 and odds available
-  const mlEdge = pred.model_edge_ml;
-  if (mlEdge != null && Math.abs(mlEdge) >= 0.03 && odds?.home_ml != null && odds?.away_ml != null && pred.home_win_pct != null) {
-    const betHome  = mlEdge > 0;
-    const winProb  = betHome ? pred.home_win_pct : (1 - pred.home_win_pct);
-    const ml       = betHome ? odds.home_ml : odds.away_ml;
-    const decOdds  = americanToDecimal(ml);
-    const b        = decOdds - 1;
-    const fullK    = b > 0 ? (b * winProb - (1 - winProb)) / b : 0;
+  // Kelly only sizes the VALIDATED, vig-acceptable UNDER edge — driven entirely by
+  // edge_detector's edge_conditions (single source of truth). This excludes the
+  // demoted 9.0 (watch, boost 0), heavy-vig 8.0 (suppressed), the emerging model-dev
+  // edge (no trusted win rate), and moneyline (no validated edge — ML Kelly removed,
+  // since home_win_pct overestimates the true win rate).
+  const underEdge = (g.edge_conditions || []).find(
+    e => e.direction === 'UNDER' && e.kelly_win_prob != null && (e.signal_boost ?? 0) > 0);
+  if (underEdge && odds?.total != null && odds?.under_price != null) {
+    const winProb = underEdge.kelly_win_prob;
+    const decOdds = americanToDecimal(odds.under_price);
+    const b       = decOdds - 1;
+    const fullK   = b > 0 ? (b * winProb - (1 - winProb)) / b : 0;
     if (fullK > 0) {
       const stake = Math.round(bankroll * fullK * fraction);
       if (stake >= 1) {
-        const team = abbrev(betHome ? g.home_team : g.away_team);
-        items.push(`<span class="kelly-label">${fracLabel}</span><span class="kelly-amt">$${stake.toLocaleString()}</span><span class="kelly-on">${team} ML</span>`);
-      }
-    }
-  }
-
-  // UNDER Kelly: show when model leans UNDER by >= 0.5 and under_price available
-  if (pred.predicted_total != null && odds?.total != null && odds?.under_price != null) {
-    const lean = odds.total - pred.predicted_total;
-    if (lean >= 0.5) {
-      const winProb = _underKellyWinProb(odds.total);
-      const decOdds = americanToDecimal(odds.under_price);
-      const b       = decOdds - 1;
-      const fullK   = b > 0 ? (b * winProb - (1 - winProb)) / b : 0;
-      if (fullK > 0) {
-        const stake = Math.round(bankroll * fullK * fraction);
-        if (stake >= 1) {
-          items.push(`<span class="kelly-label kelly-under">${fracLabel}</span><span class="kelly-amt">$${stake.toLocaleString()}</span><span class="kelly-on">UNDER ${odds.total}</span>`);
-        }
+        items.push(`<span class="kelly-label kelly-under">${fracLabel}</span><span class="kelly-amt">$${stake.toLocaleString()}</span><span class="kelly-on">UNDER ${odds.total}</span>`);
       }
     }
   }

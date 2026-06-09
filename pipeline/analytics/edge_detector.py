@@ -81,6 +81,21 @@ def _vig_adjusted_boost(base_boost: float, under_price: float | None) -> float |
     return round(base_boost * 0.5, 2)        # cheaper-than-std or mild vig-against: half boost
 
 
+# Validated UNDER-8.0 win rates for Kelly sizing (research_under_8.py: std-vig band
+# wins 58.7% / 6-of-6 seasons; reduced-vig band weaker). Conservative so Kelly
+# under-sizes rather than over-sizes. Only the validated 8.0 edge gets a Kelly prob —
+# the 9.0 watch edge and the emerging model-dev edge do NOT (no trusted win rate).
+_KELLY_WP_STD = 0.575
+_KELLY_WP_OFF = 0.555
+
+
+def _under8_kelly_win_prob(under_price: float | None) -> float | None:
+    """Validated UNDER-8.0 win prob for Kelly, by vig tier; None when not sizable."""
+    if under_price is None or under_price < _VIG_SUPPRESS:
+        return None
+    return _KELLY_WP_STD if _VIG_STD_LO <= under_price <= _VIG_STD_HI else _KELLY_WP_OFF
+
+
 def detect_edges(
     closing_total: float | None,
     predicted_total: float | None,
@@ -117,6 +132,7 @@ def detect_edges(
             e = dict(EDGE_METADATA["UNDER_LINE_8_0"])
             e["signal_boost"] = boost
             e["under_price"] = under_price
+            e["kelly_win_prob"] = _under8_kelly_win_prob(under_price)  # only the validated edge sizes
             matched.append(e)
 
     # Total = 8.5 — explicitly excluded: -2.8% blind ROI across 2,171 games
