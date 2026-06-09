@@ -323,6 +323,9 @@ def main(dry_run: bool = False) -> None:
                 # Attach EV calculations where Pinnacle lines are available
                 if game_lines:
                     game_event = get_game_event(game, game_lines)
+                    if not game_event:
+                        log.info("PROPDIAG: no game_event match for %s @ %s (props skipped)",
+                                 game.get("awayTeam"), game.get("homeTeam"))
                     prop_lines = fetch_mlb_props(ODDS_API_KEY, game_event.get("event_id")) if game_event else {}
                     for pick in all_picks:
                         try:

@@ -102,6 +102,7 @@ def fetch_mlb_props(api_key: str, event_id: str) -> dict:
             log.debug("fetch_mlb_props: event_id is None — skipping props fetch for this game")
         return {}
     markets_str = ",".join(_PROP_MARKET_MAP.values())
+    log.info("PROPDIAG: calling props for event=%s markets=%s", event_id, markets_str)
     try:
         params = {
             "apiKey": api_key,
@@ -116,8 +117,17 @@ def fetch_mlb_props(api_key: str, event_id: str) -> dict:
             params=params,
             timeout=TIMEOUT,
         )
-        r.raise_for_status()
+        # DIAGNOSTIC: surface status, per-call credit cost, and the API error body.
+        log.info("PROPDIAG: event=%s status=%s cost=%s remaining=%s",
+                 event_id, r.status_code,
+                 r.headers.get("x-requests-last"), r.headers.get("x-requests-remaining"))
+        if r.status_code != 200:
+            log.warning("PROPDIAG: props HTTP %s for event %s — body: %s",
+                        r.status_code, event_id, (r.text or "")[:400])
+            return {}
         data = r.json()
+        _bm_keys = [bm.get("key") for bm in data.get("bookmakers", [])]
+        log.info("PROPDIAG: event=%s bookmakers=%s", event_id, _bm_keys)
         result: dict[str, dict] = {}
         for bm in data.get("bookmakers", []):
             if bm.get("key") != "pinnacle":
@@ -141,6 +151,7 @@ def fetch_mlb_props(api_key: str, event_id: str) -> dict:
                             "over_price":  sides["Over"]["price"],
                             "under_price": sides["Under"]["price"],
                         }
+        log.info("PROPDIAG: event=%s matched %d player-prop lines", event_id, len(result))
         return result
     except Exception as exc:
         log.warning("Props fetch failed for event %s: %s", event_id, exc)
