@@ -431,7 +431,6 @@ function todaysEdgePlaysHTML(games) {
         <span class="ep-bet ${c.cls}">${c.icon} ${escapeHtml(top.label)}</span>
         <span class="ep-roi sb-pos">${top.roi_pct >= 0 ? '+' : ''}${top.roi_pct.toFixed(1)}% hist</span>
       </div>
-      ${seasonRoiStripHTML(top)}
       ${kelly}
     </div>`;
   }).join('');
