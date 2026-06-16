@@ -1447,6 +1447,6 @@ def _lookup_row(df: pd.DataFrame, id_col: str, mlbam_id: int):
         # Some CSVs store IDs as floats; try float comparison
         try:
             row = df[df[id_col] == float(mlbam_id)]
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug("Float-ID lookup failed for %s in %s: %s", mlbam_id, id_col, exc)
     return row

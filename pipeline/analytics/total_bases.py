@@ -11,11 +11,10 @@ PA-count multiplier based on batting order position.
 
 from __future__ import annotations
 
+from pipeline.analytics.constants import PA_MULT, MIN_SIGNAL_TB
 from pipeline.park_factors import get_run_factor
 from pipeline.scorer import normalize, weighted_avg
-
-# PA per game by lineup slot (index 0 = leadoff). Slots 4–6 ≈ baseline 1.0.
-_PA_MULT = [1.10, 1.05, 1.02, 1.00, 0.98, 0.97, 0.96, 0.93, 0.88]
+from pipeline.utils import fmt_pct
 
 
 def score_total_bases_props(game: dict, cache: dict) -> list[dict]:
@@ -61,10 +60,10 @@ def score_total_bases_props(game: dict, cache: dict) -> list[dict]:
             combined    = (batter_comp ** 0.55) * (context_comp ** 0.45)
             base_signal = max(0.0, min(10.0, round(combined * 10, 1)))
 
-            pa_mult = _PA_MULT[order - 1] if order <= 9 else 1.0
+            pa_mult = PA_MULT[order - 1] if order <= 9 else 1.0
             signal  = max(0.0, min(10.0, round(base_signal * pa_mult, 1)))
 
-            if signal >= 99.0:  # disabled: no signal separation across tiers (28-33% flat)
+            if signal >= MIN_SIGNAL_TB:  # disabled sentinel — see constants.MIN_SIGNAL_TB
                 batter_name = b.get("name", f"Batter {batter_id}")
                 picks.append({
                     "bet_type":   "TB_PROP",
@@ -78,7 +77,7 @@ def score_total_bases_props(game: dict, cache: dict) -> list[dict]:
                         "xslg":              xslg_val,
                         "xslg_split":        f"vs_{'L' if sp_throws == 'L' else 'R' if sp_throws == 'R' else 'season'}",
                         "actual_slg":        b.get("slg"),
-                        "barrel_pct":        _pct(b.get("barrel_pct")),
+                        "barrel_pct":        fmt_pct(b.get("barrel_pct")),
                         "sp_xslg_against":   opp_sp.get("xslg_against"),
                         "park_run_factor":   get_run_factor(venue),
                         "batter_component":  round(batter_comp, 3),
@@ -109,7 +108,3 @@ def _build_reasons(b: dict, sp: dict, venue: str, sp_throws: str | None = None, 
     if venue:
         reasons.append(f"Venue: {venue}")
     return reasons[:4]
-
-
-def _pct(v) -> str | None:
-    return f"{v:.1%}" if v is not None else None

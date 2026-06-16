@@ -9,6 +9,7 @@ Weights: suppression 45% (SP only), offense 35%, park 20%.
 
 from __future__ import annotations
 
+from pipeline.analytics.constants import MIN_SIGNAL_F5_TOTAL
 from pipeline.park_factors import get_run_factor
 from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean
 from pipeline.umpire import compute_umpire_modifier
@@ -78,7 +79,7 @@ def score_f5_totals(game: dict, cache: dict) -> list[dict]:
                 current_t = line_movement.get("current_total", "?")
                 lm_reason = f"Total moved {move_dir} ({opening_t} => {current_t}) — sharp money confirms {direction}"
         signal = max(0.0, min(10.0, round(base_signal + ump_mod + lm_mod, 1)))
-        if signal >= 5.0:
+        if signal >= MIN_SIGNAL_F5_TOTAL:
             reasons = _build_reasons(direction, home_sp, away_sp, avg_xwoba, park_run, venue)
             if weather_reason:
                 reasons = (reasons + [weather_reason])[:4]

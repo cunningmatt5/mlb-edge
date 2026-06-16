@@ -414,9 +414,11 @@ def _parse_ml(val) -> Optional[int]:
 # ---------------------------------------------------------------------------
 
 def _norm_team(name: str) -> str:
+    # NOTE: intentionally simpler than odds._norm_team. This joins historical odds
+    # to same-era games.parquet, so names already agree except for the A's relocation;
+    # a broad suffix rule covers Oakland/Las Vegas/Sacramento Athletics. Do NOT replace
+    # with odds._TEAM_CANON — that canonicalizer targets current Odds-API-live names.
     n = re.sub(r"[^a-z0-9]", "", str(name).lower())
-    # Franchise relocations / rebrands that change the city prefix:
-    # Athletics: "Oakland Athletics" → "athletics", "Las Vegas Athletics" → "athletics"
     if n.endswith("athletics"):
         return "athletics"
     return n

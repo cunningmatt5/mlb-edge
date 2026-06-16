@@ -15,8 +15,10 @@ Enhancements:
 
 from __future__ import annotations
 
+from pipeline.analytics.constants import MIN_SIGNAL_WALK
 from pipeline.scorer import normalize, weighted_avg, safe_mean
 from pipeline.umpire import compute_umpire_modifier
+from pipeline.utils import fmt_pct
 
 
 def score_walk_props(game: dict, cache: dict) -> list[dict]:
@@ -69,7 +71,7 @@ def score_walk_props(game: dict, cache: dict) -> list[dict]:
             ump_mod, ump_reason = compute_umpire_modifier(umpire, "WALK_PROP", direction)
             signal = max(0.0, min(10.0, round(raw_sig + ump_mod, 1)))
 
-            if signal >= 5.0:
+            if signal >= MIN_SIGNAL_WALK:
                 reasons = _build_reasons(direction, sp, blended_bb, opp_bb_mean, opp_team, recent_bb)
                 if ump_reason:
                     reasons = (reasons + [ump_reason])[:4]
@@ -83,10 +85,10 @@ def score_walk_props(game: dict, cache: dict) -> list[dict]:
                     "signal":     signal,
                     "reasons":    reasons,
                     "raw_scores": {
-                        "bb_pct":             _pct(blended_bb),
-                        "zone_pct":           _pct(sp.get("zone_pct")),
-                        "f_strike_pct":       _pct(sp.get("f_strike_pct")),
-                        "opp_lineup_bb_pct":  _pct(opp_bb_mean),
+                        "bb_pct":             fmt_pct(blended_bb),
+                        "zone_pct":           fmt_pct(sp.get("zone_pct")),
+                        "f_strike_pct":       fmt_pct(sp.get("f_strike_pct")),
+                        "opp_lineup_bb_pct":  fmt_pct(opp_bb_mean),
                         "command_component":  round(command_comp, 3),
                         "lineup_patience":    round(lineup_patience_s, 3),
                         "umpire":             umpire or None,
@@ -119,7 +121,3 @@ def _build_reasons(direction, sp, blended_bb, opp_bb_mean, opp_team, recent_bb) 
         if sp.get("f_strike_pct"):
             reasons.append(f"First-pitch strike rate of {sp['f_strike_pct']:.1%} — struggles to get ahead")
     return reasons[:4]
-
-
-def _pct(v) -> str | None:
-    return f"{v:.1%}" if v is not None else None

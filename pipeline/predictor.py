@@ -534,7 +534,8 @@ def build_game(
 
     try:
         park_run_factor = float(get_run_factor(venue))
-    except Exception:
+    except Exception as exc:
+        log.debug("Park run factor lookup failed for %r (using neutral 100.0): %s", venue, exc)
         park_run_factor = 100.0
 
     home_sp = cache.get(home_sp_id, {}) if home_sp_id else {}
@@ -649,8 +650,8 @@ def build_game(
             vegas_home_prob, _ = no_vig_prob(
                 int(odds_out["home_ml"]), int(odds_out["away_ml"])
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug("Vegas no-vig probability computation failed: %s", exc)
 
     # Use 3-start weighted trend when available; fall back to single start
     home_last_start_dev = home_sp.get("last_3_start_deviation") or home_sp.get("last_start_deviation")
@@ -937,7 +938,8 @@ def _format_time_et(utc_str: str) -> str:
         minute  = dt_et.strftime("%M")
         ampm    = dt_et.strftime("%p")
         return f"{hour}:{minute} {ampm} ET"
-    except Exception:
+    except Exception as exc:
+        log.debug("Time formatting failed for %r: %s", utc_str, exc)
         return ""
 
 

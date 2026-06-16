@@ -7,10 +7,9 @@ side; pitcher's expected outcomes anchor the matchup side.
 
 from __future__ import annotations
 
+from pipeline.analytics.constants import PA_MULT, MIN_SIGNAL_HIT
 from pipeline.scorer import normalize, weighted_avg, batter_edge_score
-
-# PA per game by lineup slot (index 0 = leadoff). Slots 4–6 ≈ baseline 1.0.
-_PA_MULT = [1.10, 1.05, 1.02, 1.00, 0.98, 0.97, 0.96, 0.93, 0.88]
+from pipeline.utils import fmt_pct
 
 
 def score_hit_props(game: dict, cache: dict) -> list[dict]:
@@ -53,10 +52,10 @@ def score_hit_props(game: dict, cache: dict) -> list[dict]:
             combined    = (batter_comp ** 0.60) * (sp_xba_s ** 0.40)
             base_signal = max(0.0, min(10.0, round(combined * 10, 1)))
 
-            pa_mult = _PA_MULT[order - 1] if order <= 9 else 1.0
+            pa_mult = PA_MULT[order - 1] if order <= 9 else 1.0
             signal  = max(0.0, min(10.0, round(base_signal * pa_mult, 1)))
 
-            if signal >= 6.0:
+            if signal >= MIN_SIGNAL_HIT:
                 batter_name = b.get("name", f"Batter {batter_id}")
                 picks.append({
                     "bet_type":   "HIT_PROP",
@@ -70,10 +69,10 @@ def score_hit_props(game: dict, cache: dict) -> list[dict]:
                         "xba":            xba_val,
                         "xba_split":      f"vs_{'L' if sp_throws == 'L' else 'R' if sp_throws == 'R' else 'season'}",
                         "xwoba":          b.get("xwoba"),
-                        "contact_pct":    _pct(b.get("contact_pct")),
-                        "hard_hit_pct":   _pct(b.get("hard_hit_pct")),
-                        "bb_pct":         _pct(b.get("bb_pct")),
-                        "k_pct":          _pct(b.get("k_pct")),
+                        "contact_pct":    fmt_pct(b.get("contact_pct")),
+                        "hard_hit_pct":   fmt_pct(b.get("hard_hit_pct")),
+                        "bb_pct":         fmt_pct(b.get("bb_pct")),
+                        "k_pct":          fmt_pct(b.get("k_pct")),
                         "sp_xba_against": opp_sp.get("xba_against"),
                         "sp_throws":      sp_throws,
                         "batter_component": round(batter_comp, 3),
@@ -134,7 +133,3 @@ def _build_reasons(b: dict, sp: dict, sp_throws: str | None = None, xba_val: flo
         )
 
     return reasons[:6]
-
-
-def _pct(v) -> str | None:
-    return f"{v:.1%}" if v is not None else None

@@ -17,6 +17,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from pipeline.utils import american_to_decimal
+
 # Windows consoles default to cp1252, which can't encode the ── box-drawing
 # characters used throughout the report. Force UTF-8 so the documented
 # `python pipeline/edge_research.py` invocation runs natively.
@@ -26,11 +28,6 @@ if hasattr(sys.stdout, "reconfigure"):
 ROOT = Path(__file__).parent.parent
 
 # ── Data Loading ──────────────────────────────────────────────────────────────
-
-def american_to_decimal(odds: float) -> float:
-    if odds >= 0:
-        return 1 + odds / 100
-    return 1 - 100 / odds
 
 
 def load_backtest() -> pd.DataFrame:

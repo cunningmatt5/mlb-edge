@@ -11,8 +11,10 @@ Enhancements:
 
 from __future__ import annotations
 
+from pipeline.analytics.constants import MIN_SIGNAL_K
 from pipeline.scorer import normalize, weighted_avg, safe_mean
 from pipeline.umpire import compute_umpire_modifier
+from pipeline.utils import fmt_pct
 
 
 def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
@@ -78,7 +80,7 @@ def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
         ump_mod, ump_reason = compute_umpire_modifier(umpire, "K_PROP", "OVER")
         signal = max(0.0, min(10.0, round(combined * 10 + ump_mod, 1)))
 
-        if signal >= 6.0:
+        if signal >= MIN_SIGNAL_K:
             sp_name  = sp.get("name") or game.get(f"{sp_side}_sp_name", "SP")
             opp_team = game.get(f"{opp_side}Team", "Opponent")
             reasons  = _build_reasons(sp, opp_k_mean, opp_bb_mean, opp_team, blended_k, recent_k)
@@ -95,14 +97,14 @@ def score_strikeout_props(game: dict, cache: dict) -> list[dict]:
                 "reasons":    reasons,
                 "raw_scores": {
                     "stuff_plus":        sp.get("stuff_plus"),
-                    "whiff_pct":         _pct(sp.get("whiff_pct")),
-                    "o_swing_pct":       _pct(sp.get("o_swing_pct") or sp.get("o_swing_pct_fg")),
-                    "sp_k_pct":          _pct(blended_k),
-                    "k_pct_season":      _pct(sp.get("k_pct")),
-                    "k_pct_recent":      _pct(sp.get("recent_k_pct")),
-                    "opp_k_pct":         _pct(opp_k_mean),
+                    "whiff_pct":         fmt_pct(sp.get("whiff_pct")),
+                    "o_swing_pct":       fmt_pct(sp.get("o_swing_pct") or sp.get("o_swing_pct_fg")),
+                    "sp_k_pct":          fmt_pct(blended_k),
+                    "k_pct_season":      fmt_pct(sp.get("k_pct")),
+                    "k_pct_recent":      fmt_pct(sp.get("recent_k_pct")),
+                    "opp_k_pct":         fmt_pct(opp_k_mean),
                     "opp_k_split":       f"vs_{'L' if sp_throws == 'L' else 'R' if sp_throws == 'R' else 'season'}",
-                    "opp_bb_pct":        _pct(opp_bb_mean),
+                    "opp_bb_pct":        fmt_pct(opp_bb_mean),
                     "pitcher_component": round(pitcher_comp, 3),
                     "lineup_component":  round(lineup_comp, 3),
                     "sp_throws":         sp_throws,
@@ -167,7 +169,3 @@ def _build_reasons(sp, opp_k_mean, opp_bb_mean, opp_team, blended_k, recent_k) -
         )
 
     return reasons[:6]
-
-
-def _pct(v) -> str | None:
-    return f"{v:.1%}" if v is not None else None

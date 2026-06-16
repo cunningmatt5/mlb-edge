@@ -29,7 +29,8 @@ def load_history() -> list[dict]:
     if HISTORY_PATH.exists():
         try:
             return json.loads(HISTORY_PATH.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception as exc:
+            log.warning("Could not read history.json (treating as empty): %s", exc)
             return []
     return []
 
@@ -61,8 +62,8 @@ def append_today(history: list[dict], games: list[dict], today_str: str) -> list
                 try:
                     pinnacle_home_prob, _ = no_vig_prob(int(home_ml), int(away_ml))
                     model_edge_ml = round((pred.get("home_win_pct") or 0.5) - pinnacle_home_prob, 4)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    log.debug("ML edge computation failed (update path): %s", exc)
                 existing.update({
                     "home_ml":             home_ml,
                     "away_ml":             away_ml,
@@ -96,8 +97,8 @@ def append_today(history: list[dict], games: list[dict], today_str: str) -> list
             try:
                 pinnacle_home_prob, _ = no_vig_prob(int(home_ml), int(away_ml))
                 model_edge_ml = round((pred.get("home_win_pct") or 0.5) - pinnacle_home_prob, 4)
-            except Exception:
-                pass
+            except Exception as exc:
+                log.debug("ML edge computation failed (append path): %s", exc)
 
         history.append({
             "date":                    today_str,

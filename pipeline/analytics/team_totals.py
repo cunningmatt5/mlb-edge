@@ -10,6 +10,7 @@ Enhancement: weather modifier and subject_side for track record grading.
 
 from __future__ import annotations
 
+from pipeline.analytics.constants import MIN_SIGNAL_TEAM_TOTAL
 from pipeline.park_factors import get_run_factor
 from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean, bullpen_score
 from pipeline.umpire import compute_umpire_modifier, get_run_tendency
@@ -69,7 +70,7 @@ def score_team_totals(game: dict, cache: dict) -> list[dict]:
             ump_mod, ump_reason = compute_umpire_modifier(umpire, "TEAM_TOTAL", direction)
             tend_mod = run_tend if direction == "OVER" else -run_tend
             signal = max(0.0, min(10.0, round(base_signal + ump_mod + tend_mod, 1)))
-            if signal >= 5.0:
+            if signal >= MIN_SIGNAL_TEAM_TOTAL:
                 reasons = _build_reasons(
                     direction, offense_team, sp_name, opp_sp,
                     lineup_xwoba, get_run_factor(venue), venue

@@ -172,7 +172,9 @@ def main(dry_run: bool = False) -> None:
             _predicted_total  = (game_obj.get("prediction") or {}).get("predicted_total")
             game_obj["edge_conditions"] = detect_edges(
                 _closing_total, _predicted_total, _odds.get("under_price"))
-        except Exception:
+        except Exception as exc:
+            log.warning("Edge detection failed for %s @ %s (non-fatal): %s",
+                        away, home, exc, exc_info=True)
             game_obj["edge_conditions"] = []
 
         # Monte Carlo simulation — Statcast-pure win probability + run totals.
@@ -180,7 +182,9 @@ def main(dry_run: bool = False) -> None:
         try:
             from pipeline.analytics.monte_carlo import simulate_game
             game_obj["mc_simulation"] = simulate_game(game_obj, n=5000)
-        except Exception:
+        except Exception as exc:
+            log.warning("Monte Carlo simulation failed for %s @ %s (non-fatal): %s",
+                        away, home, exc, exc_info=True)
             game_obj["mc_simulation"] = None
 
         game_objects.append(game_obj)
@@ -317,8 +321,9 @@ def main(dry_run: bool = False) -> None:
                                         pick["consensus_tag"] = "CONFIRMS_MARKET"
                                     elif pick["direction"] == "AWAY" and _vhp > 0.54:
                                         pick["consensus_tag"] = "CONTRARIAN"
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        log.debug("Consensus tag computation failed for %s: %s",
+                                  game.get("gamePk"), exc)
 
                 # Attach EV calculations where Pinnacle lines are available
                 if game_lines:
@@ -347,8 +352,10 @@ def main(dry_run: bool = False) -> None:
                                     "model_prob":   None if pick["bet_type"] in _UNCALIBRATED else ev["model_prob"],
                                     "implied_prob": None if pick["bet_type"] in _UNCALIBRATED else ev["implied_prob"],
                                 }
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            log.debug("EV calc failed for %s pick (%s) in game %s: %s",
+                                      pick.get("bet_type"), pick.get("direction"),
+                                      game.get("gamePk"), exc)
 
                 if all_picks:
                     pick_games.append({

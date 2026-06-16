@@ -9,12 +9,11 @@ Enhancement: wind speed/direction and temperature apply a weather modifier.
 
 from __future__ import annotations
 
+from pipeline.analytics.constants import PA_MULT, MIN_SIGNAL_HR
 from pipeline.park_factors import get_hr_factor
 from pipeline.scorer import normalize, weighted_avg, batter_edge_score
+from pipeline.utils import fmt_pct
 from pipeline.weather import compute_weather_modifier
-
-# PA per game by lineup slot (index 0 = leadoff). Slots 4–6 ≈ baseline 1.0.
-_PA_MULT = [1.10, 1.05, 1.02, 1.00, 0.98, 0.97, 0.96, 0.93, 0.88]
 
 
 def score_hr_props(game: dict, cache: dict) -> list[dict]:
@@ -66,11 +65,11 @@ def score_hr_props(game: dict, cache: dict) -> list[dict]:
             ])
 
             combined    = (batter_comp ** 0.55) * (context_comp ** 0.45)
-            pa_mult     = _PA_MULT[order - 1] if order <= 9 else 1.0
+            pa_mult     = PA_MULT[order - 1] if order <= 9 else 1.0
             # weather_mod is position-independent — add after PA scaling, not before
             signal      = max(0.0, min(10.0, round(combined * 10 * pa_mult + weather_mod, 1)))
 
-            if signal >= 7.0:
+            if signal >= MIN_SIGNAL_HR:
                 batter_name = b.get("name", f"Batter {batter_id}")
                 reasons = _build_reasons(b, opp_sp, venue, hr_park, sp_throws, xwoba_val)
                 if weather_reason:
@@ -85,12 +84,12 @@ def score_hr_props(game: dict, cache: dict) -> list[dict]:
                     "signal":     signal,
                     "reasons":    reasons,
                     "raw_scores": {
-                        "barrel_pct":        _pct(b.get("barrel_pct")),
-                        "hard_hit_pct":      _pct(b.get("hard_hit_pct")),
+                        "barrel_pct":        fmt_pct(b.get("barrel_pct")),
+                        "hard_hit_pct":      fmt_pct(b.get("hard_hit_pct")),
                         "xwoba":             xwoba_val,
                         "xwoba_split":       f"vs_{'L' if sp_throws == 'L' else 'R' if sp_throws == 'R' else 'season'}",
-                        "bb_pct":            _pct(b.get("bb_pct")),
-                        "k_pct":             _pct(b.get("k_pct")),
+                        "bb_pct":            fmt_pct(b.get("bb_pct")),
+                        "k_pct":             fmt_pct(b.get("k_pct")),
                         "avg_launch_angle":  b.get("avg_launch_angle"),
                         "sp_hr9":            opp_sp.get("hr9"),
                         "sp_throws":         sp_throws,
@@ -160,7 +159,3 @@ def _build_reasons(b: dict, sp: dict, venue: str, hr_park: int, sp_throws: str |
         )
 
     return reasons[:6]
-
-
-def _pct(v) -> str | None:
-    return f"{v:.1%}" if v is not None else None

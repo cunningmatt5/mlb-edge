@@ -14,6 +14,8 @@ from typing import Optional
 
 import requests
 
+from pipeline.utils import american_to_decimal  # re-exported for callers of pipeline.odds
+
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 TIMEOUT = 15
 OPENING_LINES_PATH = Path(__file__).parent.parent / "data" / "opening_lines.json"
@@ -170,12 +172,7 @@ def fetch_mlb_props(api_key: str, event_id: str) -> dict:
 
 
 # ── Math helpers ──────────────────────────────────────────────────────────────
-
-def american_to_decimal(odds: int) -> float:
-    """Convert American odds to decimal (e.g., -110 → 1.909, +120 → 2.2)."""
-    if odds >= 0:
-        return 1.0 + odds / 100.0
-    return 1.0 - 100.0 / odds  # odds is negative → subtracting a negative
+# american_to_decimal is imported from pipeline.utils (re-exported above).
 
 
 def no_vig_prob(over_odds: int, under_odds: int) -> tuple[float, float]:
@@ -206,7 +203,8 @@ def _load_calibration_params() -> tuple[float, float]:
         if not (4.0 <= midpoint <= 11.0) or slope < 0.05:
             return 7.5, 0.45
         return midpoint, slope
-    except Exception:
+    except Exception as exc:
+        log.debug("Could not load logistic_params from calibration.json (using defaults): %s", exc)
         return 7.5, 0.45
 
 
@@ -226,7 +224,8 @@ def _load_platt_params() -> tuple[float, float]:
         if not (0.1 <= a <= 10.0) or not (-5.0 <= b <= 5.0):
             return 1.0, 0.0
         return a, b
-    except Exception:
+    except Exception as exc:
+        log.debug("Could not load platt_params from calibration.json (using identity): %s", exc)
         return 1.0, 0.0
 
 
@@ -502,8 +501,8 @@ def compute_line_movement(game: dict, game_lines: dict, opening_lines: dict) -> 
                 result["ml_move"]         = ml_move
                 result["opening_home_ml"] = opening["home_ml"]
                 result["current_home_ml"] = home_out["price"]
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug("ML line-movement computation failed: %s", exc)
 
     return result if result else None
 
@@ -544,7 +543,8 @@ def _prop_cache() -> dict:
     if _prop_cache_mem is None:
         try:
             d = json.loads(_PROP_CACHE_PATH.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception as exc:
+            log.debug("Could not read prop_cache.json (starting fresh): %s", exc)
             d = {}
         _prop_cache_mem = d if d.get("date") == today else {"date": today, "events": {}}
     return _prop_cache_mem
@@ -555,8 +555,8 @@ def _prop_cache_save() -> None:
         _PROP_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
         _PROP_CACHE_PATH.write_text(
             json.dumps(_prop_cache_mem, separators=(",", ":")), encoding="utf-8")
-    except Exception:
-        pass
+    except Exception as exc:
+        log.warning("Could not save prop_cache.json: %s", exc)
 
 
 # Map Odds API team name variants → canonical normalized form that matches

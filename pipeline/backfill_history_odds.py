@@ -32,6 +32,8 @@ _SNAPSHOTS       = ["T17:00:00Z", "T22:00:00Z"]
 
 
 def _norm_team(name: str) -> str:
+    # Same same-era historical join as odds_historical._norm_team (see note there).
+    # Intentionally simpler than odds._norm_team; do not merge with the live canonicalizer.
     n = re.sub(r"[^a-z0-9]", "", str(name).lower())
     if n.endswith("athletics"):
         return "athletics"

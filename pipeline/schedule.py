@@ -42,8 +42,8 @@ def get_team_rest_days(game_date: date) -> dict[str, int]:
                     for team in (home, away):
                         if team and team not in rest_map:
                             rest_map[team] = check
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug("Rest-days fetch failed for %s: %s", check, exc)
 
     result: dict[str, int] = {}
     for team, last_played in rest_map.items():

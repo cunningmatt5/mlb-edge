@@ -9,6 +9,7 @@ Returns at most one pick per game (the stronger of ML vs. F5, one direction).
 
 from __future__ import annotations
 
+from pipeline.analytics.constants import MIN_SIGNAL_MONEYLINE, MIN_SIGNAL_F5_ML
 from pipeline.scorer import normalize, weighted_avg, lineup_weighted_mean
 from pipeline.park_factors import park_neutral_wrc
 
@@ -70,7 +71,7 @@ def score_moneyline_f5(game: dict, cache: dict) -> list[dict]:
             lm_f5_reason = f"Steam → {steam_team}: ML shortened {abs(ml_move):.1%} since open — sharp money confirms F5"
     f5_signal = min(10.0, round(f5_signal + lm_f5_mod, 1))
 
-    if ml_signal >= 5.0:
+    if ml_signal >= MIN_SIGNAL_MONEYLINE:
         ml_reasons = _build_reasons(
             "ML", ml_direction, home_sp, away_sp, home_wrc, away_wrc, home_name, away_name
         )
@@ -97,7 +98,7 @@ def score_moneyline_f5(game: dict, cache: dict) -> list[dict]:
             },
         })
 
-    if f5_signal >= 5.0:
+    if f5_signal >= MIN_SIGNAL_F5_ML:
         f5_reasons = _build_reasons(
             "F5", f5_direction, home_sp, away_sp, home_wrc, away_wrc, home_name, away_name
         )
