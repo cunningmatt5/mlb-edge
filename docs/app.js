@@ -71,6 +71,7 @@ function setupNav() {
       document.getElementById('simulate-view').hidden = currentView !== 'simulate';
       document.getElementById('support-view').hidden  = currentView !== 'support';
       document.getElementById('edges-view').hidden    = currentView !== 'edges';
+      document.getElementById('reversion-view').hidden = currentView !== 'reversion';
       if (currentView === 'record')   Promise.all([loadBacktest(), loadPropsHistory()]).then(renderRecordView);
       if (currentView === 'backtest') Promise.all([loadBacktest(), loadPropsHistory()]).then(renderBacktestView);
       if (currentView === 'pitcher')  Promise.all([loadPitcherData(), loadGames()]).then(renderPitcherView);
@@ -79,6 +80,7 @@ function setupNav() {
       if (currentView === 'simulate') loadGames().then(renderSimulateView);
       if (currentView === 'support')  renderSupportView();
       if (currentView === 'edges')    Promise.all([loadGames(), loadEdgeScoreboard()]).then(renderEdgesView);
+      if (currentView === 'reversion') loadReversion().then(renderReversionView);
     });
   });
 }
@@ -4873,6 +4875,85 @@ function renderEdgesView() {
       ${edgeScoreboardHTML()}
     </section>
     ${edgeWatchHTML(watch)}`;
+}
+
+// ── Reversion tool: good hitters slumping on bad luck (informational) ──────────
+const REVERSION_URL = './reversion.json';
+let reversionData = null;
+let _revSort = { key: 'score', dir: -1 };
+
+async function loadReversion() {
+  try {
+    const r = await fetch(REVERSION_URL, { cache: 'no-store' });
+    reversionData = r.ok ? await r.json() : null;
+  } catch (e) {
+    reversionData = null;
+  }
+}
+
+const _rvBA = v => (v == null ? '—' : v.toFixed(3).replace(/^0\./, '.'));
+const _rvPct = v => (v == null ? '—' : Math.round(v * 100) + '%');
+
+function renderReversionView() {
+  const el = document.getElementById('reversion-view');
+  const d = reversionData;
+  if (!d || !(d.hitters || []).length) {
+    el.innerHTML = `<div class="view-header"><h1>Reversion</h1>
+      <span class="sub-label">Good hitters due to bounce back.</span></div>
+      <div class="empty-state">No reversion candidates right now — the board refreshes daily.</div>`;
+    return;
+  }
+  const cols = [
+    { k: 'name',  l: 'Hitter', align: 'left' },
+    { k: 'ba_10', l: 'L10',   f: _rvBA },
+    { k: 'xba',   l: 'xBA',   f: _rvBA },
+    { k: 'gap_ba', l: 'gap',  f: v => '−' + _rvBA(v) },
+    { k: 'hard_hit_recent', l: 'HH', f: _rvPct },
+    { k: 'score', l: 'score', f: v => (v == null ? '—' : v.toFixed(0)) },
+    { k: 'best_angle', l: 'angle' },
+  ];
+  const { key, dir } = _revSort;
+  const rows = [...d.hitters].sort((a, b) => {
+    const x = a[key], y = b[key];
+    if (x == null) return 1;
+    if (y == null) return -1;
+    return (x > y ? 1 : x < y ? -1 : 0) * dir;
+  });
+  const thead = cols.map(c =>
+    `<th data-sort="${c.k}" class="${c.align === 'left' ? 'rev-l' : ''}${key === c.k ? ' rev-sorted' : ''}">${c.l}${key === c.k ? (dir < 0 ? ' ▾' : ' ▴') : ''}</th>`
+  ).join('');
+  const body = rows.map(h => {
+    const cells = cols.map(c => {
+      const v = c.f ? c.f(h[c.k]) : escapeHtml(String(h[c.k] ?? '—'));
+      return `<td class="${c.align === 'left' ? 'rev-l' : ''}">${v}</td>`;
+    }).join('');
+    const det = `
+      <tr class="rev-detail" hidden><td colspan="${cols.length}">
+        <div class="rev-angles">
+          <div><b>HIT</b> — season xBA ${_rvBA(h.xba)} vs last-10 ${_rvBA(h.ba_10)}${h.ba_5 != null ? ` · L5 ${_rvBA(h.ba_5)}` : ''}</div>
+          <div><b>BASES</b> — season xSLG ${_rvBA(h.xslg)} vs L10 SLG ${_rvBA(h.slg_10)}${h.season_barrel != null ? ` · barrel ${_rvPct(h.season_barrel)}` : ''}</div>
+          <div><b>HR</b> — barrel ${_rvPct(h.season_barrel)} · ${h.hr_10 ?? 0} HR last 10g</div>
+          <div class="rev-qual">${h.quality_ok ? '✓ still squaring it up' : '⚠ contact quality also down — weaker reversion'} · recent hard-hit ${_rvPct(h.hard_hit_recent)} vs season ${_rvPct(h.season_hardhit)}${h.games_recent ? ` · ${h.games_recent} recent g` : ''}</div>
+        </div>
+      </td></tr>`;
+    return `<tr class="rev-row${h.plays_today ? ' rev-today' : ''}">${cells}</tr>${det}`;
+  }).join('');
+  const playsToday = rows.filter(h => h.plays_today).length;
+  el.innerHTML = `
+    <div class="view-header"><h1>Reversion</h1>
+      <span class="sub-label">Good hitters slumping on bad luck — recent results down, but still squaring the ball up, so statistically due to bounce back. Informational only — find your own line &amp; angle.</span>
+    </div>
+    <div class="rev-legend"><span class="rev-key-today">▎</span> plays today (${playsToday}) · <b>L10</b> last-10-game BA · <b>xBA</b> season expected · <b>gap</b> below true talent · <b>HH</b> recent hard-hit% · tap a row for hit / bases / HR angles</div>
+    <table class="rev-table"><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>`;
+  el.querySelectorAll('th[data-sort]').forEach(th => th.onclick = () => {
+    const k = th.dataset.sort;
+    _revSort = (k === _revSort.key) ? { key: k, dir: -_revSort.dir } : { key: k, dir: k === 'name' ? 1 : -1 };
+    renderReversionView();
+  });
+  el.querySelectorAll('tr.rev-row').forEach(tr => tr.onclick = () => {
+    const det = tr.nextElementSibling;
+    if (det && det.classList.contains('rev-detail')) det.hidden = !det.hidden;
+  });
 }
 
 function renderSupportView() {

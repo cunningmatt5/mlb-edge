@@ -387,6 +387,19 @@ def main(dry_run: bool = False) -> None:
         except Exception as exc:
             log.warning("Props analytics failed (non-fatal): %s", exc, exc_info=True)
 
+        # Reversion board (informational): good hitters slumping on bad luck. Built once/day
+        # (date-gated inside build_reversion_board); off-cycle runs just refresh plays_today.
+        try:
+            from pipeline.reversion import build_reversion_board
+            today_ids = {
+                pid for g in games
+                for key in ("home_lineup", "away_lineup", "home_lineup_proxy", "away_lineup_proxy")
+                for pid in (g.get(key) or [])
+            }
+            build_reversion_board(season=today.year, today_ids=today_ids)
+        except Exception as exc:
+            log.warning("Reversion board build failed (non-fatal): %s", exc)
+
     log.info("=== Done: %d games ===", len(game_objects))
 
 
