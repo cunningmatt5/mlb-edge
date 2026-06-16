@@ -1,0 +1,52 @@
+name: Backfill CLV
+
+# Manual one-off: reconstruct 2026 closing lines for CLV from The Odds API
+# historical endpoint, then rebuild the edge scoreboard. Safe to re-run
+# (idempotent — records that already have a closing snapshot are skipped).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  backfill-clv:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4.2.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Backfill 2026 CLV closing lines + rebuild scoreboard
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: python -m pipeline.backfill_clv --api-key "$ODDS_API_KEY"
+
+      - name: Commit output files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/history.json docs/edge_scoreboard.json
+          git diff --staged --quiet || git commit -m "chore: backfill 2026 CLV closing lines [skip ci]"
+          git stash --include-untracked || true
+          for i in 1 2 3; do
+            git fetch origin master
+            if git rebase -X ours origin/master; then
+              git push && break
+            else
+              git rebase --abort || true
+            fi
+            [ $i -lt 3 ] && sleep 5
+          done
+          git stash pop || true
