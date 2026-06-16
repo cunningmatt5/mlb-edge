@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'mlb-edge-v56';
+const CACHE_NAME = 'mlb-edge-v57';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -41,11 +41,15 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   const isJson = url.pathname.endsWith('.json');
-
   const isStatic = url.pathname.endsWith('.js') || url.pathname.endsWith('.css');
+  // Treat page navigations + HTML as network-first too, so a new deploy shows up on
+  // reload instead of being pinned to a stale cached index.html (which would point at
+  // an old app.js version and silently freeze the UI between deploys).
+  const isHTML = event.request.mode === 'navigate'
+    || url.pathname.endsWith('.html') || url.pathname.endsWith('/');
 
-  if (isJson || isStatic) {
-    // Network-first for JSON data files and JS/CSS — always fetch fresh, cache as fallback
+  if (isJson || isStatic || isHTML) {
+    // Network-first: always fetch fresh, fall back to cache when offline.
     event.respondWith(
       fetch(event.request)
         .then(res => {
@@ -55,10 +59,10 @@ self.addEventListener('fetch', event => {
           }
           return res;
         })
-        .catch(() => caches.match(event.request))
+        .catch(() => caches.match(event.request).then(c => c || caches.match('./index.html')))
     );
   } else {
-    // Cache-first for HTML, manifest, and other static assets
+    // Cache-first for manifest, icons, and other rarely-changing assets.
     event.respondWith(
       caches.match(event.request).then(cached => cached || fetch(event.request))
     );
