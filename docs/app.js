@@ -4663,7 +4663,7 @@ function edgeScoreboardHTML() {
   return `
     <div class="ef-scoreboard">
       <div class="ef-sb-hdr">
-        <span class="ef-sb-title">${sb.season} Realized — Edge Scoreboard</span>
+        <span class="ef-sb-title">This season's results · ${sb.season}</span>
         <span class="ef-sb-head-metrics">${headline}${headClv}</span>
       </div>
       <div class="ef-sb-sub">ROI = realized return, flat $1/bet${recentHead}. <span class="${(t.clv_n >= CLV_MIN) ? '' : 'ef-sb-clv-pending'}" title="${CLV_TIP}">${clvNote}</span></div>
@@ -4671,78 +4671,147 @@ function edgeScoreboardHTML() {
     </div>`;
 }
 
-function renderEdgesView() {
-  const el = document.getElementById('edges-view');
+// ── Edges tab: plain-language plays + track record ────────────────────────────
 
-  const allGames = gamesData?.games || [];
-  // Rank by actionable edge strength (live vig-adjusted boost), then ROI as tiebreak.
-  const edgeGames = allGames
-    .filter(g => g.edge_conditions?.length && (g.game_status || 'preview') === 'preview')
-    .sort((a, b) => (edgeStrength(b) - edgeStrength(a)) || (edgeTopRoi(b) - edgeTopRoi(a)));
+function _seasonsRecord(e) {
+  const sr = e.season_roi || {};
+  const yrs = Object.keys(sr);
+  if (yrs.length <= 1) return yrs.length === 1 ? `${yrs[0]} only` : '';
+  const pos = yrs.filter(y => (sr[y] ?? 0) > 0).length;
+  return `${pos}/${yrs.length} seasons profitable`;
+}
 
-  if (!edgeGames.length) {
-    el.innerHTML = `
-      <div class="view-header"><h1>Edge Finder</h1></div>
-      ${edgeScoreboardHTML()}
-      <div class="empty-state">No edge conditions matched today's games.</div>`;
-    return;
+function _recLine(e) {
+  const roi = `${e.roi_pct >= 0 ? '+' : ''}${e.roi_pct.toFixed(1)}% ROI`;
+  return (e.confidence === 'emerging' || e.confidence === 'new')
+    ? `${roi} · 2026 only, small sample`
+    : `${roi} · ${_seasonsRecord(e)}`;
+}
+
+function _whyLine(g, e) {
+  const total = g.odds?.total, pred = g.prediction?.predicted_total;
+  if (total == null || pred == null) return 'A validated under edge on this total line.';
+  if (e.tag === 'UNDER_MODEL_DEV') {
+    const gap = (total - pred).toFixed(1);
+    return `Our model projects ${pred.toFixed(1)} runs — ${gap} below the ${total} line.`;
+  }
+  return `Our model projects ${pred.toFixed(1)} runs — under the ${total} line.`;
+}
+
+// ½-Kelly suggested stake for a play. Returns {stake, frac} | 'no-bank' | null.
+function edgePlayStake(g, e) {
+  const bankroll = parseFloat(localStorage.getItem('mlbedge_bankroll') || '0');
+  if (!bankroll || bankroll <= 0) return 'no-bank';
+  if (!e || e.kelly_win_prob == null || g.odds?.under_price == null) return null;
+  const fraction = parseFloat(localStorage.getItem('mlbedge_kelly_fraction') || '0.5');
+  const dec = americanToDecimal(g.odds.under_price), b = dec - 1;
+  const fullK = b > 0 ? (b * e.kelly_win_prob - (1 - e.kelly_win_prob)) / b : 0;
+  if (fullK <= 0) return null;
+  const stake = Math.round(bankroll * fullK * fraction);
+  return stake >= 1 ? { stake, frac: _kellyFracLabel(fraction) } : null;
+}
+
+function edgePlayCardHTML(g) {
+  const unders = (g.edge_conditions || [])
+    .filter(e => e.direction === 'UNDER')
+    .sort((a, b) => (b.signal_boost ?? 0) - (a.signal_boost ?? 0));
+  const top = unders.find(e => (e.signal_boost ?? 0) > 0) || unders[0];
+  const c = edgeConf(top);
+  const total = g.odds?.total;
+  const time = g.game_time_et ? ` · ${escapeHtml(g.game_time_et)}` : '';
+
+  const st = edgePlayStake(g, top);
+  let stakeRow = '';
+  if (st === 'no-bank') {
+    stakeRow = `<button class="ef-play-setbank" onclick="gotoView('games')">Set a bankroll to size your bet →</button>`;
+  } else if (st) {
+    stakeRow = `<div class="ef-play-row"><span class="ef-play-k">Suggested bet</span><span class="ef-play-amt">$${st.stake.toLocaleString()}</span><span class="ef-play-frac">${st.frac}</span></div>`;
   }
 
-  const cards = edgeGames.map(g => {
-    const total = g.odds?.total;
-    const pred  = g.prediction?.predicted_total;
-    const totalStr = total != null ? `${total}` : '—';
-    const devStr   = (total != null && pred != null) ? ` (model: ${pred.toFixed(1)})` : '';
+  const others = unders.filter(e => e !== top);
+  const details = `
+      <details class="ef-play-details">
+        <summary>details</summary>
+        <div class="ef-play-detail-body">
+          <div>Validated on ${top.n_games.toLocaleString()} games — ${escapeHtml(top.seasons)}</div>
+          ${seasonRoiStripHTML(top)}
+          ${g.odds?.under_price != null ? `<div>Bet price: UNDER ${total} at ${g.odds.under_price}</div>` : ''}
+          ${others.length ? `<div>Also flagged: ${others.map(e => escapeHtml(e.label)).join(', ')}</div>` : ''}
+        </div>
+      </details>`;
 
-    // Strongest edge first; watch (zero-boost) edges sink to the bottom of the card.
-    const ordered = [...g.edge_conditions].sort((a, b) => (b.signal_boost ?? 0) - (a.signal_boost ?? 0));
-    const condRows = ordered.map(e => {
-      const c = edgeConf(e);
-      const isWatch = (e.signal_boost ?? 0) === 0;
-      const warn = isWatch
-        ? `<div class="ef-cond-warn">⚠ informational only — not boosting today's pick (live season negative)</div>`
-        : '';
-      return `
-      <div class="ef-cond-row ${c.efCls}${isWatch ? ' ef-cond-muted' : ''}">
-        <span class="ef-cond-label">${c.icon} ${escapeHtml(e.label)}</span>
-        <span class="ef-cond-roi">${e.roi_pct >= 0 ? '+' : ''}${e.roi_pct.toFixed(1)}% ROI</span>
-        <span class="ef-cond-n">n=${e.n_games.toLocaleString()}</span>
-        <span class="ef-cond-seasons">${escapeHtml(e.seasons)}</span>
-        ${seasonRoiStripHTML(e)}
-        ${warn}
-      </div>`;
-    }).join('');
-
-    const top = ordered[0];
-    const c = edgeConf(top);
-    const confBadge = `<span class="ef-conf-badge ${c.efCls}">${c.label}</span>`;
-
-    return `
-    <div class="ef-card">
-      <div class="ef-card-header">
-        <span class="ef-matchup">${escapeHtml(g.away_team)} @ ${escapeHtml(g.home_team)}</span>
-        ${confBadge}
-        <span class="ef-total">Total ${totalStr}${escapeHtml(devStr)}</span>
+  return `
+    <div class="ef-play">
+      <div class="ef-play-top">
+        <span class="ef-conf-badge ${c.efCls}">${c.icon} ${escapeHtml(c.label)}</span>
+        <span class="ef-play-match">${escapeHtml(g.away_team)} @ ${escapeHtml(g.home_team)}${time}</span>
       </div>
-      ${condRows}
+      <div class="ef-play-bet">Bet the UNDER ${total ?? ''}</div>
+      <div class="ef-play-why">${escapeHtml(_whyLine(g, top))}</div>
+      <div class="ef-play-row"><span class="ef-play-k">Track record</span><span class="ef-play-rec">${escapeHtml(_recLine(top))}</span></div>
+      ${stakeRow}
+      ${details}
     </div>`;
-  }).join('');
+}
+
+function edgeWatchHTML(games) {
+  if (!games.length) return '';
+  const items = games.map(g =>
+    `<li>${escapeHtml(g.away_team)} @ ${escapeHtml(g.home_team)}${g.odds?.total != null ? ` · ${g.odds.total} total` : ''}</li>`).join('');
+  return `
+    <details class="ef-watch">
+      <summary>Watching, not betting — ${games.length} game${games.length !== 1 ? 's' : ''}</summary>
+      <div class="ef-watch-body">
+        <p>These hit the 9.0-line under — historically strong, but down in 2026, so we're sitting them out.</p>
+        <ul class="ef-watch-list">${items}</ul>
+      </div>
+    </details>`;
+}
+
+function edgesHowToHTML() {
+  return `
+    <details class="ef-howto">
+      <summary>How to read this</summary>
+      <div class="ef-howto-body">
+        <p>Each play is an UNDER bet that our model and several seasons of data agree the market has mispriced. We only surface bets that beat real closing odds across multiple seasons.</p>
+        <p><b>Confidence:</b> ⚡ Strong = profitable every season tested · ★ Emerging = promising but 2026 only · ⚠ Watch = historically strong but down this season (not bet).</p>
+        <p><b>Track record</b> on each play is its validated multi-season ROI. <b>This season's results</b> below show how the edges have actually done in 2026 — including CLV, whether our bet-time line beat the closing line.</p>
+      </div>
+    </details>`;
+}
+
+function renderEdgesView() {
+  const el = document.getElementById('edges-view');
+  const allGames = gamesData?.games || [];
+  const preview = allGames.filter(g => g.edge_conditions?.length && (g.game_status || 'preview') === 'preview');
+  const isActionable = e => e.direction === 'UNDER' && (e.signal_boost ?? 0) > 0;
+
+  const plays = preview
+    .filter(g => (g.edge_conditions || []).some(isActionable))
+    .sort((a, b) => (edgeStrength(b) - edgeStrength(a)) || (edgeTopRoi(b) - edgeTopRoi(a)));
+  const watch = preview.filter(g => !(g.edge_conditions || []).some(isActionable));
+
+  const playsHTML = plays.length
+    ? plays.map(edgePlayCardHTML).join('')
+    : `<div class="ef-empty">No actionable plays today — no game landed on a validated edge line. The track record below still applies.</div>`;
 
   el.innerHTML = `
     <div class="view-header">
-      <h1>Edge Finder</h1>
-      <span class="sub-label">${edgeGames.length} game${edgeGames.length !== 1 ? 's' : ''} matched · ranked by edge strength</span>
+      <h1>Edges</h1>
+      <span class="sub-label">Where our model and the market disagree — validated on 9,400+ games since 2021.</span>
     </div>
-    ${edgeScoreboardHTML()}
-    <div class="ef-explainer">
-      Edges are derived from 9,400+ games (2021–2026). Only UNDER conditions on specific
-      total lines are validated as multi-season edges; each shows real per-season ROI.
-      Confidence:
-      <span class="ef-conf-badge ef-conf-high">Strong</span> = profitable across seasons,
-      <span class="ef-conf-badge ef-conf-watch">Watch</span> = historically strong but live season reversed (not bet),
-      <span class="ef-conf-badge ef-conf-new">Emerging</span> = 2026 data only.
-    </div>
-    <div class="ef-list">${cards}</div>`;
+    ${edgesHowToHTML()}
+    <section class="ef-section">
+      <div class="ef-section-hdr">
+        <h2 class="ef-section-title">Today's Plays</h2>
+        <span class="ef-section-count">${plays.length} play${plays.length !== 1 ? 's' : ''}</span>
+      </div>
+      ${playsHTML}
+    </section>
+    <section class="ef-section">
+      ${edgeScoreboardHTML()}
+    </section>
+    ${edgeWatchHTML(watch)}`;
 }
 
 function renderSupportView() {
