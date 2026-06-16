@@ -4676,6 +4676,7 @@ function edgeScoreboardHTML() {
       </div>
       <div class="ef-sb-sub">ROI = realized return, flat $1/bet${recentHead}. <span class="${(t.clv_n >= CLV_MIN) ? '' : 'ef-sb-clv-pending'}" title="${CLV_TIP}">${clvNote}</span></div>
       ${equityChartHTML(sb)}
+      <div class="ef-sb-rowhdr">By edge <span class="ef-sb-rowhdr-note">(record per category · watch shown for context, not in the curve)</span></div>
       ${rows}
     </div>`;
 }
@@ -4704,12 +4705,20 @@ function equityChartHTML(sb) {
   const col = up ? '#34d399' : '#f87171';
   const uSign = (t.units ?? 0) >= 0 ? '+' : '';
   const rSign = (t.roi_pct ?? 0) >= 0 ? '+' : '';
+  // Tie the curve explicitly to the categories below it: it's every ACTIONABLE play
+  // (the boosted edges), one bet per game, excluding the watch edge(s).
+  const shortLabel = s => (s || '').replace(/^Under Edge:\s*/, '');
+  const incl = (sb.edges || []).filter(e => e.actionable).map(e => shortLabel(e.label));
+  const excl = (sb.edges || []).filter(e => !e.actionable).map(e => shortLabel(e.label));
+  const legend = `Combines every actionable play — ${incl.join(' + ') || 'the boosted edges'}` +
+                 (excl.length ? ` · excludes ${excl.join(', ')} (watch)` : '');
   return `
       <div class="ef-equity">
         <div class="ef-equity-hdr">
-          <span class="ef-equity-title">Bankroll if you'd followed every play</span>
+          <span class="ef-equity-title">Cumulative profit · all actionable plays</span>
           <span class="ef-equity-val ${up ? 'sb-pos' : 'sb-neg'}">${uSign}${(t.units ?? 0).toFixed(1)}u · ${rSign}${t.roi_pct}%</span>
         </div>
+        <div class="ef-equity-legend">${escapeHtml(legend)}</div>
         <svg class="ef-equity-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Cumulative profit over the season, per bet">
           ${zeroLine}
           <path d="${area}" fill="${col}" fill-opacity="0.13"/>
@@ -4717,7 +4726,7 @@ function equityChartHTML(sb) {
         </svg>
         <div class="ef-equity-foot">
           <span>${escapeHtml(pts[0].d)}</span>
-          <span>flat 1u/bet · ${t.n} bets</span>
+          <span>flat 1u/bet · ${t.n} plays</span>
           <span>${escapeHtml(pts[pts.length - 1].d)}</span>
         </div>
       </div>`;
