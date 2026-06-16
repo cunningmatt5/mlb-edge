@@ -83,8 +83,7 @@ def _vig_adjusted_boost(base_boost: float, under_price: float | None) -> float |
 
 # Validated UNDER-8.0 win rates for Kelly sizing (research_under_8.py: std-vig band
 # wins 58.7% / 6-of-6 seasons; reduced-vig band weaker). Conservative so Kelly
-# under-sizes rather than over-sizes. Only the validated 8.0 edge gets a Kelly prob —
-# the 9.0 watch edge and the emerging model-dev edge do NOT (no trusted win rate).
+# under-sizes rather than over-sizes. The 9.0 watch edge gets NO Kelly prob.
 _KELLY_WP_STD = 0.575
 _KELLY_WP_OFF = 0.555
 
@@ -94,6 +93,22 @@ def _under8_kelly_win_prob(under_price: float | None) -> float | None:
     if under_price is None or under_price < _VIG_SUPPRESS:
         return None
     return _KELLY_WP_STD if _VIG_STD_LO <= under_price <= _VIG_STD_HI else _KELLY_WP_OFF
+
+
+# Conservative Kelly win prob for the model-dev edge (research_model_dev.py, 2026-only,
+# n=46: raw 69.6%, Wilson 90% lower bound 0.603). We use a SINGLE flat prob rather than
+# 8.0's std/off tiers: the model-dev vig subsamples (n=8/14/24) are too small and show
+# no reliable vig monotonicity, so tiering would be false precision. Kelly still sizes
+# more on cheaper odds via the decimal-odds term. Heavy vig (< -120) is suppressed, same
+# as 8.0. Single-season, small-n edge → the scoreboard remains the live decay-catcher.
+_MODELDEV_KELLY_WP = 0.60
+
+
+def _model_dev_kelly_win_prob(under_price: float | None) -> float | None:
+    """Conservative model-dev win prob for Kelly; None when not sizable (heavy/unknown vig)."""
+    if under_price is None or under_price < _VIG_SUPPRESS:
+        return None
+    return _MODELDEV_KELLY_WP
 
 
 def detect_edges(
@@ -145,11 +160,17 @@ def detect_edges(
         matched.append(e)
 
     # Model–Vegas gap — emerging, 2026-only, concentrated at lines ≤9.0.
+    # Kelly-sized at a conservative flat win prob (vig-suppressed); fills the gap at the
+    # 8.5/9.0 lines where the 8.0 edge doesn't fire. When both fire the UI sizes off 8.0
+    # (it's listed first), so there's no double-stake.
     if (
         predicted_total is not None
         and closing_total <= 9.0
         and (predicted_total - closing_total) <= -0.75
     ):
-        matched.append(dict(EDGE_METADATA["UNDER_MODEL_DEV"]))
+        e = dict(EDGE_METADATA["UNDER_MODEL_DEV"])
+        e["under_price"] = under_price
+        e["kelly_win_prob"] = _model_dev_kelly_win_prob(under_price)
+        matched.append(e)
 
     return matched
