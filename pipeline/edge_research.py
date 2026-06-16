@@ -17,7 +17,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from pipeline.utils import american_to_decimal
+# Importable both as a script (`python pipeline/edge_research.py`) and as a module.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pipeline.utils import american_to_decimal  # noqa: E402
 
 # Windows consoles default to cp1252, which can't encode the ── box-drawing
 # characters used throughout the report. Force UTF-8 so the documented

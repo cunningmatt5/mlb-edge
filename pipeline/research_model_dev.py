@@ -29,8 +29,11 @@ from pathlib import Path
 
 import pandas as pd
 
+# Ensure the project root is importable so this runs both as a script
+# (`python pipeline/research_model_dev.py`) and as a module (`python -m ...`).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # Reuse the validated ROI helper + American-odds conversion from the sibling script.
-from edge_research import american_to_decimal, roi_totals  # noqa: F401
+from pipeline.edge_research import american_to_decimal, roi_totals  # noqa: F401,E402
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -191,5 +194,64 @@ def run() -> None:
     print("\nDone.")
 
 
+def validate_multiseason() -> None:
+    """Out-of-sample check: does 'model projects below Vegas' predict UNDERs across seasons?
+
+    Combines 2024-2025 from docs/backtest.json (now lineup-aware, so deviations are real)
+    with 2026 from docs/history.json, and reports UNDER ROI by deviation threshold × season.
+
+    IMPORTANT (2026-06-16 finding): the backtest uses prior-season stats, so its deviations
+    top out near -0.5 — there are ~0 games at the live -0.75 trigger in 2024-2025, and at
+    shallow thresholds the model filter is no better than the blind under. The model-dev
+    edge is therefore NOT validatable out-of-sample; it lives only in 2026 live data (where
+    CLV ~64% is the one independent sign it's real). Re-run this as 2026+ data accrues.
+    """
+    bt = json.loads((ROOT / "docs" / "backtest.json").read_text(encoding="utf-8"))
+    bt = bt["games"] if isinstance(bt, dict) else bt
+    hp = ROOT / "docs" / "history.json"
+    hist = json.loads(hp.read_text(encoding="utf-8")) if hp.exists() else []
+    hist = hist if isinstance(hist, list) else hist.get("games", [])
+
+    rows = []
+    for g in bt:
+        s = g.get("season")
+        if s not in (2024, 2025):
+            continue
+        ct, pt, up, tgo = g.get("closing_total"), g.get("predicted_total"), g.get("under_price"), g.get("total_went_over")
+        if None not in (ct, pt, up, tgo):
+            rows.append((s, ct, pt - ct, up, tgo))
+    for g in hist:
+        if g.get("actual_winner") not in ("home", "away"):
+            continue
+        ct, pt, up, tgo = g.get("vegas_total"), g.get("predicted_total"), g.get("under_price"), g.get("total_went_over")
+        if None not in (ct, pt, up, tgo):
+            rows.append((2026, ct, pt - ct, up, tgo))
+
+    def roi(sub):
+        if not sub:
+            return "n=0"
+        u = sum((american_to_decimal(r[3]) - 1) if not r[4] else -1 for r in sub)
+        return f"n={len(sub)} roi={100*u/len(sub):+.1f}%"
+
+    print("=" * 84)
+    print("MULTI-SEASON OOS CHECK — model-below-Vegas (line ≤9.0) → UNDER, by season")
+    print("=" * 84)
+    print(f"  {'threshold':<14}{'2024':<22}{'2025':<22}{'2026':<22}")
+    for thr in (-0.25, -0.35, -0.50, -0.75):
+        cells = [roi([r for r in rows if r[0] == s and r[1] <= 9.0 and r[2] <= thr]) for s in (2024, 2025, 2026)]
+        print(f"  dev≤{thr:<10}{cells[0]:<22}{cells[1]:<22}{cells[2]:<22}")
+    print("\n  baseline (all unders, line ≤9.0):")
+    for s in (2024, 2025, 2026):
+        print(f"    {s}: {roi([r for r in rows if r[0] == s and r[1] <= 9.0])}")
+    print("\n  VERDICT: not OOS-validatable — backtest deviations can't reach the live -0.75")
+    print("  trigger; shallow-threshold proxy ≈ baseline. Keep model-dev conservative/emerging.")
+    print("\nDone.")
+
+
 if __name__ == "__main__":
-    run()
+    import argparse
+    p = argparse.ArgumentParser(description="Model-dev edge research")
+    p.add_argument("--multiseason", action="store_true",
+                   help="Out-of-sample 2024-2026 directional validation (vs default 2026 Kelly research)")
+    args = p.parse_args()
+    validate_multiseason() if args.multiseason else run()

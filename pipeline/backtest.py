@@ -21,7 +21,7 @@ import requests
 
 from pipeline.comps import load_comps_db, build_game_profile
 from pipeline.odds import american_to_decimal
-from pipeline.predictor import _pitcher_score, _predicted_runs, _win_probability, LEAGUE_AVG_RUNS
+from pipeline.predictor import _pitcher_score, _lineup_score, _predicted_runs, _win_probability, LEAGUE_AVG_RUNS
 
 log = logging.getLogger(__name__)
 
@@ -184,12 +184,17 @@ def load_season_lineups(season: int) -> dict[int, dict]:
     if not path.exists():
         return {}
     df = pd.read_parquet(path)
+    if "batting_order" in df.columns:
+        df = df[df["batting_order"].between(1, 9)]   # starters only (drop pinch-hitters/subs)
     lineups: dict[int, dict] = {}
     for game_pk, grp in df.groupby("game_pk"):
-        lineups[int(game_pk)] = {
-            "home": grp[grp["side"] == "home"].sort_values("batting_order")["player_id"].tolist(),
-            "away": grp[grp["side"] == "away"].sort_values("batting_order")["player_id"].tolist(),
-        }
+        grp = grp.sort_values("batting_order")
+        def _starters(side: str) -> list:
+            s = grp[grp["side"] == side]
+            # one player per slot (the starter) when subs share a batting_order
+            s = s.drop_duplicates("batting_order", keep="first")
+            return s["player_id"].tolist()
+        lineups[int(game_pk)] = {"home": _starters("home"), "away": _starters("away")}
     log.info("Lineups loaded for %d season: %d games", season, len(lineups))
     return lineups
 
@@ -228,6 +233,8 @@ def score_game(
     pitcher_cache: dict[int, dict],
     comps_db: list[dict],
     odds_row: Optional[dict] = None,
+    lineups: Optional[dict] = None,
+    batter_cache: Optional[dict] = None,
 ) -> dict:
     """Score a historical finished game and return a graded result dict."""
     from pipeline.park_factors import get_run_factor
@@ -241,9 +248,21 @@ def score_game(
     home_pitcher_score = _pitcher_score(home_sp, home_bullpen)
     away_pitcher_score = _pitcher_score(away_sp, away_bullpen)
 
-    # Use neutral lineup score (0.5) — no historical lineup data in V1
+    # Real lineup scores when historical lineups + a (prior-season, lookahead-safe) batter
+    # cache are available (2024-2025); fall back to neutral 0.5 otherwise (2021-2023).
+    # This makes predicted_total's deviation real historically so the model-dev edge can
+    # be backtested. sp_throws=None → overall xwOBA (split handedness is a later refinement).
     home_lineup_score = 0.5
     away_lineup_score = 0.5
+    if lineups and batter_cache:
+        lu = lineups.get(game.get("gamePk"))
+        if lu:
+            home_players = [batter_cache[pid] for pid in lu.get("home", []) if pid in batter_cache]
+            away_players = [batter_cache[pid] for pid in lu.get("away", []) if pid in batter_cache]
+            if home_players:
+                home_lineup_score = _lineup_score(home_players)
+            if away_players:
+                away_lineup_score = _lineup_score(away_players)
 
     try:
         park_run_factor = float(get_run_factor(game.get("venue", "")))
@@ -1177,6 +1196,15 @@ def run_backtest(seasons: Optional[list[int]] = None) -> None:
         else:
             pitcher_cache = build_pitcher_cache(sp_ids, season)
 
+        # Real lineups (2024-2025 have game_lineups.parquet) + the prior-season batter
+        # cache (lookahead-safe) so predicted_total's deviation carries lineup signal and
+        # the model-dev edge becomes backtestable. Missing data → score_game uses 0.5.
+        lineups = load_season_lineups(season)
+        batter_cache = load_full_historical_cache(season) if season < current_year else {}
+        if lineups and batter_cache:
+            log.info("Season %d: %d lineups + batter cache loaded (lineup scoring ON)",
+                     season, len(lineups))
+
         # Load Vegas closing lines if available
         closing_lines = load_closing_lines(season)
         has_lines = bool(closing_lines) and any(
@@ -1188,7 +1216,8 @@ def run_backtest(seasons: Optional[list[int]] = None) -> None:
         for i, g in enumerate(games, 1):
             try:
                 odds_row = closing_lines.get(g["gamePk"])
-                result   = score_game(g, pitcher_cache, comps_db, odds_row=odds_row)
+                result   = score_game(g, pitcher_cache, comps_db, odds_row=odds_row,
+                                      lineups=lineups, batter_cache=batter_cache)
                 result["season"] = season
                 season_results.append(result)
             except Exception as exc:
