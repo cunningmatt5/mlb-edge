@@ -9,11 +9,13 @@ dist/
 build/
 .pytest_cache/
 
-# Historical data — large files; player_cache.pkl and closing_lines.parquet are committed
+# Historical data — large files; player_cache.pkl, closing_lines.parquet and
+# game_lineups.parquet are committed (the last so CI can run the lineup-aware backtest).
 data/seasons/**
 !data/seasons/**/
 !data/seasons/**/closing_lines.parquet
 !data/seasons/**/player_cache.pkl
+!data/seasons/**/game_lineups.parquet
 data/backtest_results.parquet
 
 # Regenerable MC research artifact (rebuild with pipeline/mc_backfill.py) — not published
