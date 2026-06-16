@@ -4637,6 +4637,13 @@ function edgeScoreboardHTML() {
     const tip = `${CLV_TIP}${e.avg_clv_line != null ? ` Avg ${sgn(e.avg_clv_line)}${e.avg_clv_line} runs of line value over ${e.clv_n} graded closes.` : ''}`;
     return `<span class="ef-sb-clv ${k.c}" title="${tip}">CLV ${Math.round(e.clv_beat_pct)}% ${k.a}${avg}</span>`;
   };
+  // Last-10 recent-form strip (oldest → newest): green pip = under cashed, red = lost.
+  const last10 = e => {
+    if (!Array.isArray(e.last10) || !e.last10.length) return '';
+    const w = e.last10.filter(Boolean).length, l = e.last10.length - w;
+    const pips = e.last10.map(x => `<i class="ef-pip ${x ? 'pip-w' : 'pip-l'}"></i>`).join('');
+    return `<span class="ef-sb-l10" title="Last ${e.last10.length} graded bets, oldest → newest"><span class="ef-sb-l10-k">L10</span>${pips}<span class="ef-sb-l10-rec">${w}-${l}</span></span>`;
+  };
   const rows = sb.edges.map(e => {
     const c = edgeConf({ confidence: e.confidence });
     const recent = (e.recent_n >= 5 && e.recent_roi_pct != null)
@@ -4648,6 +4655,7 @@ function edgeScoreboardHTML() {
         <span class="ef-sb-roi ${cls(e.roi_pct)}">${sgn(e.roi_pct)}${e.roi_pct}%</span>
         <span class="ef-sb-n">${e.win_pct}% · ${e.n}</span>
         ${clvCell(e)}
+        ${last10(e)}
         ${recent}
       </div>`;
   }).join('');

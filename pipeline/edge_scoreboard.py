@@ -37,7 +37,8 @@ def _dec(odds: float) -> float:
 def _blank() -> dict:
     return {"n": 0, "wins": 0, "units": 0.0, "rn": 0, "runits": 0.0,
             "clv_n": 0, "clv_beats": 0, "clv_line_sum": 0.0,
-            "clv_price_n": 0, "clv_price_sum": 0.0}
+            "clv_price_n": 0, "clv_price_sum": 0.0,
+            "results": []}   # chronological win/loss flags for the "Last 10" strip
 
 
 def _grade_under(rec: dict) -> tuple[bool, float]:
@@ -116,7 +117,8 @@ def build_scoreboard() -> dict:
     per_edge: dict[str, dict] = {}
     total = _blank()          # deduped over actionable edges (one UNDER bet per game)
 
-    for r in usable:
+    # Chronological so each accumulator's results[] (and thus Last-10) reads oldest→newest.
+    for r in sorted(usable, key=lambda r: (r.get("date", ""), r.get("gamePk", 0))):
         edges = detect_edges(r["vegas_total"], r["predicted_total"], r["under_price"])
         under_edges = [e for e in edges if e["direction"] == "UNDER"]
         if not under_edges:
@@ -135,6 +137,7 @@ def build_scoreboard() -> dict:
                 a["runits"] += units
             if clv:
                 _add_clv(a, clv)
+            a["results"].append(bool(won))
 
         # Headline total: grade the UNDER once if ANY actionable (boosted) edge fired.
         if any((e.get("signal_boost") or 0) > 0 for e in under_edges):
@@ -146,6 +149,7 @@ def build_scoreboard() -> dict:
                 total["runits"] += units
             if clv:
                 _add_clv(total, clv)
+            total["results"].append(bool(won))
 
     edges_out = []
     for tag, a in per_edge.items():
@@ -161,6 +165,7 @@ def build_scoreboard() -> dict:
             "roi_pct": _roi(a),
             "recent_n": a["rn"],
             "recent_roi_pct": round(a["runits"] / a["rn"] * 100, 1) if a["rn"] else None,
+            "last10": a["results"][-10:],
             **_clv_out(a),
         })
     # Order: actionable first, then by ROI desc.
@@ -177,6 +182,7 @@ def build_scoreboard() -> dict:
             "roi_pct": _roi(total),
             "recent_n": total["rn"],
             "recent_roi_pct": round(total["runits"] / total["rn"] * 100, 1) if total["rn"] else None,
+            "last10": total["results"][-10:],
             **_clv_out(total),
         },
         "edges": edges_out,
