@@ -21,6 +21,8 @@ import logging
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
+import requests
+
 from pipeline.statcast import (
     _fetch_savant_batter_expected_stats,
     _fetch_savant_batter_batted_ball_stats,
@@ -76,6 +78,36 @@ def _recent_from_events(df) -> dict:
             out["hard_hit_recent"] = round(float((ls >= 95).mean()), 4)
             out["avg_ev_recent"] = round(float(ls.mean()), 1)
             out["bbe_recent"] = int(len(ls))
+    return out
+
+
+def _team_lookup(player_ids) -> dict:
+    """{player_id: (abbr, team_id)} via MLB Stats API (team_id → logo, abbr for display)."""
+    ids = list(player_ids)
+    if not ids:
+        return {}
+    teams: dict[int, str] = {}
+    try:
+        r = requests.get("https://statsapi.mlb.com/api/v1/teams", params={"sportId": 1}, timeout=20)
+        r.raise_for_status()
+        for t in r.json().get("teams", []):
+            if t.get("id"):
+                teams[t["id"]] = t.get("abbreviation")
+    except Exception as exc:
+        log.debug("teams fetch failed: %s", exc)
+    out: dict = {}
+    for i in range(0, len(ids), 80):
+        chunk = ids[i:i + 80]
+        try:
+            r = requests.get("https://statsapi.mlb.com/api/v1/people",
+                             params={"personIds": ",".join(map(str, chunk)), "hydrate": "currentTeam"},
+                             timeout=30)
+            r.raise_for_status()
+            for p in r.json().get("people", []):
+                tid = (p.get("currentTeam") or {}).get("id")
+                out[p["id"]] = (teams.get(tid), tid)
+        except Exception as exc:
+            log.debug("people/team fetch failed: %s", exc)
     return out
 
 
@@ -170,6 +202,14 @@ def build_reversion_board(season: int | None = None, today_ids=None,
             log.info("  reversion: processed %d/%d hitters", i, len(universe))
 
     hitters.sort(key=lambda h: -h["score"])
+
+    # Team abbreviation + id (for logo) for the shown candidates.
+    tl = _team_lookup([h["id"] for h in hitters])
+    for h in hitters:
+        abbr, tid = tl.get(h["id"], (None, None))
+        h["team"] = abbr
+        h["team_id"] = tid
+
     out = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "date": today_str,

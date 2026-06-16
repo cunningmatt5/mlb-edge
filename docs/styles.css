@@ -3855,6 +3855,8 @@ header {
   border-bottom: 1px solid var(--border-light); cursor: pointer; white-space: nowrap; user-select: none;
 }
 .rev-table th.rev-l, .rev-table td.rev-l { text-align: left; }
+.rev-tm { white-space: nowrap; }
+.rev-logo { width: 16px; height: 16px; vertical-align: middle; margin-right: 4px; }
 .rev-table th.rev-sorted { color: var(--text); }
 .rev-table td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .rev-row { cursor: pointer; }

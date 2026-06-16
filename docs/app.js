@@ -4905,6 +4905,7 @@ function renderReversionView() {
   }
   const cols = [
     { k: 'name',  l: 'Hitter', align: 'left' },
+    { k: 'team',  l: 'Tm',    align: 'left' },
     { k: 'ba_10', l: 'L10',   f: _rvBA },
     { k: 'xba',   l: 'xBA',   f: _rvBA },
     { k: 'gap_ba', l: 'gap',  f: v => '−' + _rvBA(v) },
@@ -4924,6 +4925,11 @@ function renderReversionView() {
   ).join('');
   const body = rows.map(h => {
     const cells = cols.map(c => {
+      if (c.k === 'team') {
+        const logo = h.team_id
+          ? `<img class="rev-logo" src="https://www.mlbstatic.com/team-logos/${h.team_id}.svg" alt="" loading="lazy">` : '';
+        return `<td class="rev-l rev-tm">${logo}<span>${escapeHtml(h.team || '—')}</span></td>`;
+      }
       const v = c.f ? c.f(h[c.k]) : escapeHtml(String(h[c.k] ?? '—'));
       return `<td class="${c.align === 'left' ? 'rev-l' : ''}">${v}</td>`;
     }).join('');
