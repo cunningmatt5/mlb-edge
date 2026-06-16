@@ -4943,6 +4943,16 @@ function renderReversionView() {
     <div class="view-header"><h1>Reversion</h1>
       <span class="sub-label">Good hitters slumping on bad luck — recent results down, but still squaring the ball up, so statistically due to bounce back. Informational only — find your own line &amp; angle.</span>
     </div>
+    <details class="ef-howto rev-howto">
+      <summary>How the score works</summary>
+      <div class="ef-howto-body">
+        <p><b>Who's listed:</b> good hitters (season xwOBA ≥ .330, 200+ PA) whose last-10-game average has dropped well below their season expected (xBA).</p>
+        <p><b>Score</b> = (season xBA − last-10 BA) × 100 — how far below true talent the hitter is right now, i.e. how much bounce-back is "owed." Bigger = deeper slump.</p>
+        <p><b>Luck gate:</b> if recent hard-hit% is still near/above season ("still squaring it up"), the slump is bad luck → full score. If hard-hit% has <em>also</em> dropped (below 80% of season) it's likely a real decline, not luck → score cut ~55%. Expand a row to see the quality check.</p>
+        <p><b>Columns:</b> <b>L10</b> last-10-game BA · <b>xBA</b> season expected · <b>gap</b> below true talent · <b>HH</b> recent hard-hit% · <b>angle</b> the bet type the hitter's profile favors (hits / bases / HR — you pick your own line).</p>
+        <p><b>Green row</b> = in today's lineup. Reversion is statistically validated (good hitters fully revert); whether the market actually misprices these is <em>not</em> confirmed — informational, not a bet rec.</p>
+      </div>
+    </details>
     <div class="rev-legend"><span class="rev-key-today">▎</span> plays today (${playsToday}) · <b>L10</b> last-10-game BA · <b>xBA</b> season expected · <b>gap</b> below true talent · <b>HH</b> recent hard-hit% · tap a row for hit / bases / HR angles</div>
     <table class="rev-table"><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>`;
   el.querySelectorAll('th[data-sort]').forEach(th => th.onclick = () => {
