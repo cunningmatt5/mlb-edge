@@ -3745,9 +3745,9 @@ header {
 .ef-sb-sub { font-size: 11px; color: var(--text-muted); line-height: 1.5; padding: 4px 0 8px; }
 .ef-sb-row {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
-  gap: 6px 12px;
+  gap: 6px 10px;
   padding: 7px 0;
   border-top: 1px solid var(--border);
   font-size: 12px;
@@ -3761,13 +3761,8 @@ header {
 .ef-sb-roi { font-weight: 800; white-space: nowrap; text-align: right; }
 .ef-sb-n   { color: var(--text-muted); white-space: nowrap; }
 .ef-sb-recent { grid-column: 1 / -1; font-size: 10px; color: var(--text-dim); }
-.ef-sb-clv {
-  grid-column: 1 / -1; justify-self: start;
-  font-size: 10px; font-weight: 700;
-  padding: 1px 6px; border-radius: 4px;
-  background: rgba(148,163,184,.12);
-}
-.ef-sb-clv-pending { color: var(--text-dim); font-style: italic; }
+.ef-sb-clv { font-size: 11px; font-weight: 700; white-space: nowrap; text-align: right; }
+.ef-sb-clv-pending { color: var(--text-dim); font-weight: 600; font-style: italic; }
 .sb-pos { color: #6ee7b7; }
 .sb-neg { color: #fca5a5; }
 
