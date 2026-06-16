@@ -4621,12 +4621,22 @@ function edgeScoreboardHTML() {
   const sgn = v => (v >= 0 ? '+' : '');
   const cls = v => (v == null ? '' : (v >= 0 ? 'sb-pos' : 'sb-neg'));
   const CLV_MIN = 5;   // need a few graded closes before CLV is worth showing
-  const CLV_TIP = 'Closing-line value: how often this edge’s bet-time line beat the closing line, with the average run-line gain. Beating the close confirms an edge faster and with less variance than ROI.';
-  // CLV as an inline column: "CLV 63% ↑" (green = beat the close >50%, red = below).
-  // While gathering (n below threshold) show a muted "CLV –" so the column stays aligned.
-  const clvCell = e => (e.clv_n >= CLV_MIN && e.clv_beat_pct != null)
-    ? `<span class="ef-sb-clv ${e.clv_beat_pct >= 50 ? 'sb-pos' : 'sb-neg'}" title="${CLV_TIP}${e.avg_clv_line != null ? ` Avg ${sgn(e.avg_clv_line)}${e.avg_clv_line} runs vs the close.` : ''}">CLV ${e.clv_beat_pct}% ${e.clv_beat_pct >= 50 ? '↑' : '↓'}</span>`
-    : `<span class="ef-sb-clv ef-sb-clv-pending" title="${CLV_TIP} Accrues as games resolve with a captured closing line.">CLV –</span>`;
+  const CLV_TIP = 'Closing-line value: how often this edge’s bet-time line beat the closing line, plus the average run-line gained. Beating the close confirms an edge faster and with less variance than ROI.';
+  // 50% beat = coin-flip vs the close. A ±3pt dead band means an edge that profits for
+  // other reasons (e.g. the static 8.0 mispricing) but gains no line value reads as
+  // neutral, not a red "fail". The arrow doubles the colour for accessibility.
+  const clvKind = p => (p >= 53) ? { c: 'sb-pos', a: '↑' }
+                     : (p <= 47) ? { c: 'sb-neg', a: '↓' }
+                     :             { c: 'sb-neutral', a: '→' };
+  // CLV inline column: "CLV 64% ↑ +0.2" — rounded beat-rate, arrow, avg run-line value.
+  const clvCell = e => {
+    if (!(e.clv_n >= CLV_MIN && e.clv_beat_pct != null))
+      return `<span class="ef-sb-clv ef-sb-clv-pending" title="${CLV_TIP} Accrues as games resolve with a captured closing line.">CLV –</span>`;
+    const k = clvKind(e.clv_beat_pct);
+    const avg = e.avg_clv_line != null ? ` <span class="ef-sb-clv-avg">${sgn(e.avg_clv_line)}${e.avg_clv_line.toFixed(1)}</span>` : '';
+    const tip = `${CLV_TIP}${e.avg_clv_line != null ? ` Avg ${sgn(e.avg_clv_line)}${e.avg_clv_line} runs of line value over ${e.clv_n} graded closes.` : ''}`;
+    return `<span class="ef-sb-clv ${k.c}" title="${tip}">CLV ${Math.round(e.clv_beat_pct)}% ${k.a}${avg}</span>`;
+  };
   const rows = sb.edges.map(e => {
     const c = edgeConf({ confidence: e.confidence });
     const recent = (e.recent_n >= 5 && e.recent_roi_pct != null)
@@ -4643,18 +4653,20 @@ function edgeScoreboardHTML() {
   }).join('');
   const headline = (t.roi_pct != null)
     ? `<span class="ef-sb-headline ${cls(t.roi_pct)}">${sgn(t.roi_pct)}${t.roi_pct}% · ${t.n} bets</span>` : '';
+  const headClv = (t.clv_n >= CLV_MIN && t.clv_beat_pct != null)
+    ? `<span class="ef-sb-headclv ${clvKind(t.clv_beat_pct).c}" title="${CLV_TIP}">CLV ${Math.round(t.clv_beat_pct)}%</span>` : '';
   const recentHead = (t.recent_n >= 5 && t.recent_roi_pct != null)
-    ? ` · last 30d ${sgn(t.recent_roi_pct)}${t.recent_roi_pct}%` : '';
+    ? ` · 30d ${sgn(t.recent_roi_pct)}${t.recent_roi_pct}%` : '';
   const clvNote = (t.clv_n >= CLV_MIN && t.clv_beat_pct != null)
-    ? `CLV: beat the close ${t.clv_beat_pct}% of ${t.clv_n} bets.`
+    ? `CLV beat the close ${t.clv_beat_pct}% of ${t.clv_n} — a faster, lower-variance read than ROI.`
     : 'CLV: gathering… (how often the bet-time line beat the close).';
   return `
     <div class="ef-scoreboard">
       <div class="ef-sb-hdr">
         <span class="ef-sb-title">${sb.season} Realized — Edge Scoreboard</span>
-        ${headline}
+        <span class="ef-sb-head-metrics">${headline}${headClv}</span>
       </div>
-      <div class="ef-sb-sub">Live ROI graded vs outcomes${recentHead}. Flat $1/bet. <span class="${(t.clv_n >= CLV_MIN) ? '' : 'ef-sb-clv-pending'}" title="${CLV_TIP}">${clvNote}</span></div>
+      <div class="ef-sb-sub">ROI = realized return, flat $1/bet${recentHead}. <span class="${(t.clv_n >= CLV_MIN) ? '' : 'ef-sb-clv-pending'}" title="${CLV_TIP}">${clvNote}</span></div>
       ${rows}
     </div>`;
 }
