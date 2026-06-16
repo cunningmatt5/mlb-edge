@@ -3761,6 +3761,13 @@ header {
 .ef-sb-roi { font-weight: 800; white-space: nowrap; text-align: right; }
 .ef-sb-n   { color: var(--text-muted); white-space: nowrap; }
 .ef-sb-recent { grid-column: 1 / -1; font-size: 10px; color: var(--text-dim); }
+.ef-sb-clv {
+  grid-column: 1 / -1; justify-self: start;
+  font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 4px;
+  background: rgba(148,163,184,.12);
+}
+.ef-sb-clv-pending { color: var(--text-dim); font-style: italic; }
 .sb-pos { color: #6ee7b7; }
 .sb-neg { color: #fca5a5; }
 

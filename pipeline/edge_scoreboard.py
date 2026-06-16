@@ -35,7 +35,9 @@ def _dec(odds: float) -> float:
 
 
 def _blank() -> dict:
-    return {"n": 0, "wins": 0, "units": 0.0, "rn": 0, "runits": 0.0}
+    return {"n": 0, "wins": 0, "units": 0.0, "rn": 0, "runits": 0.0,
+            "clv_n": 0, "clv_beats": 0, "clv_line_sum": 0.0,
+            "clv_price_n": 0, "clv_price_sum": 0.0}
 
 
 def _grade_under(rec: dict) -> tuple[bool, float]:
@@ -47,6 +49,46 @@ def _grade_under(rec: dict) -> tuple[bool, float]:
 
 def _roi(a: dict) -> float | None:
     return round(a["units"] / a["n"] * 100, 1) if a["n"] else None
+
+
+def _clv(rec: dict) -> dict | None:
+    """CLV of the bet-time UNDER vs the closing line; None if no closing snapshot.
+
+    clv_line > 0 means we locked a HIGHER total than the close — good for an UNDER
+    (a half-run line move dominates any vig change). Forward-only: legacy records with
+    no closing snapshot return None and are excluded from all CLV stats.
+    """
+    ct, bt = rec.get("closing_total"), rec.get("vegas_total")
+    if ct is None or bt is None:
+        return None
+    clv_line = round(bt - ct, 2)
+    beat = clv_line > 0
+    clv_price_pct = None
+    bup, cup = rec.get("under_price"), rec.get("closing_under_price")
+    if bup is not None and cup is not None:
+        bdec, cdec = _dec(bup), _dec(cup)
+        clv_price_pct = round((bdec / cdec - 1) * 100, 2)
+        if clv_line == 0:                 # line tied → price breaks the tie
+            beat = bdec > cdec
+    return {"clv_line": clv_line, "beat": beat, "clv_price_pct": clv_price_pct}
+
+
+def _add_clv(a: dict, clv: dict) -> None:
+    a["clv_n"] += 1
+    a["clv_beats"] += 1 if clv["beat"] else 0
+    a["clv_line_sum"] += clv["clv_line"]
+    if clv["clv_price_pct"] is not None:
+        a["clv_price_n"] += 1
+        a["clv_price_sum"] += clv["clv_price_pct"]
+
+
+def _clv_out(a: dict) -> dict:
+    return {
+        "clv_n": a["clv_n"],
+        "clv_beat_pct": round(a["clv_beats"] / a["clv_n"] * 100, 1) if a["clv_n"] else None,
+        "avg_clv_line": round(a["clv_line_sum"] / a["clv_n"], 2) if a["clv_n"] else None,
+        "avg_clv_price_pct": round(a["clv_price_sum"] / a["clv_price_n"], 2) if a["clv_price_n"] else None,
+    }
 
 
 def build_scoreboard() -> dict:
@@ -81,6 +123,7 @@ def build_scoreboard() -> dict:
             continue
         won, units = _grade_under(r)
         recent = cutoff is not None and r.get("date", "") >= cutoff
+        clv = _clv(r)   # None for legacy records with no closing snapshot
 
         for e in under_edges:
             a = per_edge.setdefault(e["tag"], _blank())
@@ -90,6 +133,8 @@ def build_scoreboard() -> dict:
             if recent:
                 a["rn"] += 1
                 a["runits"] += units
+            if clv:
+                _add_clv(a, clv)
 
         # Headline total: grade the UNDER once if ANY actionable (boosted) edge fired.
         if any((e.get("signal_boost") or 0) > 0 for e in under_edges):
@@ -99,6 +144,8 @@ def build_scoreboard() -> dict:
             if recent:
                 total["rn"] += 1
                 total["runits"] += units
+            if clv:
+                _add_clv(total, clv)
 
     edges_out = []
     for tag, a in per_edge.items():
@@ -114,6 +161,7 @@ def build_scoreboard() -> dict:
             "roi_pct": _roi(a),
             "recent_n": a["rn"],
             "recent_roi_pct": round(a["runits"] / a["rn"] * 100, 1) if a["rn"] else None,
+            **_clv_out(a),
         })
     # Order: actionable first, then by ROI desc.
     edges_out.sort(key=lambda e: (not e["actionable"], -(e["roi_pct"] or -999)))
@@ -129,6 +177,7 @@ def build_scoreboard() -> dict:
             "roi_pct": _roi(total),
             "recent_n": total["rn"],
             "recent_roi_pct": round(total["runits"] / total["rn"] * 100, 1) if total["rn"] else None,
+            **_clv_out(total),
         },
         "edges": edges_out,
     }

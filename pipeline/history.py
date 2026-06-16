@@ -12,7 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
@@ -41,6 +41,27 @@ def save_history(records: list[dict]) -> None:
         encoding="utf-8",
     )
     log.info("History saved: %d records", len(records))
+
+
+def _capture_closing(record: dict, game_obj: dict) -> None:
+    """Snapshot the latest pre-game line into the record's closing-line fields.
+
+    The bet-time line (vegas_total/under_price) is frozen at first capture and is the
+    CLV anchor. This instead tracks the LATEST line while the game is still in preview,
+    overwriting on every run; the last update before first pitch becomes the closing-line
+    proxy. Because the pipeline runs ~every 30 min, this lands within ~30 min of game
+    start — a good proxy, not the literal final tick. Once the game is live/final we stop,
+    freezing the last preview value as the close.
+    """
+    if game_obj.get("game_status", "preview") != "preview":
+        return
+    odds = game_obj.get("odds") or {}
+    if odds.get("total") is None:
+        return
+    record["closing_total"]       = odds.get("total")
+    record["closing_under_price"] = odds.get("under_price")
+    record["closing_over_price"]  = odds.get("over_price")
+    record["closing_captured_at"] = datetime.now(timezone.utc).isoformat()
 
 
 def append_today(history: list[dict], games: list[dict], today_str: str) -> list[dict]:
@@ -83,6 +104,8 @@ def append_today(history: list[dict], games: list[dict], today_str: str) -> list
             if existing.get("mc_win_pct") is None and _mc.get("mc_win_pct") is not None:
                 existing["mc_win_pct"] = _mc.get("mc_win_pct")
                 existing["mc_total"]   = _mc.get("mc_total")
+            # Track the closing line while the game is still in preview (for CLV).
+            _capture_closing(existing, g)
             continue
         pred    = g.get("prediction", {})
         signals = pred.get("model_signals", {})
@@ -100,7 +123,7 @@ def append_today(history: list[dict], games: list[dict], today_str: str) -> list
             except Exception as exc:
                 log.debug("ML edge computation failed (append path): %s", exc)
 
-        history.append({
+        new_rec = {
             "date":                    today_str,
             "gamePk":                  pk,
             "home_team":               g["home_team"],
@@ -128,11 +151,18 @@ def append_today(history: list[dict], games: list[dict], today_str: str) -> list
             "home_ml":                 home_ml,
             "away_ml":                 away_ml,
             "model_edge_ml":           model_edge_ml,
+            # Closing-line snapshot (for CLV); updated each preview run, frozen at game start.
+            "closing_total":           None,
+            "closing_under_price":     None,
+            "closing_over_price":      None,
+            "closing_captured_at":     None,
             "actual_winner":           None,
             "home_score":              None,
             "away_score":              None,
             "sp_scratched":            False,
-        })
+        }
+        _capture_closing(new_rec, g)
+        history.append(new_rec)
         added += 1
     log.info("History: appended %d new prediction records", added)
     return history
