@@ -116,6 +116,7 @@ def build_scoreboard() -> dict:
 
     per_edge: dict[str, dict] = {}
     total = _blank()          # deduped over actionable edges (one UNDER bet per game)
+    equity_raw: list[tuple[str, float]] = []   # (date, cumulative units) for the equity curve
 
     # Chronological so each accumulator's results[] (and thus Last-10) reads oldest→newest.
     for r in sorted(usable, key=lambda r: (r.get("date", ""), r.get("gamePk", 0))):
@@ -150,6 +151,7 @@ def build_scoreboard() -> dict:
             if clv:
                 _add_clv(total, clv)
             total["results"].append(bool(won))
+            equity_raw.append((r.get("date", ""), round(total["units"], 2)))
 
     edges_out = []
     for tag, a in per_edge.items():
@@ -171,6 +173,13 @@ def build_scoreboard() -> dict:
     # Order: actionable first, then by ROI desc.
     edges_out.sort(key=lambda e: (not e["actionable"], -(e["roi_pct"] or -999)))
 
+    # Equity curve: one cumulative-units point per betting date (last cum on each date).
+    daily: dict[str, float] = {}
+    for d, c in equity_raw:
+        if d:
+            daily[d] = c
+    equity = [{"d": d, "u": daily[d]} for d in sorted(daily)]
+
     out = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "season": 2026,
@@ -185,6 +194,7 @@ def build_scoreboard() -> dict:
             "last10": total["results"][-10:],
             **_clv_out(total),
         },
+        "equity": equity,
         "edges": edges_out,
     }
     OUT.write_text(json.dumps(out, separators=(",", ":")), encoding="utf-8")

@@ -4675,8 +4675,47 @@ function edgeScoreboardHTML() {
         <span class="ef-sb-head-metrics">${headline}${headClv}</span>
       </div>
       <div class="ef-sb-sub">ROI = realized return, flat $1/bet${recentHead}. <span class="${(t.clv_n >= CLV_MIN) ? '' : 'ef-sb-clv-pending'}" title="${CLV_TIP}">${clvNote}</span></div>
+      ${equityChartHTML(sb)}
       ${rows}
     </div>`;
+}
+
+// Season equity curve — cumulative units (flat 1u/bet) over the actionable plays.
+// Inline SVG (no chart lib); stretches to width via preserveAspectRatio="none".
+function equityChartHTML(sb) {
+  const pts = sb.equity || [];
+  if (pts.length < 2) return '';
+  const t = sb.actionable_total || {};
+  const W = 320, H = 60, pad = 5;
+  const us = pts.map(p => p.u);
+  const lo = Math.min(0, ...us), hi = Math.max(0, ...us);
+  const range = (hi - lo) || 1;
+  const X = i => pad + (i / (pts.length - 1)) * (W - 2 * pad);
+  const Y = u => pad + (1 - (u - lo) / range) * (H - 2 * pad);
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(p.u).toFixed(1)}`).join(' ');
+  const area = `${line} L${X(pts.length - 1).toFixed(1)} ${Y(lo).toFixed(1)} L${X(0).toFixed(1)} ${Y(lo).toFixed(1)} Z`;
+  const zY = Y(0).toFixed(1);
+  const up = (t.units ?? 0) >= 0;
+  const col = up ? '#34d399' : '#f87171';
+  const uSign = (t.units ?? 0) >= 0 ? '+' : '';
+  const rSign = (t.roi_pct ?? 0) >= 0 ? '+' : '';
+  return `
+      <div class="ef-equity">
+        <div class="ef-equity-hdr">
+          <span class="ef-equity-title">Bankroll if you'd followed every play</span>
+          <span class="ef-equity-val ${up ? 'sb-pos' : 'sb-neg'}">${uSign}${(t.units ?? 0).toFixed(1)}u · ${rSign}${t.roi_pct}%</span>
+        </div>
+        <svg class="ef-equity-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Cumulative profit over the season">
+          <line x1="${pad}" y1="${zY}" x2="${W - pad}" y2="${zY}" class="ef-equity-zero"/>
+          <path d="${area}" fill="${col}" fill-opacity="0.13"/>
+          <path d="${line}" fill="none" stroke="${col}" stroke-width="2" vector-effect="non-scaling-stroke"/>
+        </svg>
+        <div class="ef-equity-foot">
+          <span>${escapeHtml(pts[0].d)}</span>
+          <span>flat 1u/bet · ${t.n} bets</span>
+          <span>${escapeHtml(pts[pts.length - 1].d)}</span>
+        </div>
+      </div>`;
 }
 
 // ── Edges tab: plain-language plays + track record ────────────────────────────

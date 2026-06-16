@@ -3777,6 +3777,15 @@ header {
 .ef-sb-clv-pending { color: var(--text-dim); font-weight: 600; font-style: italic; }
 .sb-neutral { color: var(--text-muted); }
 
+/* ── Season equity curve (in the scoreboard) ─────────────────────────────────── */
+.ef-equity { margin: 4px 0 12px; }
+.ef-equity-hdr { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
+.ef-equity-title { font-size: 12px; font-weight: 700; color: var(--text); }
+.ef-equity-val { font-size: 13px; font-weight: 800; white-space: nowrap; }
+.ef-equity-svg { display: block; width: 100%; height: 60px; }
+.ef-equity-zero { stroke: var(--border-light); stroke-width: 1; stroke-dasharray: 3 3; }
+.ef-equity-foot { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; color: var(--text-dim); margin-top: 3px; }
+
 /* ── Edges tab redesign: plain-language plays + sections ─────────────────────── */
 .ef-section { margin: 18px 0; }
 .ef-section-hdr { display: flex; align-items: baseline; justify-content: space-between; margin: 0 0 10px; }
