@@ -173,12 +173,9 @@ def build_scoreboard() -> dict:
     # Order: actionable first, then by ROI desc.
     edges_out.sort(key=lambda e: (not e["actionable"], -(e["roi_pct"] or -999)))
 
-    # Equity curve: one cumulative-units point per betting date (last cum on each date).
-    daily: dict[str, float] = {}
-    for d, c in equity_raw:
-        if d:
-            daily[d] = c
-    equity = [{"d": d, "u": daily[d]} for d in sorted(daily)]
+    # Equity curve: one cumulative-units point per actionable bet (chronological), so every
+    # losing play shows as its own −1 down-tick instead of being netted away by daily collapse.
+    equity = [{"d": d, "u": c} for d, c in equity_raw]
 
     out = {
         "generated_at": datetime.now(timezone.utc).isoformat(),

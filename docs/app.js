@@ -4686,15 +4686,20 @@ function equityChartHTML(sb) {
   const pts = sb.equity || [];
   if (pts.length < 2) return '';
   const t = sb.actionable_total || {};
-  const W = 320, H = 60, pad = 5;
+  const W = 320, H = 72, pad = 5;
   const us = pts.map(p => p.u);
-  const lo = Math.min(0, ...us), hi = Math.max(0, ...us);
+  // Autoscale to the data (padded) so the per-bet wins/losses use the full height.
+  let lo = Math.min(...us), hi = Math.max(...us);
+  const padU = (hi - lo) * 0.08 || 1;
+  lo -= padU; hi += padU;
   const range = (hi - lo) || 1;
   const X = i => pad + (i / (pts.length - 1)) * (W - 2 * pad);
   const Y = u => pad + (1 - (u - lo) / range) * (H - 2 * pad);
   const line = pts.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(p.u).toFixed(1)}`).join(' ');
   const area = `${line} L${X(pts.length - 1).toFixed(1)} ${Y(lo).toFixed(1)} L${X(0).toFixed(1)} ${Y(lo).toFixed(1)} Z`;
-  const zY = Y(0).toFixed(1);
+  // Breakeven line only when 0 is within the visible (padded) range.
+  const zeroLine = (lo <= 0 && hi >= 0)
+    ? `<line x1="${pad}" y1="${Y(0).toFixed(1)}" x2="${W - pad}" y2="${Y(0).toFixed(1)}" class="ef-equity-zero"/>` : '';
   const up = (t.units ?? 0) >= 0;
   const col = up ? '#34d399' : '#f87171';
   const uSign = (t.units ?? 0) >= 0 ? '+' : '';
@@ -4705,10 +4710,10 @@ function equityChartHTML(sb) {
           <span class="ef-equity-title">Bankroll if you'd followed every play</span>
           <span class="ef-equity-val ${up ? 'sb-pos' : 'sb-neg'}">${uSign}${(t.units ?? 0).toFixed(1)}u · ${rSign}${t.roi_pct}%</span>
         </div>
-        <svg class="ef-equity-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Cumulative profit over the season">
-          <line x1="${pad}" y1="${zY}" x2="${W - pad}" y2="${zY}" class="ef-equity-zero"/>
+        <svg class="ef-equity-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Cumulative profit over the season, per bet">
+          ${zeroLine}
           <path d="${area}" fill="${col}" fill-opacity="0.13"/>
-          <path d="${line}" fill="none" stroke="${col}" stroke-width="2" vector-effect="non-scaling-stroke"/>
+          <path d="${line}" fill="none" stroke="${col}" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
         </svg>
         <div class="ef-equity-foot">
           <span>${escapeHtml(pts[0].d)}</span>

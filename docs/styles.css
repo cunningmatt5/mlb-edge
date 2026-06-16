@@ -3782,7 +3782,7 @@ header {
 .ef-equity-hdr { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
 .ef-equity-title { font-size: 12px; font-weight: 700; color: var(--text); }
 .ef-equity-val { font-size: 13px; font-weight: 800; white-space: nowrap; }
-.ef-equity-svg { display: block; width: 100%; height: 60px; }
+.ef-equity-svg { display: block; width: 100%; height: 72px; }
 .ef-equity-zero { stroke: var(--border-light); stroke-width: 1; stroke-dasharray: 3 3; }
 .ef-equity-foot { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; color: var(--text-dim); margin-top: 3px; }
 
