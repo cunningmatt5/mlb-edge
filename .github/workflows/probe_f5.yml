@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Probe F5 market availability + cost
+      - name: Probe live MLB markets available on the key
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
-        run: python -m pipeline.probe_f5_odds
+        run: python -m pipeline.probe_live_markets
