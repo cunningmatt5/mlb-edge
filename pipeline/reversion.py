@@ -135,6 +135,50 @@ def _team_lookup(player_ids) -> dict:
     return out
 
 
+def _filter_active(hitters: list[dict]) -> list[dict]:
+    """Drop hitters who aren't on an active MLB roster (IL, optioned, etc.).
+
+    The season leaderboard is full-season, so a qualified hitter now on the IL still
+    appears — but he can't play today. The *current* roster entry (the open one with no
+    endDate) carries the status code: 'A' = active; 'D7/D10/D60' = IL; others = not with
+    the MLB club. One batched /people?hydrate=rosterEntries call covers everyone.
+
+    Fail-safe: if the status lookup returns nothing (API hiccup) we keep the board intact
+    rather than blanking it; we only drop a hitter whose status is *known* to be non-active.
+    """
+    if not hitters:
+        return hitters
+    ids = [h["id"] for h in hitters]
+    status: dict[int, str] = {}
+    for i in range(0, len(ids), 80):
+        chunk = ids[i:i + 80]
+        try:
+            r = requests.get("https://statsapi.mlb.com/api/v1/people",
+                             params={"personIds": ",".join(map(str, chunk)), "hydrate": "rosterEntries"},
+                             timeout=30)
+            r.raise_for_status()
+            for p in r.json().get("people", []):
+                cur = next((e for e in (p.get("rosterEntries") or []) if e.get("endDate") is None), None)
+                code = (cur or {}).get("status", {}).get("code")
+                if code:
+                    status[p["id"]] = code
+        except Exception as exc:
+            log.debug("roster-status fetch failed: %s", exc)
+    if not status:                                   # total failure → don't nuke the board
+        return hitters
+    kept, dropped = [], []
+    for h in hitters:
+        st = status.get(h["id"])
+        if st is None or st == "A":                  # active, or unknown (keep — fail-safe)
+            h["roster_status"] = st or "A"
+            kept.append(h)
+        else:
+            dropped.append(f"{h.get('name')} ({st})")
+    if dropped:
+        log.info("Reversion: dropped %d non-active (IL/optioned): %s", len(dropped), ", ".join(dropped[:10]))
+    return kept
+
+
 def _best_angle(xslg, season_barrel) -> str:
     """Hint at which angle the hitter's profile favors; users pick their own."""
     brl = season_barrel or 0
@@ -219,9 +263,10 @@ def build_reversion_board(season: int | None = None, today_matchups=None,
             prev = json.loads(OUT.read_text(encoding="utf-8"))
             if prev.get("date") == today_str:
                 log.info("Reversion board already built for %s — skipping", today_str)
-                if today_matchups:   # refresh plays_today + matchup context from today's schedule
-                    _apply_today(prev.get("hitters", []), today_matchups)
-                    OUT.write_text(json.dumps(prev, separators=(",", ":")), encoding="utf-8")
+                # Refresh on every cycle: drop anyone newly IL'd + re-apply today's matchups.
+                prev["hitters"] = _filter_active(prev.get("hitters", []))
+                _apply_today(prev["hitters"], today_matchups)
+                OUT.write_text(json.dumps(prev, separators=(",", ":")), encoding="utf-8")
                 return prev
         except Exception as exc:
             log.debug("Could not read existing reversion.json: %s", exc)
@@ -300,6 +345,9 @@ def build_reversion_board(season: int | None = None, today_matchups=None,
         })
         if i % 25 == 0:
             log.info("  reversion: processed %d/%d hitters", i, len(universe))
+
+    # Drop hitters who can't play (IL / not on the active roster) before the extra lookups.
+    hitters = _filter_active(hitters)
 
     # Platoon splits (vs LHP / vs RHP wOBA proxy) for the shown candidates — drives the
     # platoon half of the matchup multiplier (his stronger/weaker side vs today's starter).
