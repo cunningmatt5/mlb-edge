@@ -4959,13 +4959,20 @@ function renderReversionView() {
         const hand = h.opp_throws ? 'v' + h.opp_throws : '';
         const label = pf == null ? '' : (pf >= 106 ? 'hitter-friendly' : pf <= 94 ? 'pitcher-friendly' : 'neutral');
         const tip = `vs ${h.opp_sp || 'TBD'}${h.opp_throws ? ` (${h.opp_throws})` : ''}${h.venue ? ` · ${h.venue}` : ''}${label ? ` (${label} park)` : ''}`;
-        return `<td class="rev-l rev-today-cell" title="${escapeHtml(tip)}">${hand} <span class="${tiltCls}">${tilt}</span></td>`;
+        const mm = h.matchup_mult;
+        let spot = '';
+        if (mm != null && mm >= 1.04) spot = `<span class="rev-spot-up" title="ripe spot${h.matchup_note ? ` (${h.matchup_note})` : ''} — score ×${mm.toFixed(2)}">▲</span>`;
+        else if (mm != null && mm <= 0.96) spot = `<span class="rev-spot-dn" title="tough spot${h.matchup_note ? ` (${h.matchup_note})` : ''} — score ×${mm.toFixed(2)}">▼</span>`;
+        return `<td class="rev-l rev-today-cell" title="${escapeHtml(tip)}">${hand} <span class="${tiltCls}">${tilt}</span> ${spot}</td>`;
       }
       const v = c.f ? c.f(h[c.k]) : escapeHtml(String(h[c.k] ?? '—'));
       return `<td class="${c.align === 'left' ? 'rev-l' : ''}">${v}</td>`;
     }).join('');
+    const mm = h.matchup_mult;
+    const spotTxt = (h.plays_today && mm != null && Math.abs(mm - 1) >= 0.02)
+      ? ` · spot ×${mm.toFixed(2)}${h.matchup_note ? ` (${h.matchup_note})` : ''}` : '';
     const matchupLine = (h.plays_today && h.opp_sp)
-      ? `<div class="rev-matchup">Today: vs ${escapeHtml(h.opp_sp)}${h.opp_throws ? ` (${h.opp_throws})` : ''}${h.venue ? ` · ${escapeHtml(h.venue)}` : ''}${h.park_factor != null ? ` — ${h.park_factor >= 106 ? 'hitter-friendly' : h.park_factor <= 94 ? 'pitcher-friendly' : 'neutral'} park` : ''}</div>`
+      ? `<div class="rev-matchup">Today: vs ${escapeHtml(h.opp_sp)}${h.opp_throws ? ` (${h.opp_throws})` : ''}${h.venue ? ` · ${escapeHtml(h.venue)}` : ''}${h.park_factor != null ? ` — ${h.park_factor >= 106 ? 'hitter-friendly' : h.park_factor <= 94 ? 'pitcher-friendly' : 'neutral'} park` : ''}${spotTxt ? `${escapeHtml(spotTxt)}` : ''}</div>`
       : '';
     const det = `
       <tr class="rev-detail" hidden><td colspan="${cols.length}">
@@ -4991,11 +4998,12 @@ function renderReversionView() {
         <p><b>Who's listed:</b> good hitters (season xwOBA ≥ .330, 200+ PA) whose last-10-game average has dropped well below their season expected (xBA).</p>
         <p><b>Score</b> = expected-OPS deficit × 100 — the sum of the average gap (season xBA − last-10 BA) and the power gap (season xSLG − last-10 SLG), i.e. how far below true talent the hitter's whole line is right now. Captures contact <em>and</em> power slumps; bigger = more bounce-back "owed."</p>
         <p><b>Luck gate:</b> if the hitter's <em>recent xwOBA</em> (what his contact deserved) is still near his season level, the slump is bad luck → full score (✓ unlucky). If recent xwOBA has <em>also</em> dropped well below season, it's likely a real fade, not luck → score cut ~55% (⚠ fading). Expand a row to see recent xBA vs actual.</p>
-        <p><b>Columns:</b> <b>L10</b> last-10-game BA · <b>xBA</b> season expected · <b>gap</b> below true talent · <b>HH</b> recent hard-hit% · <b>angle</b> the bet type the hitter's profile favors (hits / bases / HR — you pick your own line).</p>
+        <p><b>Today's spot</b> (hitters in action only): the base score is then nudged ×0.80–1.25 by how ripe today's matchup is — a <em>weak opposing starter</em> (▲) and/or the hitter's <em>stronger platoon side</em> vs that starter's hand boost it; an ace or his weak side dampen it (▼). A due hitter in a great spot ranks above an equally-due one facing a tough arm. Tap a row for the exact multiplier.</p>
+        <p><b>Columns:</b> <b>L10</b> last-10-game BA · <b>xBA</b> season expected · <b>BA↓ / SLG↓</b> avg &amp; power below true talent (sum to the score) · <b>Today</b> opposing hand + park + spot ▲/▼ · <b>angle</b> the bet type the hitter's profile favors (hits / bases / HR — you pick your own line).</p>
         <p><b>Green row</b> = in today's lineup. Reversion is statistically validated (good hitters fully revert); whether the market actually misprices these is <em>not</em> confirmed — informational, not a bet rec.</p>
       </div>
     </details>
-    <div class="rev-legend"><span class="rev-key-today">▎</span> plays today (${playsToday}) · <b>L10</b> last-10-game BA · <b>xBA</b> season expected · <b>BA↓ / SLG↓</b> recent avg &amp; power below true talent (these sum to the score) · <b>✓/⚠</b> luck check (recent xwOBA vs season) · <b>Today</b> opposing starter hand + park (<span class="rev-park-up">+</span> hitter / <span class="rev-park-dn">−</span> pitcher) · tap a row for matchup + hit / bases / HR angles</div>
+    <div class="rev-legend"><span class="rev-key-today">▎</span> plays today (${playsToday}) · <b>L10</b> last-10-game BA · <b>xBA</b> season expected · <b>BA↓ / SLG↓</b> recent avg &amp; power below true talent (these sum to the score) · <b>✓/⚠</b> luck check (recent xwOBA vs season) · <b>Today</b> opposing starter hand + park (<span class="rev-park-up">+</span> hitter / <span class="rev-park-dn">−</span> pitcher) + spot (<span class="rev-spot-up">▲</span> ripe / <span class="rev-spot-dn">▼</span> tough — moves the score) · tap a row for matchup + hit / bases / HR angles</div>
     <table class="rev-table"><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>`;
   el.querySelectorAll('th[data-sort]').forEach(th => th.onclick = () => {
     const k = th.dataset.sort;

@@ -3868,6 +3868,8 @@ header {
 .rev-park-up { color: #6ee7b7; font-weight: 800; }
 .rev-park-dn { color: var(--text-dim); font-weight: 800; }
 .rev-park-flat { color: var(--text-muted); }
+.rev-spot-up { color: #34d399; font-weight: 800; }
+.rev-spot-dn { color: #f87171; font-weight: 800; }
 .rev-matchup { font-weight: 700; color: var(--text); }
 .rev-table th.rev-sorted { color: var(--text); }
 .rev-table td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }

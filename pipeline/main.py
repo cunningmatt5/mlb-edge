@@ -394,6 +394,12 @@ def main(dry_run: bool = False) -> None:
             from pipeline.park_factors import get_run_factor
             # Per-team today's matchup: each team faces the opposing SP at the game's park.
             # Keyed by team id → plays_today flag + opp SP/park context on the board.
+            # Opposing-SP quality (composite pitcher score, [0,1]) by game, so the board can
+            # nudge a hitter's score by how soft/tough today's starter is.
+            pscore_by_pk: dict = {}
+            for go in game_objects:
+                sig = ((go.get("prediction") or {}).get("model_signals") or {})
+                pscore_by_pk[go.get("gamePk")] = (sig.get("pitcher_score_home"), sig.get("pitcher_score_away"))
             today_matchups: dict = {}
             for g in games:
                 venue = g.get("venue", "")
@@ -401,13 +407,14 @@ def main(dry_run: bool = False) -> None:
                     pf = float(get_run_factor(venue))
                 except Exception:
                     pf = 100.0
+                hps, aps = pscore_by_pk.get(g.get("gamePk"), (None, None))
                 hid, aid = g.get("homeTeamId"), g.get("awayTeamId")
-                if hid:
+                if hid:   # home team faces the away starter
                     today_matchups[hid] = {"opp_sp": g.get("away_sp_name"), "opp_throws": g.get("away_sp_throws"),
-                                           "venue": venue, "park_factor": pf}
-                if aid:
+                                           "venue": venue, "park_factor": pf, "opp_sp_score": aps}
+                if aid:   # away team faces the home starter
                     today_matchups[aid] = {"opp_sp": g.get("home_sp_name"), "opp_throws": g.get("home_sp_throws"),
-                                           "venue": venue, "park_factor": pf}
+                                           "venue": venue, "park_factor": pf, "opp_sp_score": hps}
             build_reversion_board(season=today.year, today_matchups=today_matchups)
         except Exception as exc:
             log.warning("Reversion board build failed (non-fatal): %s", exc)

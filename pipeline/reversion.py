@@ -28,6 +28,7 @@ from pipeline.statcast import (
     _fetch_savant_batter_batted_ball_stats,
     _merge_savant_batter_expected,
     _merge_savant_batter_batted_ball,
+    _fetch_mlb_platoon_splits,
 )
 
 OUT = Path(__file__).parent.parent / "docs" / "reversion.json"
@@ -36,6 +37,12 @@ MIN_XWOBA = 0.330       # "good hitter"
 RECENT_DAYS = 21        # recent-form window for statcast pull
 SLUMP_MIN = 0.060       # show hitters whose xOPS deficit (xBA-gap + xSLG-gap) is >= this
 QUALITY_FLOOR = 0.80    # recent xwOBA >= this × season ⇒ "still squaring it up" (bad luck)
+
+# Today's-matchup scoring: nudge the base reversion score by how favorable today's spot is.
+# A weak opposing starter and/or a hitter's better platoon side = a riper bounce-back spot.
+SP_W = 0.50             # opposing-SP quality weight (score 0.5 = avg; lower = weaker pitcher)
+PLAT_W = 3.0            # platoon-split weight (hitter's vs-hand wOBA vs his own two-hand avg)
+MATCH_LO, MATCH_HI = 0.80, 1.25   # clamp the matchup multiplier (matchup informs, never dominates)
 
 log = logging.getLogger(__name__)
 
@@ -138,11 +145,49 @@ def _best_angle(xslg, season_barrel) -> str:
     return "HIT"
 
 
+def _matchup_mult(h: dict, m: dict | None) -> tuple[float, str | None]:
+    """Today's-spot multiplier on the base score, from opposing-SP quality + platoon edge.
+
+    Returns (multiplier, short note). 1.0 when there's no matchup or no inputs — so a hitter
+    who isn't in action (or whose opponent/splits are unknown) keeps his neutral base score.
+    """
+    if not m:
+        return 1.0, None
+    mult = 1.0
+    notes: list[str] = []
+
+    sp = m.get("opp_sp_score")                 # [0,1], 0.5 = league-avg, higher = tougher
+    if sp is not None:
+        mult *= 1.0 + (0.5 - sp) * SP_W        # weak SP boosts, ace dampens
+        if sp <= 0.42:
+            notes.append("weak SP")
+        elif sp >= 0.58:
+            notes.append("tough SP")
+
+    hand = (m.get("opp_throws") or "").upper()
+    vl, vr = h.get("xwoba_vs_l"), h.get("xwoba_vs_r")
+    if hand in ("L", "R") and vl is not None and vr is not None:
+        own_avg = (vl + vr) / 2.0
+        vs_hand = vl if hand == "L" else vr
+        delta = vs_hand - own_avg              # +ve = his stronger side vs this hand
+        mult *= 1.0 + delta * PLAT_W
+        if delta >= 0.012:
+            notes.append(f"mashes {hand}HP")
+        elif delta <= -0.012:
+            notes.append(f"weak vs {hand}HP")
+
+    mult = max(MATCH_LO, min(MATCH_HI, mult))
+    return round(mult, 3), (", ".join(notes) or None)
+
+
 def _apply_today(hitters: list[dict], matchups: dict) -> None:
-    """Set plays_today (team in action) + today's matchup context (opp SP, park) per hitter.
+    """Set plays_today (team in action) + today's matchup context, then matchup-adjust the score.
 
     plays_today is keyed on the TEAM being in action (robust all day), not the individual
     lineup (TBD for hours; a slumping regular who recently sat drops out of the last-10 proxy).
+    The shown score = base_score × matchup multiplier, so a ripe spot (weak SP / good platoon)
+    ranks above an equally-due hitter in a tough spot. Re-sorts in place. Idempotent: callable
+    on every cycle (full build + intra-day refresh) as probable pitchers firm up.
     """
     for h in hitters:
         m = matchups.get(h.get("team_id"))
@@ -151,6 +196,16 @@ def _apply_today(hitters: list[dict], matchups: dict) -> None:
         h["opp_throws"] = m.get("opp_throws") if m else None
         h["venue"] = m.get("venue") if m else None
         h["park_factor"] = m.get("park_factor") if m else None
+        h["opp_sp_score"] = m.get("opp_sp_score") if m else None
+        mult, note = _matchup_mult(h, m)
+        h["matchup_mult"] = mult
+        h["matchup_note"] = note
+        base = h.get("base_score")
+        if base is None:                       # legacy row (pre-matchup build) — derive once
+            base = h.get("score", 0.0)
+            h["base_score"] = base
+        h["score"] = round(base * mult, 1)
+    hitters.sort(key=lambda h: -h.get("score", 0.0))
 
 
 def build_reversion_board(season: int | None = None, today_matchups=None,
@@ -225,7 +280,8 @@ def build_reversion_board(season: int | None = None, today_matchups=None,
             quality_ok = r_xw >= QUALITY_FLOOR * s_xw
         else:
             quality_ok = (s_hh is None or r_hh is None or r_hh >= QUALITY_FLOOR * s_hh)
-        score = round(ops_deficit * (1.0 if quality_ok else 0.45) * 100, 1)
+        # Base (matchup-neutral) score; _apply_today scales it by today's spot favorability.
+        base_score = round(ops_deficit * (1.0 if quality_ok else 0.45) * 100, 1)
         hitters.append({
             "name": entry.get("name") or str(pid), "id": pid, "pa": pa,
             "plays_today": False,   # set from team_id after the team lookup below
@@ -237,13 +293,25 @@ def build_reversion_board(season: int | None = None, today_matchups=None,
             "hard_hit_recent": r_hh, "avg_ev_recent": rec.get("avg_ev_recent"),
             "xba_10": rec.get("xba_10"), "xwoba_10": r_xw, "luck_gap": rec.get("luck_gap"),
             "gap_ba": gap_ba, "slg_gap": slg_gap, "ops_deficit": ops_deficit,
-            "quality_ok": quality_ok, "score": score,
+            "quality_ok": quality_ok, "base_score": base_score, "score": base_score,
+            "xwoba_vs_l": None, "xwoba_vs_r": None,   # filled from platoon fetch below
+            "matchup_mult": 1.0, "matchup_note": None,
             "best_angle": _best_angle(xslg, entry.get("barrel_pct")),
         })
         if i % 25 == 0:
             log.info("  reversion: processed %d/%d hitters", i, len(universe))
 
-    hitters.sort(key=lambda h: -h["score"])
+    # Platoon splits (vs LHP / vs RHP wOBA proxy) for the shown candidates — drives the
+    # platoon half of the matchup multiplier (his stronger/weaker side vs today's starter).
+    try:
+        splits = _fetch_mlb_platoon_splits([h["id"] for h in hitters], season)
+    except Exception as exc:
+        log.debug("platoon splits fetch failed: %s", exc)
+        splits = {}
+    for h in hitters:
+        s = splits.get(h["id"]) or {}
+        h["xwoba_vs_l"] = s.get("xwoba_vs_l")
+        h["xwoba_vs_r"] = s.get("xwoba_vs_r")
 
     # Team abbreviation + id (for logo) for the shown candidates.
     tl = _team_lookup([h["id"] for h in hitters])
@@ -251,7 +319,7 @@ def build_reversion_board(season: int | None = None, today_matchups=None,
         abbr, tid = tl.get(h["id"], (None, None))
         h["team"] = abbr
         h["team_id"] = tid
-    # plays_today + today's matchup context (opp SP, park) from the schedule.
+    # plays_today + today's matchup context (opp SP, park) → matchup-adjusted score + sort.
     _apply_today(hitters, today_matchups)
 
     out = {
