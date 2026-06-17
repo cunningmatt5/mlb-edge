@@ -4893,6 +4893,8 @@ async function loadReversion() {
 
 const _rvBA = v => (v == null ? '—' : v.toFixed(3).replace(/^0\./, '.'));
 const _rvPct = v => (v == null ? '—' : Math.round(v * 100) + '%');
+// Deficit vs true talent: positive = below expected (shown as −.NNN), negative = above (+.NNN).
+const _rvGap = v => (v == null ? '—' : (v >= 0 ? '−' + _rvBA(v) : '+' + _rvBA(-v)));
 
 function renderReversionView() {
   const el = document.getElementById('reversion-view');
@@ -4908,8 +4910,8 @@ function renderReversionView() {
     { k: 'team',  l: 'Tm',    align: 'left' },
     { k: 'ba_10', l: 'L10',   f: _rvBA },
     { k: 'xba',   l: 'xBA',   f: _rvBA },
-    { k: 'gap_ba', l: 'gap',  f: v => '−' + _rvBA(v) },
-    { k: 'hard_hit_recent', l: 'HH', f: _rvPct },
+    { k: 'gap_ba',  l: 'BA↓',  f: _rvGap },
+    { k: 'slg_gap', l: 'SLG↓', f: _rvGap },
     { k: 'score', l: 'score', f: v => (v == null ? '—' : v.toFixed(0)) },
     { k: 'best_angle', l: 'angle' },
   ];
@@ -4978,7 +4980,7 @@ function renderReversionView() {
         <p><b>Green row</b> = in today's lineup. Reversion is statistically validated (good hitters fully revert); whether the market actually misprices these is <em>not</em> confirmed — informational, not a bet rec.</p>
       </div>
     </details>
-    <div class="rev-legend"><span class="rev-key-today">▎</span> plays today (${playsToday}) · <b>L10</b> last-10-game BA · <b>xBA</b> season expected · <b>gap</b> below true talent · <b>HH</b> recent hard-hit% · tap a row for hit / bases / HR angles</div>
+    <div class="rev-legend"><span class="rev-key-today">▎</span> plays today (${playsToday}) · <b>L10</b> last-10-game BA · <b>xBA</b> season expected · <b>BA↓ / SLG↓</b> recent avg &amp; power below true talent (these sum to the score) · <b>✓/⚠</b> luck check (recent xwOBA vs season) · tap a row for hit / bases / HR angles</div>
     <table class="rev-table"><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>`;
   el.querySelectorAll('th[data-sort]').forEach(th => th.onclick = () => {
     const k = th.dataset.sort;
