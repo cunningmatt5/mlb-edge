@@ -2388,9 +2388,9 @@ function renderBacktestView() {
       <span class="bt-sec-sub">OVER/UNDER prediction accuracy · historical seasons</span>
     </summary>
     <p class="bt-sec-desc">
-      The model consistently predicts fewer runs than the Vegas line — a lean that has been correct 52–53%
-      of the time every season. Combined with the edge-band findings above, UNDER bets generate the
-      steadiest returns in the database.
+      The model consistently predicts fewer runs than the Vegas line — a lean that has been correct ~52–53%
+      of the time most seasons. That modest accuracy only becomes a (small, push-corrected) edge at the
+      specific 8.0 standard-vig line above; betting the lean on every game is roughly break-even.
     </p>
     ${totalsYrRows ? `<div class="bt-table-wrap">
       <table class="seg-table">
@@ -2402,7 +2402,7 @@ function renderBacktestView() {
 
   // ── SECTION 6: Validated Edges ───────────────────────────────────────────
   // Compute edge-band UNDER ROI from backtest games (same methodology as edge_research.py)
-  function computeUnderBandRoi(lo, hi, allGames) {
+  function computeUnderBandRoi(lo, hi, allGames, stdVigOnly = false) {
     const bySeason = {};
     let totalUnits = 0, totalBets = 0, totalWins = 0;
     for (const g of allGames) {
@@ -2410,6 +2410,7 @@ function renderBacktestView() {
       const uPrice = g.under_price;
       if (ct == null || uPrice == null) continue;
       if (ct < lo || ct >= hi) continue;
+      if (stdVigOnly && (uPrice > -106 || uPrice < -110)) continue;  // std-vig band [-110,-106]
       // Push-aware: a total landing exactly on the line is void (refunded), not an UNDER win.
       const oc = totalsOutcome(g.actual_total, ct);
       if (oc == null || oc === 'push') continue;
@@ -2427,7 +2428,7 @@ function renderBacktestView() {
     return { bySeason, totalBets, totalWins, roi };
   }
 
-  const edge8to85  = computeUnderBandRoi(8.0, 8.5, games);
+  const edge8to85  = computeUnderBandRoi(8.0, 8.5, games, true);  // 8.0 edge lives at std vig only
   const edge9to95  = computeUnderBandRoi(9.0, 9.5, games);
   const edge85to9  = computeUnderBandRoi(8.5, 9.0, games); // the dead zone — for contrast
 
@@ -2473,8 +2474,9 @@ function renderBacktestView() {
     </div>
     <p class="bt-sec-desc">
       MLB totals are set at discrete half-run increments (8.0, 8.5, 9.0, …). Each line behaves
-      differently — a flat UNDER bet on 8.0 has been profitable in 5 of 5 seasons; the same bet
-      on 8.5 loses money. The <strong>Edges tab</strong> flags today's qualifying games.
+      differently — push-corrected, a flat UNDER on 8.0 at standard vig is +5.5% (4 of 6 seasons),
+      while 8.5 loses money. (Figures here void pushes — totals landing exactly on the line.)
+      The <strong>Edges tab</strong> flags today's qualifying games.
     </p>
     <div class="bt-edges-grid">
 
@@ -2487,7 +2489,7 @@ function renderBacktestView() {
         </div>
         <div class="bt-ec2-body">
           <div class="bt-ec2-band-label">UNDER · Total = 8.0</div>
-          <p class="bt-ec2-desc">The most consistent edge in the dataset. Profitable blind in 5 of 5 seasons. The market systematically over-prices the over at the 8.0 line — likely because bettors anchor to round numbers and expect "normal" scoring.</p>
+          <p class="bt-ec2-desc">Our most reliable edge — push-corrected +5.5% at standard vig, profitable in 4 of 6 seasons. The market tends to over-price the over at the round 8.0 number. (Only the standard-vig band qualifies; cheaper or vig-against prices don't.)</p>
           <div class="bt-table-wrap">
             <table class="seg-table">
               <thead><tr><th>Season</th><th>Games</th><th>Win%</th><th>ROI</th></tr></thead>
@@ -4628,7 +4630,7 @@ function edgesHowToHTML() {
       <summary>How to read this</summary>
       <div class="ef-howto-body">
         <p>Each play is an UNDER bet that our model and several seasons of data agree the market has mispriced. We only surface bets that beat real closing odds across multiple seasons.</p>
-        <p><b>Confidence:</b> ⚡ Strong = profitable every season tested · ★ Emerging = promising but 2026 only · ⚠ Watch = historically strong but down this season (not bet).</p>
+        <p><b>Confidence:</b> ⚡ Strong = positive multi-season ROI (push-corrected) · ★ Emerging = promising but 2026 only · ⚠ Watch = historically positive but down this season (not bet).</p>
         <p><b>Track record</b> on each play is its validated multi-season ROI. <b>This season's results</b> below show how the edges have actually done in 2026 — including CLV, whether our bet-time line beat the closing line.</p>
       </div>
     </details>`;
@@ -4836,17 +4838,18 @@ function renderSupportView() {
           recent data. Most betting angles fail that bar. We've run season-by-season ROI
           backtests (2021–2026) on every bet type and model signal the app produces; the table
           below summarizes what we found and why most are shown as informational context rather
-          than recommended picks. The only angle that has cleared the bar is the UNDER on
-          specific low total lines — notably 8.0 at standard vig — which is profitable in every
-          season tested and forms the basis of the recommended edges. Everything else either
-          failed validation, was driven by a single lucky season, or proved statistically
-          indistinguishable from random noise.
+          than recommended picks. The main angle that clears the bar is the UNDER on
+          specific low total lines — notably 8.0 at standard vig — which is push-corrected +5.5%
+          and profitable in 4 of 6 seasons, and forms the basis of the recommended edges.
+          Everything else either failed validation, was driven by a single lucky season, or proved
+          statistically indistinguishable from random noise. (All ROI voids pushes — totals landing
+          exactly on the line — which we found had previously been miscounted as wins.)
         </p>
         <table class="val-table">
           <thead><tr><th>Bet / Angle</th><th>What the data showed</th><th>Status</th></tr></thead>
           <tbody>
-            <tr><td>UNDER total = 8.0 (standard vig)</td><td>+12.6% ROI, profitable 6 of 6 seasons (2021–26)</td><td><span class="val-tag val-yes">Active edge</span></td></tr>
-            <tr><td>UNDER total = 9.0</td><td>Strong 2021–25, then collapsed in 2026 (−13.9%)</td><td><span class="val-tag val-watch">Watch only</span></td></tr>
+            <tr><td>UNDER total = 8.0 (standard vig)</td><td>+5.5% ROI, profitable 4 of 6 seasons (2021–26), push-corrected</td><td><span class="val-tag val-yes">Active edge</span></td></tr>
+            <tr><td>UNDER total = 9.0</td><td>Only +2.6% 2021–25 (push-corrected), then −11.3% in 2026</td><td><span class="val-tag val-watch">Watch only</span></td></tr>
             <tr><td>Model–Vegas total gap (UNDER)</td><td>+36% in 2026 but only one season of data</td><td><span class="val-tag val-watch">Emerging</span></td></tr>
             <tr><td>Moneyline — "Elite Away"</td><td>Overfit: ~+14% in-sample vs ~−12% out-of-sample</td><td><span class="val-tag val-no">Not used</span></td></tr>
             <tr><td>Moneyline — "High Confidence"</td><td>64% win rate but −2% ROI (favorites don't pay)</td><td><span class="val-tag val-no">Not used</span></td></tr>
