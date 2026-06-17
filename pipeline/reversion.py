@@ -138,13 +138,25 @@ def _best_angle(xslg, season_barrel) -> str:
     return "HIT"
 
 
-def build_reversion_board(season: int | None = None, today_team_ids=None,
+def _apply_today(hitters: list[dict], matchups: dict) -> None:
+    """Set plays_today (team in action) + today's matchup context (opp SP, park) per hitter.
+
+    plays_today is keyed on the TEAM being in action (robust all day), not the individual
+    lineup (TBD for hours; a slumping regular who recently sat drops out of the last-10 proxy).
+    """
+    for h in hitters:
+        m = matchups.get(h.get("team_id"))
+        h["plays_today"] = m is not None
+        h["opp_sp"] = m.get("opp_sp") if m else None
+        h["opp_throws"] = m.get("opp_throws") if m else None
+        h["venue"] = m.get("venue") if m else None
+        h["park_factor"] = m.get("park_factor") if m else None
+
+
+def build_reversion_board(season: int | None = None, today_matchups=None,
                           limit: int | None = None, force: bool = False) -> dict:
     season = season or date.today().year
-    # Flag "plays today" by whether the hitter's TEAM is in action today (robust — known
-    # from the schedule all day), not by the individual lineup (TBD for hours; a slumping
-    # regular who recently sat falls out of the last-10 proxy and gets wrongly un-flagged).
-    today_team_ids = set(int(x) for x in (today_team_ids or []) if x)
+    today_matchups = {int(k): v for k, v in (today_matchups or {}).items() if k}
     today_str = date.today().isoformat()
 
     if not force and not limit and OUT.exists():
@@ -152,9 +164,8 @@ def build_reversion_board(season: int | None = None, today_team_ids=None,
             prev = json.loads(OUT.read_text(encoding="utf-8"))
             if prev.get("date") == today_str:
                 log.info("Reversion board already built for %s — skipping", today_str)
-                if today_team_ids:   # refresh the plays_today flags from today's schedule
-                    for h in prev.get("hitters", []):
-                        h["plays_today"] = h.get("team_id") in today_team_ids
+                if today_matchups:   # refresh plays_today + matchup context from today's schedule
+                    _apply_today(prev.get("hitters", []), today_matchups)
                     OUT.write_text(json.dumps(prev, separators=(",", ":")), encoding="utf-8")
                 return prev
         except Exception as exc:
@@ -240,7 +251,8 @@ def build_reversion_board(season: int | None = None, today_team_ids=None,
         abbr, tid = tl.get(h["id"], (None, None))
         h["team"] = abbr
         h["team_id"] = tid
-        h["plays_today"] = tid in today_team_ids
+    # plays_today + today's matchup context (opp SP, park) from the schedule.
+    _apply_today(hitters, today_matchups)
 
     out = {
         "generated_at": datetime.now(timezone.utc).isoformat(),

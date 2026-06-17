@@ -391,12 +391,24 @@ def main(dry_run: bool = False) -> None:
         # (date-gated inside build_reversion_board); off-cycle runs just refresh plays_today.
         try:
             from pipeline.reversion import build_reversion_board
-            # Teams in action today (robust all day, unlike TBD lineups) → plays_today flag.
-            today_team_ids = {
-                tid for g in games
-                for tid in (g.get("homeTeamId"), g.get("awayTeamId")) if tid
-            }
-            build_reversion_board(season=today.year, today_team_ids=today_team_ids)
+            from pipeline.park_factors import get_run_factor
+            # Per-team today's matchup: each team faces the opposing SP at the game's park.
+            # Keyed by team id → plays_today flag + opp SP/park context on the board.
+            today_matchups: dict = {}
+            for g in games:
+                venue = g.get("venue", "")
+                try:
+                    pf = float(get_run_factor(venue))
+                except Exception:
+                    pf = 100.0
+                hid, aid = g.get("homeTeamId"), g.get("awayTeamId")
+                if hid:
+                    today_matchups[hid] = {"opp_sp": g.get("away_sp_name"), "opp_throws": g.get("away_sp_throws"),
+                                           "venue": venue, "park_factor": pf}
+                if aid:
+                    today_matchups[aid] = {"opp_sp": g.get("home_sp_name"), "opp_throws": g.get("home_sp_throws"),
+                                           "venue": venue, "park_factor": pf}
+            build_reversion_board(season=today.year, today_matchups=today_matchups)
         except Exception as exc:
             log.warning("Reversion board build failed (non-fatal): %s", exc)
 

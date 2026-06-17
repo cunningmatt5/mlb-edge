@@ -3864,6 +3864,11 @@ header {
 .rev-tr-down { color: var(--text-dim); font-weight: 800; }
 .rev-tr-flat { color: var(--text-muted); }
 .rev-luck { font-weight: 700; color: var(--text); }
+.rev-today-cell { white-space: nowrap; color: var(--text-muted); }
+.rev-park-up { color: #6ee7b7; font-weight: 800; }
+.rev-park-dn { color: var(--text-dim); font-weight: 800; }
+.rev-park-flat { color: var(--text-muted); }
+.rev-matchup { font-weight: 700; color: var(--text); }
 .rev-table th.rev-sorted { color: var(--text); }
 .rev-table td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .rev-row { cursor: pointer; }

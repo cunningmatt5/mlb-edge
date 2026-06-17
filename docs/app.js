@@ -4914,6 +4914,7 @@ function renderReversionView() {
     { k: 'slg_gap', l: 'SLG↓', f: _rvGap },
     { k: 'score', l: 'score', f: v => (v == null ? '—' : v.toFixed(0)) },
     { k: 'best_angle', l: 'angle' },
+    { k: 'today', l: 'Today', align: 'left' },
   ];
   const { key, dir } = _revSort;
   const rows = [...d.hitters].sort((a, b) => {
@@ -4950,12 +4951,26 @@ function renderReversionView() {
         }
         return `<td>${_rvBA(h.ba_10)} ${arrow}</td>`;
       }
+      if (c.k === 'today') {
+        if (!h.plays_today) return `<td class="rev-l rev-today-cell">—</td>`;
+        const pf = h.park_factor;
+        const tilt = pf == null ? '·' : (pf >= 106 ? '+' : pf <= 94 ? '−' : '·');
+        const tiltCls = tilt === '+' ? 'rev-park-up' : tilt === '−' ? 'rev-park-dn' : 'rev-park-flat';
+        const hand = h.opp_throws ? 'v' + h.opp_throws : '';
+        const label = pf == null ? '' : (pf >= 106 ? 'hitter-friendly' : pf <= 94 ? 'pitcher-friendly' : 'neutral');
+        const tip = `vs ${h.opp_sp || 'TBD'}${h.opp_throws ? ` (${h.opp_throws})` : ''}${h.venue ? ` · ${h.venue}` : ''}${label ? ` (${label} park)` : ''}`;
+        return `<td class="rev-l rev-today-cell" title="${escapeHtml(tip)}">${hand} <span class="${tiltCls}">${tilt}</span></td>`;
+      }
       const v = c.f ? c.f(h[c.k]) : escapeHtml(String(h[c.k] ?? '—'));
       return `<td class="${c.align === 'left' ? 'rev-l' : ''}">${v}</td>`;
     }).join('');
+    const matchupLine = (h.plays_today && h.opp_sp)
+      ? `<div class="rev-matchup">Today: vs ${escapeHtml(h.opp_sp)}${h.opp_throws ? ` (${h.opp_throws})` : ''}${h.venue ? ` · ${escapeHtml(h.venue)}` : ''}${h.park_factor != null ? ` — ${h.park_factor >= 106 ? 'hitter-friendly' : h.park_factor <= 94 ? 'pitcher-friendly' : 'neutral'} park` : ''}</div>`
+      : '';
     const det = `
       <tr class="rev-detail" hidden><td colspan="${cols.length}">
         <div class="rev-angles">
+          ${matchupLine}
           <div class="rev-luck">${h.quality_ok ? '✓ unlucky' : '⚠ fading'} — recent xBA ${_rvBA(h.xba_10)} vs actual ${_rvBA(h.ba_10)}${h.luck_gap != null ? ` (deserved +${_rvBA(h.luck_gap)})` : ''} · recent xwOBA ${_rvBA(h.xwoba_10)} vs season ${_rvBA(h.xwoba)}</div>
           <div><b>HIT</b> — season xBA ${_rvBA(h.xba)} vs last-10 ${_rvBA(h.ba_10)}${h.ba_5 != null ? ` · L5 ${_rvBA(h.ba_5)}` : ''}</div>
           <div><b>BASES</b> — season xSLG ${_rvBA(h.xslg)} vs L10 SLG ${_rvBA(h.slg_10)}${h.season_barrel != null ? ` · barrel ${_rvPct(h.season_barrel)}` : ''}</div>
@@ -4980,7 +4995,7 @@ function renderReversionView() {
         <p><b>Green row</b> = in today's lineup. Reversion is statistically validated (good hitters fully revert); whether the market actually misprices these is <em>not</em> confirmed — informational, not a bet rec.</p>
       </div>
     </details>
-    <div class="rev-legend"><span class="rev-key-today">▎</span> plays today (${playsToday}) · <b>L10</b> last-10-game BA · <b>xBA</b> season expected · <b>BA↓ / SLG↓</b> recent avg &amp; power below true talent (these sum to the score) · <b>✓/⚠</b> luck check (recent xwOBA vs season) · tap a row for hit / bases / HR angles</div>
+    <div class="rev-legend"><span class="rev-key-today">▎</span> plays today (${playsToday}) · <b>L10</b> last-10-game BA · <b>xBA</b> season expected · <b>BA↓ / SLG↓</b> recent avg &amp; power below true talent (these sum to the score) · <b>✓/⚠</b> luck check (recent xwOBA vs season) · <b>Today</b> opposing starter hand + park (<span class="rev-park-up">+</span> hitter / <span class="rev-park-dn">−</span> pitcher) · tap a row for matchup + hit / bases / HR angles</div>
     <table class="rev-table"><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>`;
   el.querySelectorAll('th[data-sort]').forEach(th => th.onclick = () => {
     const k = th.dataset.sort;
