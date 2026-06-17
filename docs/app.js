@@ -78,7 +78,7 @@ function setupNav() {
       if (currentView === 'reversion') loadReversion().then(renderReversionView);
       if (currentView === 'support')   renderSupportView();
       if (currentView === 'performance') _renderSub('performance', _perfSub);
-      if (currentView === 'lab')         _renderSub('lab', _labSub);
+      if (currentView === 'lab')       { _updateLabBanner(_labSub); _renderSub('lab', _labSub); }
     });
   });
 }
@@ -96,6 +96,18 @@ function _renderSub(parent, sub) {
   }
 }
 
+// Per-sub-tab caveat shown in the single Lab banner (replaces the old per-view caveat boxes,
+// so each exploratory tool gets one specific notice instead of a generic banner stacked on top).
+const LAB_CAVEATS = {
+  props:    `<strong>⚗ Exploratory — not a validated edge.</strong> Real prop odds are shown and the "model edge" is computed against the no-vig price, but there's no validated ROI track record yet (early hit-rates were −EV). Treat these as model leans under active testing, not recommended bets.`,
+  parlay:   `<strong>⚗ Exploratory — for fun, not a validated edge.</strong> Parlays are built from the model's daily picks; most legs (props, moneylines) have no validated edge on their own, and combining them multiplies the book's vig. Treat as entertainment, not a recommended bet.`,
+  simulate: `<strong>⚗ Exploratory — not a validated edge.</strong> A Statcast-pure Monte Carlo run independently of the market. A 2024–25 backtest found its divergence from Vegas did <em>not</em> predict outcomes (mildly anti-predictive on the moneyline) — use it to explore game shape, not as a bet signal.`,
+};
+function _updateLabBanner(sub) {
+  const el = document.getElementById('lab-banner');
+  if (el) el.innerHTML = LAB_CAVEATS[sub] || '';
+}
+
 // Wires the in-tab segmented sub-nav under Performance / Lab.
 function setupSubNav() {
   const subViews = {
@@ -106,7 +118,7 @@ function setupSubNav() {
     btn.addEventListener('click', () => {
       const parent = btn.closest('.subnav').dataset.parent;
       const sub = btn.dataset.sub;
-      if (parent === 'performance') _perfSub = sub; else if (parent === 'lab') _labSub = sub;
+      if (parent === 'performance') _perfSub = sub; else if (parent === 'lab') { _labSub = sub; _updateLabBanner(sub); }
       btn.parentElement.querySelectorAll('.subnav-btn').forEach(b => b.classList.toggle('active', b === btn));
       for (const v of subViews[parent]) {
         document.getElementById(v + '-view').hidden = v !== sub;
@@ -715,9 +727,9 @@ function keySignalsHTML(g) {
   if (hXera != null && aXera != null && Math.abs(hXera - aXera) > 0.7) {
     const awayBetter = aXera < hXera;
     const label = awayBetter
-      ? `${aXera.toFixed(2)} vs ${hXera.toFixed(2)} xERA`
-      : `${hXera.toFixed(2)} vs ${aXera.toFixed(2)} xERA`;
-    chips.push(`<span class="key-sig-chip sp">${label}</span>`);
+      ? `${abbrev(g.away_team)} ${aXera.toFixed(2)} vs ${abbrev(g.home_team)} ${hXera.toFixed(2)} xERA`
+      : `${abbrev(g.home_team)} ${hXera.toFixed(2)} vs ${abbrev(g.away_team)} ${aXera.toFixed(2)} xERA`;
+    chips.push(`<span class="key-sig-chip sp" title="Starting-pitcher expected ERA — lower is better. The pitcher with the edge is shown first.">${label}</span>`);
   }
 
   // Weather: only when modifier is meaningful (captures wind and cold)
@@ -1055,7 +1067,8 @@ function vegasEdgeStripHTML(g) {
     const edgeTeam = edgeSide === 'home' ? g.home_team : g.away_team;
     if (edgePct >= 0.02) {
       const cls = edgePct >= 0.05 ? 'edge-pill strong' : 'edge-pill mild';
-      pills.push(`<span class="${cls}">ML +${(edgePct * 100).toFixed(1)}% ${abbrev(edgeTeam)}</span>`);
+      const tip = `Moneyline: the model gives ${abbrev(edgeTeam)} a ${(edgePct * 100).toFixed(1)}% higher win chance than the market price implies. Informational only — moneyline has no validated edge.`;
+      pills.push(`<span class="${cls}" title="${tip}">ML +${(edgePct * 100).toFixed(1)}% ${abbrev(edgeTeam)}</span>`);
     }
   }
 
@@ -1066,7 +1079,8 @@ function vegasEdgeStripHTML(g) {
       const dir = diff > 0 ? 'OVER' : 'UNDER';
       const dirCls = diff > 0 ? 'dir-over' : 'dir-under';
       const strCls = Math.abs(diff) >= 0.5 ? 'strong' : 'mild';
-      pills.push(`<span class="edge-pill ${strCls} ${dirCls}">${dir} ${pred.predicted_total.toFixed(1)} vs ${odds.total}</span>`);
+      const tip = `The model predicts ${pred.predicted_total.toFixed(1)} total runs vs the Vegas line of ${odds.total} — a ${Math.abs(diff).toFixed(1)}-run ${dir} lean. Only a validated UNDER line (see the Edges tab) is an actionable edge.`;
+      pills.push(`<span class="edge-pill ${strCls} ${dirCls}" title="${tip}">${dir} ${pred.predicted_total.toFixed(1)} vs ${odds.total}</span>`);
     }
   }
 
@@ -2435,11 +2449,11 @@ function renderBacktestView() {
   }).join('');
 
   const moneylineSection = `
-    <div class="bt-sec-head">
+    <summary class="bt-sec-head bt-sec-toggle">
       <span class="bt-sec-num">02</span>
       <span class="bt-sec-title">Moneyline Analysis</span>
       <span class="bt-sec-sub">Away edge vs. home favorite trap · 2021–2025</span>
-    </div>
+    </summary>
     <div class="bt-ml-grid">
       <div>
         <div class="bt-subsection-title">Away Advantage · Edge × Pitcher Quality</div>
@@ -2505,11 +2519,11 @@ function renderBacktestView() {
   }).join('');
 
   const calibrationSection = `
-    <div class="bt-sec-head">
+    <summary class="bt-sec-head bt-sec-toggle">
       <span class="bt-sec-num">03</span>
       <span class="bt-sec-title">Model Accuracy</span>
       <span class="bt-sec-sub">Win rate by confidence level and by season</span>
-    </div>
+    </summary>
     <p class="bt-sec-desc">
       Higher model confidence correlates directly with better accuracy. At 65%+, the model has been right
       nearly 4 out of 5 times — but these picks are rare by design (only when pitcher stats are very lopsided).
@@ -2603,11 +2617,11 @@ function renderBacktestView() {
     <div class="bt-signal-note">${tsbYrNote} Signal scored using pitcher quality (xFIP/SIERA/barrel%) + park factor + lineup xwOBA where available. Weather modifiers not applied historically. Bullpen xERA/K%/BB% applied from 2022 onward via prior-season caches.</div>` : '';
 
   const totalsSection = `
-    <div class="bt-sec-head">
+    <summary class="bt-sec-head bt-sec-toggle">
       <span class="bt-sec-num">04</span>
       <span class="bt-sec-title">Totals Performance</span>
       <span class="bt-sec-sub">OVER/UNDER prediction accuracy · historical seasons</span>
-    </div>
+    </summary>
     <p class="bt-sec-desc">
       The model consistently predicts fewer runs than the Vegas line — a lean that has been correct 52–53%
       of the time every season. Combined with the edge-band findings above, UNDER bets generate the
@@ -2787,24 +2801,28 @@ function renderBacktestView() {
     </tr>`;
   }).join('');
 
+  // Lead with the headline KPIs + the validated edge; the deeper analytical grids and the
+  // full game log are collapsed by default (tap to expand) so the tab isn't a wall of tables.
   el.innerHTML = `
     <div class="backtest-wrap">
       ${heroSection}
       ${edgesSection}
-      ${moneylineSection}
-      ${calibrationSection}
-      ${totalsSection}
-      <div class="bt-sec-head bt-sec-head-log">
-        <span class="bt-sec-num">05</span>
-        <span class="bt-sec-title">Game Log</span>
-        <span class="bt-sec-sub">${games.length.toLocaleString()} games · most recent first</span>
-      </div>
-      <div class="bt-table-wrap">
-        <table class="bt-table">
-          <thead><tr><th>Season</th><th>Date</th><th>Matchup</th><th>Predicted</th><th>Actual</th><th>Edge</th><th></th></tr></thead>
-          <tbody>${logRows}</tbody>
-        </table>
-      </div>
+      <details class="bt-sec-collapse">${moneylineSection}</details>
+      <details class="bt-sec-collapse">${calibrationSection}</details>
+      <details class="bt-sec-collapse">${totalsSection}</details>
+      <details class="bt-sec-collapse">
+        <summary class="bt-sec-head bt-sec-toggle bt-sec-head-log">
+          <span class="bt-sec-num">05</span>
+          <span class="bt-sec-title">Game Log</span>
+          <span class="bt-sec-sub">${games.length.toLocaleString()} games · most recent first</span>
+        </summary>
+        <div class="bt-table-wrap">
+          <table class="bt-table">
+            <thead><tr><th>Season</th><th>Date</th><th>Matchup</th><th>Predicted</th><th>Actual</th><th>Edge</th><th></th></tr></thead>
+            <tbody>${logRows}</tbody>
+          </table>
+        </div>
+      </details>
     </div>`;
 }
 
@@ -3643,14 +3661,6 @@ function renderSimulateView() {
   <div class="sim-title">Game Simulations</div>
   <div class="sim-subtitle">Full plate-appearance Monte Carlo · ${dateStr}</div>
 </div>
-<div class="sim-caveat">
-  <strong>Exploratory tool — not a validated betting edge.</strong>
-  This is a Statcast-pure simulation, run independently of the betting market. A 2024–25
-  backtest found that its divergence from Vegas did <strong>not</strong> predict outcomes
-  (and was mildly anti-predictive on the moneyline). Use it to explore game shape and
-  scenarios — not as a bet signal. We're now tracking the live sim point-in-time to validate
-  it properly over time.
-</div>
 ${cards}`;
 }
 
@@ -3808,14 +3818,6 @@ function renderPropsView() {
 <div class="view-header">
   <h1>Props</h1>
   <span class="sub-label">${ts}</span>
-</div>
-<div class="sim-caveat">
-  <strong>Real market odds now shown — profitability still under validation.</strong>
-  Player-prop lines (best of DraftKings / FanDuel / Pinnacle) are now ingested, and the
-  "model edge" is computed against the real no-vig price. We only recently began
-  collecting these odds, so there is <strong>not yet</strong> a validated ROI track
-  record — treat these as model leans under active testing, not recommended bets.
-  (Early hit-rate read was −EV; the odds-based validation is in progress.)
 </div>
 <div class="props-filter-row">${tabsHtml}</div>
 <div class="picks-list">

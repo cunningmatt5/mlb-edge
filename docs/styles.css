@@ -178,6 +178,9 @@ header {
   border: 1px solid rgba(234,179,8,.22);
   border-radius: 8px;
 }
+.lab-banner:empty { display: none; }
+.lab-banner strong { color: #fde68a; font-weight: 700; }
+.lab-banner em { font-style: italic; color: var(--text); }
 
 /* ── Main layout ─────────────────────────────────────────────────────────── */
 #app {
@@ -4126,6 +4129,24 @@ header {
   margin-top: 8px;
 }
 .bt-sec-head-log { margin-top: 0; }
+
+/* Collapsible deep sections (Backtest): the section head doubles as the toggle */
+.bt-sec-collapse { border: none; }
+.bt-sec-toggle {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.bt-sec-toggle::-webkit-details-marker { display: none; }
+.bt-sec-toggle::after {
+  content: '▸';
+  margin-left: auto;
+  color: var(--text-dim);
+  font-size: 12px;
+  transition: transform .15s;
+}
+.bt-sec-collapse[open] > .bt-sec-toggle::after { transform: rotate(90deg); }
+.bt-sec-toggle:hover .bt-sec-title { color: var(--accent); }
 .bt-sec-num {
   font-size: 11px;
   font-weight: 800;
