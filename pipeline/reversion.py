@@ -138,10 +138,13 @@ def _best_angle(xslg, season_barrel) -> str:
     return "HIT"
 
 
-def build_reversion_board(season: int | None = None, today_ids=None,
+def build_reversion_board(season: int | None = None, today_team_ids=None,
                           limit: int | None = None, force: bool = False) -> dict:
     season = season or date.today().year
-    today_ids = set(int(x) for x in (today_ids or []) if x)
+    # Flag "plays today" by whether the hitter's TEAM is in action today (robust — known
+    # from the schedule all day), not by the individual lineup (TBD for hours; a slumping
+    # regular who recently sat falls out of the last-10 proxy and gets wrongly un-flagged).
+    today_team_ids = set(int(x) for x in (today_team_ids or []) if x)
     today_str = date.today().isoformat()
 
     if not force and not limit and OUT.exists():
@@ -149,10 +152,9 @@ def build_reversion_board(season: int | None = None, today_ids=None,
             prev = json.loads(OUT.read_text(encoding="utf-8"))
             if prev.get("date") == today_str:
                 log.info("Reversion board already built for %s — skipping", today_str)
-                # refresh only the plays_today flags from current lineups
-                if today_ids:
+                if today_team_ids:   # refresh the plays_today flags from today's schedule
                     for h in prev.get("hitters", []):
-                        h["plays_today"] = h.get("id") in today_ids
+                        h["plays_today"] = h.get("team_id") in today_team_ids
                     OUT.write_text(json.dumps(prev, separators=(",", ":")), encoding="utf-8")
                 return prev
         except Exception as exc:
@@ -210,7 +212,7 @@ def build_reversion_board(season: int | None = None, today_ids=None,
         score = round(max(0.0, gap_ba) * (1.0 if quality_ok else 0.45) * 100, 1)
         hitters.append({
             "name": entry.get("name") or str(pid), "id": pid, "pa": pa,
-            "plays_today": pid in today_ids,
+            "plays_today": False,   # set from team_id after the team lookup below
             "xba": xba, "xwoba": s_xw, "xslg": xslg,
             "season_barrel": entry.get("barrel_pct"), "season_hardhit": s_hh,
             "ba_5": rec.get("ba_5"), "ba_10": ba10,
@@ -232,6 +234,7 @@ def build_reversion_board(season: int | None = None, today_ids=None,
         abbr, tid = tl.get(h["id"], (None, None))
         h["team"] = abbr
         h["team_id"] = tid
+        h["plays_today"] = tid in today_team_ids
 
     out = {
         "generated_at": datetime.now(timezone.utc).isoformat(),

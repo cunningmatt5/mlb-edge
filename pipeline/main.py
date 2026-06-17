@@ -391,12 +391,12 @@ def main(dry_run: bool = False) -> None:
         # (date-gated inside build_reversion_board); off-cycle runs just refresh plays_today.
         try:
             from pipeline.reversion import build_reversion_board
-            today_ids = {
-                pid for g in games
-                for key in ("home_lineup", "away_lineup", "home_lineup_proxy", "away_lineup_proxy")
-                for pid in (g.get(key) or [])
+            # Teams in action today (robust all day, unlike TBD lineups) → plays_today flag.
+            today_team_ids = {
+                tid for g in games
+                for tid in (g.get("homeTeamId"), g.get("awayTeamId")) if tid
             }
-            build_reversion_board(season=today.year, today_ids=today_ids)
+            build_reversion_board(season=today.year, today_team_ids=today_team_ids)
         except Exception as exc:
             log.warning("Reversion board build failed (non-fatal): %s", exc)
 
