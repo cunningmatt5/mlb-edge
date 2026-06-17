@@ -19,16 +19,20 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
 
 import requests
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from pipeline.odds_historical import _norm_team  # noqa: E402
-
 ROOT = Path(__file__).parent.parent
+
+
+def _norm_team(name: str) -> str:
+    """Join key: lowercase alnum; collapse the A's relocations. Matches pipeline.odds_historical."""
+    n = re.sub(r"[^a-z0-9]", "", str(name).lower())
+    return "athletics" if n.endswith("athletics") else n
 CACHE = ROOT / "data" / "f5_closing_odds_by_gamepk.json"
 HBASE = "https://api.the-odds-api.com/v4/historical/sports/baseball_mlb"
 # F5/props post ~30-60 min before first pitch, so we need snapshots that sit just before each
