@@ -4930,16 +4930,35 @@ function renderReversionView() {
           ? `<img class="rev-logo" src="https://www.mlbstatic.com/team-logos/${h.team_id}.svg" alt="" loading="lazy">` : '';
         return `<td class="rev-l rev-tm">${logo}<span>${escapeHtml(h.team || '—')}</span></td>`;
       }
+      if (c.k === 'name') {
+        const badge = h.quality_ok
+          ? `<span class="rev-badge rev-badge-luck" title="Recent xwOBA still strong vs season — a bad-luck slump">✓ unlucky</span>`
+          : `<span class="rev-badge rev-badge-fade" title="Recent xwOBA also down vs season — may be a real fade, not luck">⚠ fading</span>`;
+        return `<td class="rev-l rev-name">${escapeHtml(h.name)} ${badge}</td>`;
+      }
+      if (c.k === 'ba_10') {
+        let arrow = '';
+        if (h.ba_5 != null && h.ba_10 != null) {
+          const t = h.ba_5 - h.ba_10;
+          arrow = t > 0.005
+            ? `<span class="rev-tr-up" title="last 5 (${_rvBA(h.ba_5)}) above last 10 — bounce starting">↑</span>`
+            : t < -0.005
+            ? `<span class="rev-tr-down" title="last 5 (${_rvBA(h.ba_5)}) below last 10 — still falling">↓</span>`
+            : `<span class="rev-tr-flat" title="last 5 ≈ last 10">→</span>`;
+        }
+        return `<td>${_rvBA(h.ba_10)} ${arrow}</td>`;
+      }
       const v = c.f ? c.f(h[c.k]) : escapeHtml(String(h[c.k] ?? '—'));
       return `<td class="${c.align === 'left' ? 'rev-l' : ''}">${v}</td>`;
     }).join('');
     const det = `
       <tr class="rev-detail" hidden><td colspan="${cols.length}">
         <div class="rev-angles">
+          <div class="rev-luck">${h.quality_ok ? '✓ unlucky' : '⚠ fading'} — recent xBA ${_rvBA(h.xba_10)} vs actual ${_rvBA(h.ba_10)}${h.luck_gap != null ? ` (deserved +${_rvBA(h.luck_gap)})` : ''} · recent xwOBA ${_rvBA(h.xwoba_10)} vs season ${_rvBA(h.xwoba)}</div>
           <div><b>HIT</b> — season xBA ${_rvBA(h.xba)} vs last-10 ${_rvBA(h.ba_10)}${h.ba_5 != null ? ` · L5 ${_rvBA(h.ba_5)}` : ''}</div>
           <div><b>BASES</b> — season xSLG ${_rvBA(h.xslg)} vs L10 SLG ${_rvBA(h.slg_10)}${h.season_barrel != null ? ` · barrel ${_rvPct(h.season_barrel)}` : ''}</div>
           <div><b>HR</b> — barrel ${_rvPct(h.season_barrel)} · ${h.hr_10 ?? 0} HR last 10g</div>
-          <div class="rev-qual">${h.quality_ok ? '✓ still squaring it up' : '⚠ contact quality also down — weaker reversion'} · recent hard-hit ${_rvPct(h.hard_hit_recent)} vs season ${_rvPct(h.season_hardhit)}${h.games_recent ? ` · ${h.games_recent} recent g` : ''}</div>
+          <div class="rev-qual">recent hard-hit ${_rvPct(h.hard_hit_recent)} vs season ${_rvPct(h.season_hardhit)}${h.games_recent ? ` · ${h.games_recent} recent g` : ''}</div>
         </div>
       </td></tr>`;
     return `<tr class="rev-row${h.plays_today ? ' rev-today' : ''}">${cells}</tr>${det}`;
@@ -4954,7 +4973,7 @@ function renderReversionView() {
       <div class="ef-howto-body">
         <p><b>Who's listed:</b> good hitters (season xwOBA ≥ .330, 200+ PA) whose last-10-game average has dropped well below their season expected (xBA).</p>
         <p><b>Score</b> = (season xBA − last-10 BA) × 100 — how far below true talent the hitter is right now, i.e. how much bounce-back is "owed." Bigger = deeper slump.</p>
-        <p><b>Luck gate:</b> if recent hard-hit% is still near/above season ("still squaring it up"), the slump is bad luck → full score. If hard-hit% has <em>also</em> dropped (below 80% of season) it's likely a real decline, not luck → score cut ~55%. Expand a row to see the quality check.</p>
+        <p><b>Luck gate:</b> if the hitter's <em>recent xwOBA</em> (what his contact deserved) is still near his season level, the slump is bad luck → full score (✓ unlucky). If recent xwOBA has <em>also</em> dropped well below season, it's likely a real fade, not luck → score cut ~55% (⚠ fading). Expand a row to see recent xBA vs actual.</p>
         <p><b>Columns:</b> <b>L10</b> last-10-game BA · <b>xBA</b> season expected · <b>gap</b> below true talent · <b>HH</b> recent hard-hit% · <b>angle</b> the bet type the hitter's profile favors (hits / bases / HR — you pick your own line).</p>
         <p><b>Green row</b> = in today's lineup. Reversion is statistically validated (good hitters fully revert); whether the market actually misprices these is <em>not</em> confirmed — informational, not a bet rec.</p>
       </div>

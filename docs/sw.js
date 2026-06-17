@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'mlb-edge-v66';
+const CACHE_NAME = 'mlb-edge-v67';
 const STATIC_ASSETS = [
   './',
   './index.html',

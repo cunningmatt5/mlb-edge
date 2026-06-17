@@ -69,6 +69,23 @@ def _recent_from_events(df) -> dict:
             out[f"hr_{w}"] = hr
             out[f"ab_{w}"] = ab
     out["games_recent"] = int(len(g))
+
+    # Recent EXPECTED stats over the last-10-game events (the gold-standard luck check):
+    # xBA = Σ estimated_ba_using_speedangle (batted balls) / AB; xwOBA = mean over terminal
+    # PAs of (estimated_woba if a batted ball else woba_value). Comparable to season xba/xwoba.
+    last10 = list(g["game_date"].tail(10))
+    sub = ev[ev["game_date"].isin(last10)]
+    ab10 = int(sub["is_ab"].sum()) if not sub.empty else 0
+    if ab10 > 0 and "estimated_ba_using_speedangle" in sub.columns:
+        out["xba_10"] = round(float(sub["estimated_ba_using_speedangle"].sum()) / ab10, 3)
+        if out.get("ba_10") is not None:
+            out["luck_gap"] = round(out["xba_10"] - out["ba_10"], 3)  # +ve = deserved more hits
+    if not sub.empty and "estimated_woba_using_speedangle" in sub.columns and "woba_value" in sub.columns:
+        xw = sub["estimated_woba_using_speedangle"].where(
+            sub["estimated_woba_using_speedangle"].notna(), sub["woba_value"]).dropna()
+        if len(xw) >= 10:
+            out["xwoba_10"] = round(float(xw.mean()), 3)
+
     # Recent quality over TRUE batted balls (type=='X') so hard-hit% / avg EV match the
     # season Savant leaderboard (which is BBE-based). statcast_batter has no 'barrel' column,
     # and launch_speed.notna() would wrongly include fouls — so we gate on hard-hit%, not barrel.
@@ -182,19 +199,25 @@ def build_reversion_board(season: int | None = None, today_ids=None,
         gap_ba = round(xba - ba10, 3)            # >0 ⇒ recent BA below true talent (slump)
         if gap_ba < SLUMP_MIN:
             continue                              # not currently slumping → not "due"
-        # Luck gate: recent hard-hit% still near season level ⇒ slump is bad luck, not decline.
+        # Luck gate: recent xwOBA still near season level ⇒ slump is bad luck, not decline.
+        # (Best metric; falls back to recent hard-hit% when xwOBA sample is too thin.)
+        s_xw, r_xw = entry.get("xwoba"), rec.get("xwoba_10")
         s_hh, r_hh = entry.get("hard_hit_pct"), rec.get("hard_hit_recent")
-        quality_ok = (s_hh is None or r_hh is None or r_hh >= QUALITY_FLOOR * s_hh)
+        if r_xw is not None and s_xw:
+            quality_ok = r_xw >= QUALITY_FLOOR * s_xw
+        else:
+            quality_ok = (s_hh is None or r_hh is None or r_hh >= QUALITY_FLOOR * s_hh)
         score = round(max(0.0, gap_ba) * (1.0 if quality_ok else 0.45) * 100, 1)
         hitters.append({
             "name": entry.get("name") or str(pid), "id": pid, "pa": pa,
             "plays_today": pid in today_ids,
-            "xba": xba, "xwoba": entry.get("xwoba"), "xslg": xslg,
+            "xba": xba, "xwoba": s_xw, "xslg": xslg,
             "season_barrel": entry.get("barrel_pct"), "season_hardhit": s_hh,
             "ba_5": rec.get("ba_5"), "ba_10": ba10,
             "slg_5": rec.get("slg_5"), "slg_10": rec.get("slg_10"),
             "hr_10": rec.get("hr_10"), "games_recent": rec.get("games_recent"),
             "hard_hit_recent": r_hh, "avg_ev_recent": rec.get("avg_ev_recent"),
+            "xba_10": rec.get("xba_10"), "xwoba_10": r_xw, "luck_gap": rec.get("luck_gap"),
             "gap_ba": gap_ba, "quality_ok": quality_ok, "score": score,
             "best_angle": _best_angle(xslg, entry.get("barrel_pct")),
         })
