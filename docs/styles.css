@@ -4739,9 +4739,22 @@ header {
   font-weight: 700;
   cursor: pointer;
   letter-spacing: .02em;
+  white-space: nowrap;
   transition: background .15s;
 }
 .kelly-frac-btn:hover { background: rgba(99,102,241,.18); }
+
+/* Explanatory caption under the bankroll row */
+.bankroll-hint {
+  padding: 8px 16px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border);
+}
+.bankroll-hint b { color: var(--text); font-weight: 600; }
+@media (max-width: 600px) { .bankroll-hint { padding: 6px 12px 8px; } }
 
 /* ── Kelly stake strip on game cards ─────────────────────────────────────── */
 .kelly-strip {

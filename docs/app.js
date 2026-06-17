@@ -489,7 +489,7 @@ function renderGamesView() {
   const eliteHtml = renderBestBetsSection(gamesData.games);
   const savedBank = localStorage.getItem('mlbedge_bankroll') || '';
   const savedFrac = parseFloat(localStorage.getItem('mlbedge_kelly_fraction') || '0.5');
-  const fracLabel = _kellyFracLabel(savedFrac);
+  const fracName  = _kellyFracName(savedFrac);
 
   view.innerHTML = `
     <div class="view-header">
@@ -501,8 +501,10 @@ function renderGamesView() {
       <span class="bankroll-prefix">$</span>
       <input type="number" id="bankroll-input" class="bankroll-input"
              placeholder="10000" min="0" step="100" value="${savedBank}">
-      <button class="kelly-frac-btn" id="kelly-frac-btn">${fracLabel}</button>
+      <button class="kelly-frac-btn" id="kelly-frac-btn"
+              title="Bet-sizing aggressiveness. Tap to cycle: Full Kelly → ½ Kelly → ¼ Kelly. Smaller = safer (less variance).">${fracName}</button>
     </div>
+    <div class="bankroll-hint">Optional — enter your bankroll to get a suggested stake on each validated <b>UNDER</b> edge below, sized by the <b>Kelly</b> setting (most pros use ½ or ¼ Kelly to limit swings).</div>
     ${todaysEdgePlaysHTML(gamesData.games)}
     ${eliteHtml}
     <div class="game-list" id="game-list">
@@ -552,7 +554,7 @@ function renderGamesView() {
     const cur  = parseFloat(localStorage.getItem('mlbedge_kelly_fraction') || '0.5');
     const next = cur >= 1.0 ? 0.25 : cur >= 0.5 ? 1.0 : 0.5;
     localStorage.setItem('mlbedge_kelly_fraction', next);
-    fracBtn.textContent = _kellyFracLabel(next);
+    fracBtn.textContent = _kellyFracName(next);
     refreshKellyStrips();
   });
 }
@@ -994,6 +996,11 @@ function _kellyFracLabel(frac) {
   return frac >= 1.0 ? '1K' : frac >= 0.5 ? '½K' : '¼K';
 }
 
+// Fuller, self-explanatory label for the toggle button (vs the compact ¼K/½K/1K tag).
+function _kellyFracName(frac) {
+  return frac >= 1.0 ? 'Full Kelly' : frac >= 0.5 ? '½ Kelly' : '¼ Kelly';
+}
+
 function kellyStripHTML(g) {
   const bankroll = parseFloat(localStorage.getItem('mlbedge_bankroll') || '0');
   if (!bankroll || bankroll <= 0) return '';
@@ -1019,7 +1026,7 @@ function kellyStripHTML(g) {
     if (fullK > 0) {
       const stake = Math.round(bankroll * fullK * fraction);
       if (stake >= 1) {
-        items.push(`<span class="kelly-label kelly-under">${fracLabel}</span><span class="kelly-amt">$${stake.toLocaleString()}</span><span class="kelly-on">UNDER ${odds.total}</span>`);
+        items.push(`<span class="kelly-label kelly-under" title="Suggested stake at ${_kellyFracName(fraction)} of your bankroll">${fracLabel}</span><span class="kelly-amt">$${stake.toLocaleString()}</span><span class="kelly-on">UNDER ${odds.total}</span>`);
       }
     }
   }
