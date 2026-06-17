@@ -45,10 +45,23 @@ jobs:
             --seasons "${{ inputs.seasons }}" \
             --min-remaining "${{ inputs.min_remaining }}"
 
-      - name: Commit F5 odds cache
+      - name: Upload F5 odds cache artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f5-closing-odds
+          path: data/f5_closing_odds_by_gamepk.json
+          if-no-files-found: warn
+
+      - name: Commit F5 odds cache (rebase + retry)
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/f5_closing_odds_by_gamepk.json
-          git commit -m "data: backfill F5 closing odds [skip ci]" || echo "no changes"
-          git push || echo "push failed"
+          git commit -m "data: backfill F5 closing odds [skip ci]" || { echo "no changes"; exit 0; }
+          for i in 1 2 3 4 5; do
+            git fetch origin master && git rebase origin/master && git push && { echo "pushed"; exit 0; }
+            echo "push attempt $i failed — retrying"; git rebase --abort 2>/dev/null || true; sleep 5
+          done
+          echo "push failed after retries (artifact still uploaded)"
