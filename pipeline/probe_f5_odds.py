@@ -68,6 +68,60 @@ def _probe(api_key: str, date: str) -> None:
         print(f"      sample: {sample}")
 
 
+def _probe_event_endpoints(api_key: str) -> None:
+    """F5 is a non-featured market — served only via the per-event endpoints. Check both:
+    (1) LIVE event odds (can we forward-collect F5 going forward?), and
+    (2) HISTORICAL per-event odds for a past date (can we backfill F5 at all, and at what cost?)."""
+    base = f"{ODDS_API_BASE}/sports/baseball_mlb"
+
+    # (1) LIVE: current events → one event's odds with F5 markets
+    print("\n[LIVE event endpoint — forward-collection feasibility]")
+    try:
+        ev = requests.get(f"{base}/events", params={"apiKey": api_key}, timeout=30)
+        events = ev.json() if ev.status_code == 200 else []
+        print(f"  live events: {len(events)} (HTTP {ev.status_code}, remaining={ev.headers.get('x-requests-remaining','?')})")
+        if events:
+            eid = events[0]["id"]
+            od = requests.get(f"{base}/events/{eid}/odds",
+                              params={"apiKey": api_key, "regions": "us",
+                                      "markets": f"{F5_TOTALS},{F5_H2H}", "oddsFormat": "american"}, timeout=30)
+            if od.status_code == 200:
+                mks = {m["key"] for bm in od.json().get("bookmakers", []) for m in bm.get("markets", [])}
+                print(f"  live F5 markets present: {F5_TOTALS in mks} | cost={od.headers.get('x-requests-last','?')} | markets seen: {sorted(mks)[:6]}")
+            else:
+                print(f"  live event odds: HTTP {od.status_code} — {od.text[:140]}")
+    except Exception as exc:
+        print(f"  live probe failed: {exc}")
+
+    # (2) HISTORICAL per-event for a 2025 date
+    print("\n[HISTORICAL per-event endpoint — backfill feasibility]")
+    hdate = "2025-06-15T22:00:00Z"
+    try:
+        he = requests.get(f"{ODDS_API_BASE}/historical/sports/baseball_mlb/events",
+                          params={"apiKey": api_key, "date": hdate}, timeout=30)
+        print(f"  historical events {hdate[:10]}: HTTP {he.status_code} cost={he.headers.get('x-requests-last','?')}")
+        if he.status_code == 200:
+            data = he.json()
+            evs = data.get("data", data) if isinstance(data, dict) else data
+            evs = evs if isinstance(evs, list) else []
+            print(f"  events: {len(evs)}")
+            if evs:
+                eid = evs[0]["id"]
+                ho = requests.get(f"{ODDS_API_BASE}/historical/sports/baseball_mlb/events/{eid}/odds",
+                                  params={"apiKey": api_key, "date": hdate, "regions": "us",
+                                          "markets": f"{F5_TOTALS},{F5_H2H}", "oddsFormat": "american"}, timeout=30)
+                if ho.status_code == 200:
+                    d = ho.json(); ed = d.get("data", d) if isinstance(d, dict) else d
+                    mks = {m["key"] for bm in (ed or {}).get("bookmakers", []) for m in bm.get("markets", [])}
+                    print(f"  historical F5 present: {F5_TOTALS in mks} | cost={ho.headers.get('x-requests-last','?')} | markets: {sorted(mks)[:6]}")
+                else:
+                    print(f"  historical event odds: HTTP {ho.status_code} — {ho.text[:140]}")
+        else:
+            print(f"  {he.text[:160]}")
+    except Exception as exc:
+        print(f"  historical event probe failed: {exc}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--api-key", default=os.environ.get("ODDS_API_KEY", ""))
@@ -75,12 +129,11 @@ def main() -> None:
     if not args.api_key:
         print("ERROR: no key. Run:  ODDS_API_KEY=xxxx python -m pipeline.probe_f5_odds")
         sys.exit(1)
-    print("Probing F5 (first-5-innings) market availability + cost on the historical endpoint:")
+    print("Probing F5 (first-5-innings) on the BULK historical endpoint:")
     print("(cost = x-requests-last per call; F5-totals count = events that returned the F5 line)\n")
     for d in TEST_DATES:
         _probe(args.api_key, d)
-    print("\nIf F5-totals count is >0 for a season, that season is backfillable. "
-          "Note the earliest season with coverage and the per-call cost to size the full backfill.")
+    _probe_event_endpoints(args.api_key)
 
 
 if __name__ == "__main__":
