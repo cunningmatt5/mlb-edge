@@ -4972,7 +4972,7 @@ function renderReversionView() {
       <summary>How the score works</summary>
       <div class="ef-howto-body">
         <p><b>Who's listed:</b> good hitters (season xwOBA ≥ .330, 200+ PA) whose last-10-game average has dropped well below their season expected (xBA).</p>
-        <p><b>Score</b> = (season xBA − last-10 BA) × 100 — how far below true talent the hitter is right now, i.e. how much bounce-back is "owed." Bigger = deeper slump.</p>
+        <p><b>Score</b> = expected-OPS deficit × 100 — the sum of the average gap (season xBA − last-10 BA) and the power gap (season xSLG − last-10 SLG), i.e. how far below true talent the hitter's whole line is right now. Captures contact <em>and</em> power slumps; bigger = more bounce-back "owed."</p>
         <p><b>Luck gate:</b> if the hitter's <em>recent xwOBA</em> (what his contact deserved) is still near his season level, the slump is bad luck → full score (✓ unlucky). If recent xwOBA has <em>also</em> dropped well below season, it's likely a real fade, not luck → score cut ~55% (⚠ fading). Expand a row to see recent xBA vs actual.</p>
         <p><b>Columns:</b> <b>L10</b> last-10-game BA · <b>xBA</b> season expected · <b>gap</b> below true talent · <b>HH</b> recent hard-hit% · <b>angle</b> the bet type the hitter's profile favors (hits / bases / HR — you pick your own line).</p>
         <p><b>Green row</b> = in today's lineup. Reversion is statistically validated (good hitters fully revert); whether the market actually misprices these is <em>not</em> confirmed — informational, not a bet rec.</p>

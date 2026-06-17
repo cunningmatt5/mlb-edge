@@ -34,8 +34,8 @@ OUT = Path(__file__).parent.parent / "docs" / "reversion.json"
 MIN_PA = 200            # qualified regular (mid-season aware)
 MIN_XWOBA = 0.330       # "good hitter"
 RECENT_DAYS = 21        # recent-form window for statcast pull
-SLUMP_MIN = 0.025       # show hitters whose 10g BA is >= this below season xBA
-QUALITY_FLOOR = 0.80    # recent barrel >= this × season barrel ⇒ "still barreling it"
+SLUMP_MIN = 0.060       # show hitters whose xOPS deficit (xBA-gap + xSLG-gap) is >= this
+QUALITY_FLOOR = 0.80    # recent xwOBA >= this × season ⇒ "still squaring it up" (bad luck)
 
 log = logging.getLogger(__name__)
 
@@ -198,8 +198,13 @@ def build_reversion_board(season: int | None = None, today_team_ids=None,
         ba10 = rec.get("ba_10")
         if xba is None or ba10 is None:
             continue
-        gap_ba = round(xba - ba10, 3)            # >0 ⇒ recent BA below true talent (slump)
-        if gap_ba < SLUMP_MIN:
+        gap_ba = round(xba - ba10, 3)            # >0 ⇒ recent BA below true talent
+        slg10 = rec.get("slg_10")
+        slg_gap = round(xslg - slg10, 3) if (xslg is not None and slg10 is not None) else 0.0
+        # xOPS deficit = how far below true talent the hitter's OPS components (avg + power)
+        # are right now; only count actual deficits (a strong dimension shouldn't offset).
+        ops_deficit = round(max(0.0, gap_ba) + max(0.0, slg_gap), 3)
+        if ops_deficit < SLUMP_MIN:
             continue                              # not currently slumping → not "due"
         # Luck gate: recent xwOBA still near season level ⇒ slump is bad luck, not decline.
         # (Best metric; falls back to recent hard-hit% when xwOBA sample is too thin.)
@@ -209,7 +214,7 @@ def build_reversion_board(season: int | None = None, today_team_ids=None,
             quality_ok = r_xw >= QUALITY_FLOOR * s_xw
         else:
             quality_ok = (s_hh is None or r_hh is None or r_hh >= QUALITY_FLOOR * s_hh)
-        score = round(max(0.0, gap_ba) * (1.0 if quality_ok else 0.45) * 100, 1)
+        score = round(ops_deficit * (1.0 if quality_ok else 0.45) * 100, 1)
         hitters.append({
             "name": entry.get("name") or str(pid), "id": pid, "pa": pa,
             "plays_today": False,   # set from team_id after the team lookup below
@@ -220,7 +225,8 @@ def build_reversion_board(season: int | None = None, today_team_ids=None,
             "hr_10": rec.get("hr_10"), "games_recent": rec.get("games_recent"),
             "hard_hit_recent": r_hh, "avg_ev_recent": rec.get("avg_ev_recent"),
             "xba_10": rec.get("xba_10"), "xwoba_10": r_xw, "luck_gap": rec.get("luck_gap"),
-            "gap_ba": gap_ba, "quality_ok": quality_ok, "score": score,
+            "gap_ba": gap_ba, "slg_gap": slg_gap, "ops_deficit": ops_deficit,
+            "quality_ok": quality_ok, "score": score,
             "best_angle": _best_angle(xslg, entry.get("barrel_pct")),
         })
         if i % 25 == 0:
