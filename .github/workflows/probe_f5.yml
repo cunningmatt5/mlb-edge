@@ -29,4 +29,4 @@ jobs:
       - name: Probe live MLB markets available on the key
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
-        run: python -m pipeline.probe_live_markets
+        run: python -m pipeline.probe_hist_extra
