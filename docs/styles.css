@@ -4119,6 +4119,40 @@ header {
   font-size: 11px;
   color: var(--text-dim);
 }
+.bt-context-warn {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--text-muted);
+  background: rgba(234,179,8,.06);
+  border: 1px solid rgba(234,179,8,.22);
+  border-radius: 6px;
+  padding: 6px 10px;
+  line-height: 1.5;
+}
+.bt-kpi-muted { opacity: .82; }
+.bt-kpi-tag {
+  display: inline-block;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  color: #fbbf24;
+  background: rgba(234,179,8,.12);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.syr-insample {
+  font-size: 9px;
+  font-weight: 700;
+  color: #fbbf24;
+  background: rgba(234,179,8,.12);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 6px;
+  text-transform: none;
+  letter-spacing: 0;
+}
 
 .bt-sec-head {
   display: flex;

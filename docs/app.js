@@ -1991,57 +1991,39 @@ function renderVegasSection() {
     return `edge-card ${rate >= 0.55 ? 'edge-green' : rate >= 0.50 ? 'edge-amber' : 'edge-red'}`;
   }
 
-  // Build per-season accuracy rows from backtest games + 2026 history
+  // Per-season prediction ACCURACY (win% of the model's predicted winner).
+  // NOTE: this is accuracy only — we deliberately do NOT show a per-season moneyline ROI here.
+  // Betting the model's side on every game is not a validated edge (ML is ~0 EV; see the Edges
+  // tab for the validated UNDER edges), and showing it invited an apples-to-oranges read where
+  // 2026 (in-sample for the recalibrated model) dwarfed the out-of-sample prior seasons.
+  // 2026 is sourced ONLY from history (backtest.json also carries 2026 rows → would double-count).
   function buildSeasonRows() {
     const byYear = {};
-    // backtest games (2021-2025): use correct/actual_winner fields
     for (const r of (backtestData && backtestData.games) || []) {
-      const yr = r.season || (r.date || '').slice(0, 4);
-      if (!yr) continue;
-      if (!byYear[yr]) byYear[yr] = { n: 0, correct: 0, units: 0, bets: 0 };
+      const yr = String(r.season || (r.date || '').slice(0, 4));
+      if (!yr || yr === '2026') continue;   // 2026 comes from history below (avoid double-count)
+      if (!byYear[yr]) byYear[yr] = { n: 0, correct: 0 };
       byYear[yr].n++;
       if (r.correct) byYear[yr].correct++;
-      if (r.home_ml != null && r.away_ml != null) {
-        const homeWon = r.actual_winner === 'home';
-        const edge    = r.model_edge_ml ?? 0;
-        const betHome = edge >= 0;
-        const won     = betHome ? homeWon : !homeWon;
-        const odds    = betHome ? r.home_ml : r.away_ml;
-        const ret     = odds > 0 ? odds / 100 : 100 / Math.abs(odds);
-        byYear[yr].units += won ? ret : -1;
-        byYear[yr].bets++;
-      }
     }
-    // 2026 history
     for (const r of (historyData || [])) {
       if (r.actual_winner !== 'home' && r.actual_winner !== 'away') continue;
       const yr = (r.date || '').slice(0, 4) || '2026';
-      if (!byYear[yr]) byYear[yr] = { n: 0, correct: 0, units: 0, bets: 0 };
+      if (!byYear[yr]) byYear[yr] = { n: 0, correct: 0 };
       byYear[yr].n++;
       if (r.predicted_winner === r.actual_winner) byYear[yr].correct++;
-      if (r.home_ml != null && r.away_ml != null) {
-        const homeWon = r.actual_winner === 'home';
-        const edge    = r.model_edge_ml ?? 0;
-        const betHome = edge >= 0;
-        const won     = betHome ? homeWon : !homeWon;
-        const odds    = betHome ? r.home_ml : r.away_ml;
-        const ret     = odds > 0 ? odds / 100 : 100 / Math.abs(odds);
-        byYear[yr].units += won ? ret : -1;
-        byYear[yr].bets++;
-      }
     }
     return Object.entries(byYear)
       .sort(([a], [b]) => Number(a) - Number(b))
       .map(([yr, d]) => {
-        const acc    = d.n ? Math.round(d.correct / d.n * 100) : 0;
-        const roiPct = d.bets ? (d.units / d.bets * 100).toFixed(1) : null;
-        const roiTxt = roiPct != null ? `<span class="${d.units >= 0 ? 'edge-pos' : 'edge-neg'}">${d.units >= 0 ? '+' : ''}${roiPct}%</span>` : '—';
+        const acc = d.n ? Math.round(d.correct / d.n * 100) : 0;
+        const inSample = yr === '2026'
+          ? ' <span class="syr-insample" title="2026 is in-sample for the recalibrated model — not directly comparable to the out-of-sample prior seasons">in-sample</span>'
+          : '';
         return `<tr>
-          <td class="syr-yr">${yr}</td>
+          <td class="syr-yr">${yr}${inSample}</td>
           <td>${d.correct}–${d.n - d.correct}</td>
           <td class="${acc >= 55 ? 'edge-pos' : acc >= 50 ? '' : 'edge-neg'}">${acc}%</td>
-          <td>${d.bets > 0 ? d.bets : '—'}</td>
-          <td>${roiTxt}</td>
         </tr>`;
       }).join('');
   }
@@ -2058,11 +2040,12 @@ function renderVegasSection() {
 <div class="section-heading">Performance vs. Vegas Lines</div>
 <p class="rec-priced-note">${v.n_priced.toLocaleString()} games with Pinnacle lines &nbsp;·&nbsp; ${btNote}</p>
 
-<div class="section-subheading">Season Breakdown</div>
+<div class="section-subheading">Season Breakdown — prediction accuracy</div>
 <table class="season-year-table">
-  <thead><tr><th>Season</th><th>Record</th><th>Acc%</th><th>Bets</th><th>ML ROI</th></tr></thead>
+  <thead><tr><th>Season</th><th>Record</th><th>Acc%</th></tr></thead>
   <tbody>${buildSeasonRows()}</tbody>
 </table>
+<p class="rec-priced-note">Win% of the model's predicted winner. Betting ROI is not shown per-season here — moneyline is ~0 EV (no validated edge); the validated UNDER edges live in the <b>Edges</b> tab.</p>
 
 <div class="section-subheading" style="margin-top:16px;">Moneyline Edge Buckets</div>
 <div class="edge-bucket-grid">
@@ -2397,17 +2380,17 @@ function renderBacktestView() {
   const roiValCls = v => v == null ? '' : v > 0 ? 'kpi-green' : v < 0 ? 'kpi-red' : '';
 
   const heroSection = `
-    <div class="bt-context-bar">${totalGames.toLocaleString()} games logged since 2021 &nbsp;·&nbsp; ROI = profit per $1 flat bet &nbsp;·&nbsp; Pinnacle closing lines</div>
+    <div class="bt-context-bar">${totalGames.toLocaleString()} games logged since 2021 &nbsp;·&nbsp; ROI = profit per $1 flat bet &nbsp;·&nbsp; Pinnacle closing lines<br><span class="bt-context-warn">⚠ The two 2026 ROI cards bet the model's side on <b>every</b> game — that's not a validated edge (moneyline is ~0 EV; see the <b>Edges</b> tab for the validated UNDER edges). 2026 is also in-sample for the recalibrated model, so it isn't comparable to prior out-of-sample seasons.</span></div>
     <div class="bt-kpi-row">
-      <div class="bt-kpi-card">
+      <div class="bt-kpi-card bt-kpi-muted">
         <div class="bt-kpi-val ${roiValCls(roi.ml_roi_pct)}">${fmtRoi(roi.ml_roi_pct)}</div>
-        <div class="bt-kpi-label">2026 ML ROI</div>
-        <div class="bt-kpi-sub">${fmtUnits(roi.ml_units_won)} units · ${roi.ml_bets ?? 0} bets</div>
+        <div class="bt-kpi-label">2026 ML ROI · all games <span class="bt-kpi-tag">no edge · in-sample</span></div>
+        <div class="bt-kpi-sub">${fmtUnits(roi.ml_units_won)} units · ${roi.ml_bets ?? 0} bets (full slate)</div>
       </div>
-      <div class="bt-kpi-card">
+      <div class="bt-kpi-card bt-kpi-muted">
         <div class="bt-kpi-val ${roiValCls(roi.total_roi_pct)}">${fmtRoi(roi.total_roi_pct)}</div>
-        <div class="bt-kpi-label">2026 Totals ROI</div>
-        <div class="bt-kpi-sub">${fmtUnits(roi.total_units_won)} units · ${roi.total_bets ?? 0} bets</div>
+        <div class="bt-kpi-label">2026 Totals ROI · all games <span class="bt-kpi-tag">no edge · in-sample</span></div>
+        <div class="bt-kpi-sub">${fmtUnits(roi.total_units_won)} units · ${roi.total_bets ?? 0} bets (full slate)</div>
       </div>
       <div class="bt-kpi-card">
         <div class="bt-kpi-val">${pct(stats.win_pct_overall)}</div>
