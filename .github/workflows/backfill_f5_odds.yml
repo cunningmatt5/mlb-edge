@@ -1,0 +1,54 @@
+name: Backfill F5 Odds
+
+on:
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: 'Comma-separated seasons to backfill'
+        required: false
+        default: '2025,2026'
+      min_remaining:
+        description: 'Stop before quota drops below this'
+        required: false
+        default: '50000'
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4.2.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Backfill F5 odds
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          python -m pipeline.backfill_f5_odds \
+            --seasons "${{ inputs.seasons }}" \
+            --min-remaining "${{ inputs.min_remaining }}"
+
+      - name: Commit F5 odds cache
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/f5_closing_odds_by_gamepk.json
+          git commit -m "data: backfill F5 closing odds [skip ci]" || echo "no changes"
+          git push || echo "push failed"
