@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>MLB Edge</title>
-  <link rel="stylesheet" href="styles.css?v=93" />
+  <link rel="stylesheet" href="styles.css?v=94" />
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#0f1117" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -29,13 +29,9 @@
       <nav class="nav-tabs">
         <button class="nav-btn active" data-view="games">Games</button>
         <button class="nav-btn" data-view="edges">Edges</button>
-        <button class="nav-btn" data-view="props">Props</button>
         <button class="nav-btn" data-view="reversion">Reversion</button>
-        <button class="nav-btn" data-view="parlay">Parlay</button>
-        <button class="nav-btn" data-view="record">Record</button>
-        <button class="nav-btn" data-view="backtest">Backtest</button>
-        <button class="nav-btn" data-view="pitcher">Pitchers</button>
-        <button class="nav-btn" data-view="simulate">Simulate</button>
+        <button class="nav-btn" data-view="performance">Performance</button>
+        <button class="nav-btn" data-view="lab">Lab</button>
         <button class="nav-btn" data-view="support">Support</button>
       </nav>
     </div>
@@ -43,18 +39,36 @@
 
   <main id="app">
     <div id="games-view"></div>
-    <div id="props-view" hidden></div>
-    <div id="parlay-view" hidden></div>
-    <div id="record-view" hidden></div>
-    <div id="backtest-view" hidden></div>
-    <div id="pitcher-view" hidden></div>
-    <div id="simulate-view" hidden></div>
-    <div id="support-view" hidden></div>
     <div id="edges-view" hidden></div>
     <div id="reversion-view" hidden></div>
+
+    <div id="performance-view" hidden>
+      <div class="subnav" data-parent="performance">
+        <button class="subnav-btn active" data-sub="record">Live record</button>
+        <button class="subnav-btn" data-sub="backtest">Historical</button>
+        <button class="subnav-btn" data-sub="pitcher">Pitchers</button>
+      </div>
+      <div id="record-view"></div>
+      <div id="backtest-view" hidden></div>
+      <div id="pitcher-view" hidden></div>
+    </div>
+
+    <div id="lab-view" hidden>
+      <div class="lab-banner">⚗ Exploratory tools — not validated betting edges. Props are −EV on 2026 hit-rates (live-odds validation in progress); Simulate was anti-predictive in backtest. Use to explore, not as a signal.</div>
+      <div class="subnav" data-parent="lab">
+        <button class="subnav-btn active" data-sub="props">Props</button>
+        <button class="subnav-btn" data-sub="parlay">Parlay</button>
+        <button class="subnav-btn" data-sub="simulate">Simulate</button>
+      </div>
+      <div id="props-view"></div>
+      <div id="parlay-view" hidden></div>
+      <div id="simulate-view" hidden></div>
+    </div>
+
+    <div id="support-view" hidden></div>
   </main>
 
-  <script src="app.js?v=93"></script>
+  <script src="app.js?v=94"></script>
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js').catch(() => {});

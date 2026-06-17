@@ -137,6 +137,48 @@ header {
 .nav-btn:hover { color: var(--text); background: rgba(255,255,255,.04); }
 .nav-btn.active { color: var(--green-light); background: var(--green-dim); }
 
+/* ── Sub-nav (segmented control inside Performance / Lab) ──────────────────── */
+.subnav {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 16px;
+  padding: 3px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.subnav::-webkit-scrollbar { display: none; }
+.subnav-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 5px 12px;
+  border-radius: calc(var(--radius-sm) - 2px);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: color .15s, background .15s;
+}
+.subnav-btn:hover { color: var(--text); }
+.subnav-btn.active { color: var(--text); background: rgba(255,255,255,.07); }
+
+/* ── Lab tab "exploratory" banner ─────────────────────────────────────────── */
+.lab-banner {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  background: rgba(234,179,8,.06);
+  border: 1px solid rgba(234,179,8,.22);
+  border-radius: 8px;
+}
+
 /* ── Main layout ─────────────────────────────────────────────────────────── */
 #app {
   max-width: 900px;

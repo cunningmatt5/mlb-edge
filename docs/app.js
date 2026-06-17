@@ -41,6 +41,8 @@ let expandedPk   = null;
 let currentView  = 'games';
 let lastCheckedAt = null;
 let propsFilter  = 'all';   // 'all' | 'highconf' | 'value'
+let _perfSub     = 'record';   // Performance tab active sub-view: 'record' | 'backtest' | 'pitcher'
+let _labSub      = 'props';     // Lab tab active sub-view: 'props' | 'parlay' | 'simulate'
 let parlayParams = { legs: 3, risk: 'medium', include: ['all'], allowCorr: true, sgp: false, sgpGamePk: null, locked: [] };
 
 // player MLBAM id → full team name; rebuilt whenever gamesData loads
@@ -49,6 +51,7 @@ let _playerTeamMap = new Map();
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   setupNav();
+  setupSubNav();
   await Promise.all([loadGames(), loadHistory()]);
   lastCheckedAt = Date.now();
   renderGamesView();
@@ -56,31 +59,59 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ── Navigation ────────────────────────────────────────────────────────────────
+// Six top-level views: games, edges, reversion, performance, lab, support.
+// `performance` and `lab` are parent containers that host sub-views via setupSubNav():
+//   performance → record | backtest | pitcher      lab → props | parlay | simulate
+const _PARENT_VIEWS = ['games', 'edges', 'reversion', 'performance', 'lab', 'support'];
+
 function setupNav() {
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       currentView = btn.dataset.view;
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b === btn));
       btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      document.getElementById('games-view').hidden    = currentView !== 'games';
-      document.getElementById('props-view').hidden    = currentView !== 'props';
-      document.getElementById('parlay-view').hidden   = currentView !== 'parlay';
-      document.getElementById('record-view').hidden   = currentView !== 'record';
-      document.getElementById('backtest-view').hidden = currentView !== 'backtest';
-      document.getElementById('pitcher-view').hidden  = currentView !== 'pitcher';
-      document.getElementById('simulate-view').hidden = currentView !== 'simulate';
-      document.getElementById('support-view').hidden  = currentView !== 'support';
-      document.getElementById('edges-view').hidden    = currentView !== 'edges';
-      document.getElementById('reversion-view').hidden = currentView !== 'reversion';
-      if (currentView === 'record')   Promise.all([loadBacktest(), loadPropsHistory()]).then(renderRecordView);
-      if (currentView === 'backtest') Promise.all([loadBacktest(), loadPropsHistory()]).then(renderBacktestView);
-      if (currentView === 'pitcher')  Promise.all([loadPitcherData(), loadGames()]).then(renderPitcherView);
-      if (currentView === 'props')    loadPicks().then(renderPropsView);
-      if (currentView === 'parlay')   loadPicks().then(renderParlayView);
-      if (currentView === 'simulate') loadGames().then(renderSimulateView);
-      if (currentView === 'support')  renderSupportView();
-      if (currentView === 'edges')    Promise.all([loadGames(), loadEdgeScoreboard()]).then(renderEdgesView);
+      for (const v of _PARENT_VIEWS) {
+        document.getElementById(v + '-view').hidden = currentView !== v;
+      }
+      if (currentView === 'games')     renderGamesView();
+      if (currentView === 'edges')     Promise.all([loadGames(), loadEdgeScoreboard()]).then(renderEdgesView);
       if (currentView === 'reversion') loadReversion().then(renderReversionView);
+      if (currentView === 'support')   renderSupportView();
+      if (currentView === 'performance') _renderSub('performance', _perfSub);
+      if (currentView === 'lab')         _renderSub('lab', _labSub);
+    });
+  });
+}
+
+// Lazy loader+render for each sub-view, reusing the existing per-view promises.
+function _renderSub(parent, sub) {
+  if (parent === 'performance') {
+    if (sub === 'record')   Promise.all([loadBacktest(), loadPropsHistory()]).then(renderRecordView);
+    if (sub === 'backtest') Promise.all([loadBacktest(), loadPropsHistory()]).then(renderBacktestView);
+    if (sub === 'pitcher')  Promise.all([loadPitcherData(), loadGames()]).then(renderPitcherView);
+  } else if (parent === 'lab') {
+    if (sub === 'props')    loadPicks().then(renderPropsView);
+    if (sub === 'parlay')   loadPicks().then(renderParlayView);
+    if (sub === 'simulate') loadGames().then(renderSimulateView);
+  }
+}
+
+// Wires the in-tab segmented sub-nav under Performance / Lab.
+function setupSubNav() {
+  const subViews = {
+    performance: ['record', 'backtest', 'pitcher'],
+    lab:         ['props', 'parlay', 'simulate'],
+  };
+  document.querySelectorAll('.subnav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const parent = btn.closest('.subnav').dataset.parent;
+      const sub = btn.dataset.sub;
+      if (parent === 'performance') _perfSub = sub; else if (parent === 'lab') _labSub = sub;
+      btn.parentElement.querySelectorAll('.subnav-btn').forEach(b => b.classList.toggle('active', b === btn));
+      for (const v of subViews[parent]) {
+        document.getElementById(v + '-view').hidden = v !== sub;
+      }
+      _renderSub(parent, sub);
     });
   });
 }
@@ -2725,25 +2756,9 @@ function renderBacktestView() {
       </div>
     </div>`;
 
-  // ── Section 05: Props ──────────────────────────────────────────────────────
-  const propCounts = {};
-  for (const p of (propsHistData || [])) {
-    if (p.hit != null) propCounts[p.bet_type] = (propCounts[p.bet_type] || 0) + 1;
-  }
-  const hasEnoughProps = Object.values(propCounts).some(v => v >= 30);
-  const propsSection = `
-    <div class="bt-sec-head">
-      <span class="bt-sec-num">05</span>
-      <span class="bt-sec-title">Props Performance</span>
-      <span class="bt-sec-sub">HR, strikeout, and hits prop picks</span>
-    </div>
-    ${hasEnoughProps ? renderPropsPerformance() : `
-    <div class="bt-props-holding">
-      <div class="bt-props-msg">Building data — tracking since May 31, 2026</div>
-      <div class="bt-props-sub">Hit-rate analysis by signal strength appears once we have 30+ resolved picks per prop type.</div>
-    </div>`}`;
+  // (Props Performance lives once under Performance → Live record, not duplicated here.)
 
-  // ── Section 06: Game Log ──────────────────────────────────────────────────
+  // ── Section 05: Game Log ──────────────────────────────────────────────────
   const logRows = games.slice(0, 200).map(g => {
     const winnerTeam = g.predicted_winner === 'home' ? g.home_team : g.away_team;
     const actualTeam = g.actual_winner === 'home' ? g.home_team : g.away_team;
@@ -2772,9 +2787,8 @@ function renderBacktestView() {
       ${moneylineSection}
       ${calibrationSection}
       ${totalsSection}
-      ${propsSection}
       <div class="bt-sec-head bt-sec-head-log">
-        <span class="bt-sec-num">06</span>
+        <span class="bt-sec-num">05</span>
         <span class="bt-sec-title">Game Log</span>
         <span class="bt-sec-sub">${games.length.toLocaleString()} games · most recent first</span>
       </div>
