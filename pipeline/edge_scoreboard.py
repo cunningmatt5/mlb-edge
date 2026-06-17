@@ -41,11 +41,20 @@ def _blank() -> dict:
             "results": []}   # chronological win/loss flags for the "Last 10" strip
 
 
-def _grade_under(rec: dict) -> tuple[bool, float]:
-    """Return (won, units) for a $1 UNDER bet on this resolved record."""
+def _grade_under(rec: dict) -> tuple[bool, float, bool]:
+    """Return (won, units, is_push) for a $1 UNDER bet on this resolved record.
+
+    A total landing exactly on the line is a PUSH (stake refunded) — void, not a win.
+    `total_went_over` is just over/not-over so it can't see pushes; we detect them from
+    actual_total vs the line. Callers must skip pushes (don't count them as bets).
+    """
+    line = rec.get("vegas_total")
+    at = rec.get("actual_total")
+    if at is not None and line is not None and abs(at - line) < 1e-9:
+        return False, 0.0, True
     won = not bool(rec["total_went_over"])
     units = (_dec(rec["under_price"]) - 1) if won else -1.0
-    return won, units
+    return won, units, False
 
 
 def _roi(a: dict) -> float | None:
@@ -124,7 +133,9 @@ def build_scoreboard() -> dict:
         under_edges = [e for e in edges if e["direction"] == "UNDER"]
         if not under_edges:
             continue
-        won, units = _grade_under(r)
+        won, units, push = _grade_under(r)
+        if push:
+            continue                       # void — a push is neither a win nor a loss
         recent = cutoff is not None and r.get("date", "") >= cutoff
         clv = _clv(r)   # None for legacy records with no closing snapshot
 
@@ -161,6 +172,8 @@ def build_scoreboard() -> dict:
             "label": meta.get("label", tag),
             "confidence": meta.get("confidence", "?"),
             "actionable": (meta.get("signal_boost") or 0) > 0,
+            "hist_roi_pct": meta.get("roi_pct"),     # validated multi-season (push-corrected)
+            "hist_n": meta.get("n_games"),
             "n": a["n"],
             "win_pct": round(a["wins"] / a["n"] * 100, 1) if a["n"] else None,
             "units": round(a["units"], 2),

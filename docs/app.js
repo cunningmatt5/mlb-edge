@@ -86,11 +86,11 @@ function setupNav() {
 // Lazy loader+render for each sub-view, reusing the existing per-view promises.
 function _renderSub(parent, sub) {
   if (parent === 'performance') {
-    if (sub === 'record')   Promise.all([loadBacktest(), loadPropsHistory()]).then(renderRecordView);
-    if (sub === 'backtest') Promise.all([loadBacktest(), loadPropsHistory()]).then(renderBacktestView);
+    if (sub === 'record')   Promise.all([loadBacktest(), loadPropsHistory(), loadEdgeScoreboard()]).then(renderRecordView);
+    if (sub === 'backtest') Promise.all([loadBacktest(), loadPropsHistory(), loadEdgeScoreboard()]).then(renderBacktestView);
     if (sub === 'pitcher')  Promise.all([loadPitcherData(), loadGames()]).then(renderPitcherView);
   } else if (parent === 'lab') {
-    if (sub === 'props')    loadPicks().then(renderPropsView);
+    if (sub === 'props')    Promise.all([loadPicks(), loadPropsHistory()]).then(renderPropsView);
     if (sub === 'parlay')   loadPicks().then(renderParlayView);
     if (sub === 'simulate') loadGames().then(renderSimulateView);
   }
@@ -1431,6 +1431,47 @@ function fmtUnits(u) {
   return (u >= 0 ? '+' : '') + u.toFixed(2) + 'u';
 }
 
+// Totals outcome vs a line: 'over' | 'under' | 'push' (final runs exactly on the line).
+// Pushes are void — never scored as a win or loss. null when inputs are missing.
+function totalsOutcome(actualTotal, line) {
+  if (actualTotal == null || line == null) return null;
+  if (Math.abs(actualTotal - line) < 1e-9) return 'push';
+  return actualTotal > line ? 'over' : 'under';
+}
+
+// Compact "by edge" performance summary from the live edge scoreboard (the only validated,
+// bet-and-tracked surface). Mirrors the Edges-tab data; links there for full detail.
+function edgePerfSummaryHTML() {
+  const sb = scoreboardData;
+  const edges = (sb && sb.edges) || [];
+  if (!edges.length) {
+    return `<div class="section-heading">Edge performance <span class="scope-tag">2026 · realized</span></div>
+      <p class="rec-priced-note">Edge tracking populates as flagged plays resolve. Full detail in the <b>Edges</b> tab.</p>`;
+  }
+  const confTag = c => c === 'high' ? '<span class="ep-conf ep-conf-high">strong</span>'
+    : c === 'emerging' ? '<span class="ep-conf ep-conf-new">emerging</span>'
+    : '<span class="ep-conf ep-conf-watch">watch</span>';
+  const pctCls = v => v == null ? '' : v >= 0 ? 'edge-pos' : 'edge-neg';
+  const pctStr = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+  const rows = edges.map(e => {
+    const wins = Math.round((e.win_pct || 0) / 100 * (e.n || 0));
+    const clv = e.clv_beat_pct != null ? `${Math.round(e.clv_beat_pct)}%` : '—';
+    const live = e.n ? `${wins}–${e.n - wins} <span class="${pctCls(e.roi_pct)}">${pctStr(e.roi_pct)}</span>` : '—';
+    return `<tr>
+      <td class="ep-name">${e.label || e.tag} ${confTag(e.confidence)}</td>
+      <td class="${pctCls(e.hist_roi_pct)}">${pctStr(e.hist_roi_pct)}</td>
+      <td>${live}</td>
+      <td>${clv}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="section-heading">Edge performance <span class="scope-tag">validated + live</span></div>
+    <p class="rec-priced-note">The only bet-and-tracked edges. <b>Validated</b> = multi-season push-corrected ROI; <b>2026</b> = realized this season (small samples are noisy). CLV = % of bets that beat the closing line. Full detail in the <b>Edges</b> tab.</p>
+    <table class="season-year-table">
+      <thead><tr><th>Edge</th><th>Validated</th><th>2026 (rec · ROI)</th><th>CLV</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
 // ── Game log cell helpers ─────────────────────────────────────────────────────
 
 function mlEdgeCell(r) {
@@ -1461,9 +1502,15 @@ function totalLeanCell(r) {
   const dirCls = lean > 0 ? 'dir-over' : 'dir-under';
   const gap    = Math.abs(lean).toFixed(1);
   let icon = '';
-  if (r.total_went_over != null && !r.sp_scratched) {
-    const hit = (lean > 0 && r.total_went_over === true) || (lean < 0 && r.total_went_over === false);
-    icon = hit ? '<span class="edge-call-hit">✓</span>' : '<span class="edge-call-miss">✗</span>';
+  // Push-aware: grade against the actual total vs the line (a push is void, not a miss).
+  const oc = totalsOutcome(r.actual_total, r.vegas_total);
+  if (oc && !r.sp_scratched) {
+    if (oc === 'push') {
+      icon = '<span class="edge-call-push" title="Pushed — final total landed on the line">P</span>';
+    } else {
+      const hit = (lean > 0 && oc === 'over') || (lean < 0 && oc === 'under');
+      icon = hit ? '<span class="edge-call-hit">✓</span>' : '<span class="edge-call-miss">✗</span>';
+    }
   }
   return `<td class="hist-total"><span class="${dirCls}">${dir} +${gap}</span> ${icon}</td>`;
 }
@@ -1544,8 +1591,12 @@ function renderPropsPerformance() {
 // ── Record view ───────────────────────────────────────────────────────────────
 function renderRecordView() {
   const view = document.getElementById('record-view');
-  // Ties (true ties, not postponements) and unresolved games excluded from grading
-  const decided = historyData.filter(r => r.actual_winner === 'home' || r.actual_winner === 'away');
+  // Graded universe: resolved games, EXCLUDING scratched-SP games (the predicted starter never
+  // pitched → the prediction is invalid). Ties/unresolved already excluded. Keeps accuracy honest
+  // and consistent with the edge ROI (which also drops scratched).
+  const decidedAll = historyData.filter(r => r.actual_winner === 'home' || r.actual_winner === 'away');
+  const scratched  = decidedAll.filter(r => r.sp_scratched).length;
+  const decided    = decidedAll.filter(r => !r.sp_scratched);
 
   if (!decided.length) {
     view.innerHTML = `<div class="empty-state">No resolved predictions yet.<br>Check back after games have been played.</div>`;
@@ -1562,48 +1613,19 @@ function renderRecordView() {
   const confRows  = calcConfidenceTiers(decided);
   const signals   = calcSignalAccuracy(decided);
   const byDate    = groupByDate(decided);
-
-  // Game log summary stats (units assume 1-unit flat bet per qualifying call)
-  let mlEdgeCalls = 0, mlEdgeHits = 0, mlEdgeUnits = 0;
-  let totalLeanCalls = 0, totalLeanHits = 0, totalLeanUnits = 0;
-  for (const r of decided) {
-    if (r.model_edge_ml != null && Math.abs(r.model_edge_ml) >= 0.10) {
-      mlEdgeCalls++;
-      const edgeIsHome = r.model_edge_ml >= 0;
-      const won  = edgeIsHome ? r.actual_winner === 'home' : r.actual_winner === 'away';
-      const odds = edgeIsHome ? r.home_ml : r.away_ml;
-      const prof = won ? (americanToProfit(odds) ?? 1.0) : -1.0;
-      mlEdgeUnits += prof;
-      if (won) mlEdgeHits++;
-    }
-    if (r.predicted_total != null && r.vegas_total != null && r.total_went_over != null) {
-      const lean = +(r.predicted_total - r.vegas_total).toFixed(1);
-      if (Math.abs(lean) >= 0.5) {
-        totalLeanCalls++;
-        const leanOver = lean > 0;
-        const hit  = (leanOver && r.total_went_over === true) || (!leanOver && r.total_went_over === false);
-        const odds = leanOver ? r.over_price : r.under_price;
-        const prof = hit ? (americanToProfit(odds) ?? 0.909) : -1.0;  // default ~-110 equiv
-        totalLeanUnits += prof;
-        if (hit) totalLeanHits++;
-      }
-    }
-  }
-  const mlPct    = mlEdgeCalls    > 0 ? Math.round(mlEdgeHits    / mlEdgeCalls    * 100) : null;
-  const totalPct = totalLeanCalls > 0 ? Math.round(totalLeanHits / totalLeanCalls * 100) : null;
-  const mlUnitsCls    = mlEdgeUnits    >= 0 ? 'units-pos' : 'units-neg';
-  const totalUnitsCls = totalLeanUnits >= 0 ? 'units-pos' : 'units-neg';
-  const gameLogSummaryHTML = `
-<div class="game-log-summary">
-  <span class="log-stat">ML Value Calls (|edge|≥10%): <strong>${mlEdgeCalls > 0 ? `${mlEdgeHits}/${mlEdgeCalls} (${mlPct}%)` : '—'}</strong>${mlEdgeCalls > 0 ? ` <span class="log-units ${mlUnitsCls}">${fmtUnits(mlEdgeUnits)}</span>` : ''}</span>
-  <span class="log-stat">Total Lean (≥0.5 run): <strong>${totalLeanCalls > 0 ? `${totalLeanHits}/${totalLeanCalls} (${totalPct}%)` : '—'}</strong>${totalLeanCalls > 0 ? ` <span class="log-units ${totalUnitsCls}">${fmtUnits(totalLeanUnits)}</span>` : ''}</span>
-</div>`;
+  const tl        = totalsLeanAccuracy(decided);
+  const tlRow = (label, b) => {
+    const n = b.w + b.l, p = n ? Math.round(b.w / n * 100) : null;
+    return `<tr><td>${label}</td><td>${b.w}–${b.l}</td><td class="${p == null ? '' : p >= 55 ? 'edge-pos' : p >= 50 ? '' : 'edge-neg'}">${p == null ? '—' : p + '%'}</td></tr>`;
+  };
 
   view.innerHTML = `
 <div class="view-header">
   <h1>Prediction Record</h1>
-  <span class="sub-label">${correct}–${decided.length - correct} (${pct}%) &nbsp;·&nbsp; ${decided.length} games graded ${streakLabel}</span>
+  <span class="sub-label">${correct}–${decided.length - correct} (${pct}%) &nbsp;·&nbsp; ${decided.length} games graded${scratched ? ` &nbsp;·&nbsp; ${scratched} excluded (SP scratched)` : ''} ${streakLabel}</span>
 </div>
+
+<div class="rec-lens-label">① Model accuracy — how often the prediction is right (accuracy, not betting)</div>
 
 <div class="rec-vegas-section">
   ${renderVegasSection()}
@@ -1611,7 +1633,7 @@ function renderRecordView() {
 
 <div class="record-top-grid">
   <div class="record-conf-section">
-    <div class="section-heading">Record by Confidence</div>
+    <div class="section-heading">Record by confidence <span class="scope-tag">2026 · in-sample</span></div>
     <table class="conf-tier-table">
       <thead><tr><th>Confidence</th><th>Record</th><th>Win%</th></tr></thead>
       <tbody>${confRows.map(t => `
@@ -1624,58 +1646,30 @@ function renderRecordView() {
     </table>
   </div>
   <div class="record-signal-section">
-    <div class="section-heading">Signal Accuracy</div>
+    <div class="section-heading">Signal accuracy <span class="scope-tag">2026 · in-sample</span></div>
     <div class="signal-grid compact-signal-grid">
       ${Object.values(signals).map(s => signalCardHTML(s)).join('')}
     </div>
   </div>
 </div>
 
-${renderPropsPerformance()}
+<div class="rec-totals-lean">
+  <div class="section-heading">Totals-lean accuracy <span class="scope-tag">2026 · in-sample</span></div>
+  <table class="season-year-table">
+    <thead><tr><th>Model lean</th><th>Record</th><th>Win%</th></tr></thead>
+    <tbody>${tlRow('UNDER lean', tl.under)}${tlRow('OVER lean', tl.over)}</tbody>
+  </table>
+  <p class="rec-priced-note">Win% of the model's ≥0.5-run total lean (push-corrected${tl.push ? `, ${tl.push} pushes excluded` : ''}). Accuracy only — realized ROI is in Edge performance below.</p>
+</div>
+
+<div class="rec-lens-label">② Edge performance — realized returns on the validated edges</div>
+${edgePerfSummaryHTML()}
 
 <div class="history-section">
-  <div class="section-heading">Game Log</div>
-  ${gameLogSummaryHTML}
+  <div class="section-heading">Game Log <span class="scope-tag">2026 · prediction hit/miss</span></div>
   ${byDate.map(({ date: d, games }) => {
     const dc = games.filter(r => r.predicted_winner === r.actual_winner).length;
     const dLabel = formatDateLabel(d);
-
-    // Per-day model audit (1-unit flat bet on each qualifying call)
-    let mlW = 0, mlL = 0, mlUnits = 0;
-    let totW = 0, totL = 0, totUnits = 0;
-    for (const r of games) {
-      if (r.model_edge_ml != null && Math.abs(r.model_edge_ml) >= 0.10) {
-        const edgeIsHome = r.model_edge_ml >= 0;
-        const won  = edgeIsHome ? r.actual_winner === 'home' : r.actual_winner === 'away';
-        const odds = edgeIsHome ? r.home_ml : r.away_ml;
-        const prof = won ? (americanToProfit(odds) ?? 1.0) : -1.0;
-        mlUnits += prof;
-        if (won) mlW++; else mlL++;
-      }
-      if (r.predicted_total != null && r.vegas_total != null && r.total_went_over != null) {
-        const lean = +(r.predicted_total - r.vegas_total).toFixed(1);
-        if (Math.abs(lean) >= 0.5) {
-          const leanOver = lean > 0;
-          const hit  = (leanOver && r.total_went_over === true) || (!leanOver && r.total_went_over === false);
-          const odds = leanOver ? r.over_price : r.under_price;
-          const prof = hit ? (americanToProfit(odds) ?? 0.909) : -1.0;
-          totUnits += prof;
-          if (hit) totW++; else totL++;
-        }
-      }
-    }
-    const mlCls  = mlUnits  >= 0 ? 'audit-pos' : 'audit-neg';
-    const totCls = totUnits >= 0 ? 'audit-pos' : 'audit-neg';
-    const mlAuditHTML = (mlW + mlL > 0)
-      ? `<span class="day-audit-stat ${mlCls}">ML Edge ${mlW}–${mlL} <span class="audit-units">${fmtUnits(mlUnits)}</span></span>`
-      : '';
-    const totAuditHTML = (totW + totL > 0)
-      ? `<span class="day-audit-stat ${totCls}">Total ${totW}–${totL} <span class="audit-units">${fmtUnits(totUnits)}</span></span>`
-      : '';
-    const auditRowHTML = (mlW + mlL + totW + totL > 0)
-      ? `<div class="day-audit-row"><span class="day-audit-label">Audit</span>${mlAuditHTML}${totAuditHTML}</div>`
-      : '';
-
     return `
   <div class="day-group">
     <div class="day-header">
@@ -1683,7 +1677,6 @@ ${renderPropsPerformance()}
         <span class="day-label">${dLabel}</span>
         <span class="day-record ${dc / games.length >= 0.5 ? 'day-win' : 'day-loss'}">Picks ${dc}–${games.length - dc}</span>
       </div>
-      ${auditRowHTML}
     </div>
     <div class="history-table-wrap">
       <table class="history-table">
@@ -1827,169 +1820,34 @@ function calcSignalAccuracy(decided) {
   return m;
 }
 
-// ── Vegas performance analysis ────────────────────────────────────────────────
+// ── Season accuracy / totals-lean accuracy ────────────────────────────────────
+// (The old blind-bet Vegas buckets / "simulated ROI" were removed — betting performance now
+//  lives only in the validated edge scoreboard. See edgePerfSummaryHTML + the Edges tab.)
 
-// Normalise a record from either history.json or backtest.json to a common shape.
-function _normaliseVegasRecord(r) {
-  return {
-    ...r,
-    vegas_total:     r.vegas_total    ?? r.closing_total ?? null,
-    total_went_over: r.total_went_over ?? (
-      r.closing_total != null && r.actual_total != null
-        ? r.actual_total > r.closing_total
-        : null
-    ),
-  };
-}
-
-function _allVegasRecords() {
-  // 2026 live records from history.json
-  const hist = (historyData || [])
-    .filter(r => r.actual_winner === 'home' || r.actual_winner === 'away')
-    .map(_normaliseVegasRecord);
-
-  // 2021-2025 historical records from backtest.json (only games with Pinnacle odds)
-  const bt = ((backtestData && backtestData.games) || [])
-    .filter(r => r.home_ml != null && (r.actual_winner === 'home' || r.actual_winner === 'away'))
-    .map(_normaliseVegasRecord);
-
-  return { hist, bt, all: [...hist, ...bt] };
-}
-
-function computeVegasStats(records) {
-  const priced = records.filter(r => r.home_ml != null && r.away_ml != null);
-
-  function mlUnits(odds, won) {
-    const ret = odds > 0 ? odds / 100 : 100 / Math.abs(odds);
-    return won ? ret : -1;
+// Model totals-lean accuracy over a set of records (push-aware). Returns {over:{w,l},under:{w,l},push}.
+function totalsLeanAccuracy(records) {
+  const out = { over: { w: 0, l: 0 }, under: { w: 0, l: 0 }, push: 0 };
+  for (const r of records) {
+    const line = r.vegas_total ?? r.closing_total;
+    const pt   = r.predicted_total;
+    const at   = r.actual_total;
+    if (line == null || pt == null || at == null) continue;
+    const lean = +(pt - line).toFixed(1);
+    if (Math.abs(lean) < 0.5) continue;          // only count meaningful leans
+    const oc = totalsOutcome(at, line);
+    if (oc === 'push') { out.push++; continue; } // void
+    const side = lean > 0 ? 'over' : 'under';
+    const hit  = (side === 'over' && oc === 'over') || (side === 'under' && oc === 'under');
+    if (hit) out[side].w++; else out[side].l++;
   }
-
-  // ML edge buckets: classify by model_edge_ml (model's home_win_pct − pinnacle implied home prob)
-  // Positive edge = model favours home more than Vegas; negative = model favours away
-  const mlBuckets = {
-    negative: { label: 'Away Pick',   desc: 'Model favours away', n: 0, wins: 0, units: 0 },
-    low:      { label: '0–3% Edge',   desc: 'Marginal home lean',  n: 0, wins: 0, units: 0 },
-    mid:      { label: '3–6% Edge',   desc: 'Moderate home edge',  n: 0, wins: 0, units: 0 },
-    high:     { label: '6%+ Edge',    desc: 'Strong home edge',    n: 0, wins: 0, units: 0 },
-  };
-
-  for (const r of priced) {
-    const edge    = r.model_edge_ml ?? 0;
-    const homeWon = r.actual_winner === 'home';
-    // Determine which side we'd bet (model's pick direction) and appropriate odds
-    let bucket, won, odds;
-    if (edge < 0) {
-      bucket = mlBuckets.negative;
-      won    = !homeWon;         // model picked away
-      odds   = r.away_ml;
-    } else if (edge < 0.03) {
-      bucket = mlBuckets.low;
-      won    = homeWon;
-      odds   = r.home_ml;
-    } else if (edge < 0.06) {
-      bucket = mlBuckets.mid;
-      won    = homeWon;
-      odds   = r.home_ml;
-    } else {
-      bucket = mlBuckets.high;
-      won    = homeWon;
-      odds   = r.home_ml;
-    }
-    if (odds == null) continue;
-    bucket.n++;
-    if (won) bucket.wins++;
-    bucket.units += mlUnits(odds, won);
-  }
-
-  // Totals direction
-  const pricedTotals = priced.filter(r => r.vegas_total != null && r.actual_total != null);
-  const totalsBuckets = {
-    over:  { label: 'Model Over',  n: 0, hits: 0, units: 0 },
-    under: { label: 'Model Under', n: 0, hits: 0, units: 0 },
-    push:  { label: 'No Lean',     n: 0, hits: 0, units: 0 },
-  };
-
-  for (const r of pricedTotals) {
-    const diff    = (r.predicted_total ?? 0) - r.vegas_total;
-    const wentOver = r.actual_total > r.vegas_total;
-    let bucket, odds, won;
-    if (diff > 0.5) {
-      bucket = totalsBuckets.over;
-      odds   = r.over_price  ?? -110;
-      won    = wentOver;
-    } else if (diff < -0.5) {
-      bucket = totalsBuckets.under;
-      odds   = r.under_price ?? -110;
-      won    = !wentOver;
-    } else {
-      bucket = totalsBuckets.push;
-      odds   = -110;
-      won    = false;  // no-lean bets not counted toward ROI
-    }
-    bucket.n++;
-    if (won) bucket.hits++;
-    if (bucket !== totalsBuckets.push) bucket.units += mlUnits(odds, won);
-  }
-
-  // Overall ROI summaries
-  const mlUnitsTotal  = Object.values(mlBuckets).reduce((s, b) => s + b.units, 0);
-  const mlBetsTotal   = Object.values(mlBuckets).reduce((s, b) => s + b.n, 0);
-  const totUnitsTotal = totalsBuckets.over.units + totalsBuckets.under.units;
-  const totBetsTotal  = totalsBuckets.over.n + totalsBuckets.under.n;
-
-  return {
-    ml:       { buckets: mlBuckets,   totalUnits: mlUnitsTotal,  totalBets: mlBetsTotal },
-    totals:   { buckets: totalsBuckets, totalUnits: totUnitsTotal, totalBets: totBetsTotal },
-    n_priced: priced.length,
-    n_total:  records.length,
-  };
+  return out;
 }
 
 function renderVegasSection() {
-  const { hist, bt, all } = _allVegasRecords();
-  const v = computeVegasStats(all);
-  const MIN_GAMES = 5;
-
-  const histPriced = hist.filter(r => r.home_ml != null).length;
-  const btNote = bt.length > 0
-    ? `${bt.length.toLocaleString()} historical (2021–25) + ${histPriced} this season`
-    : `${histPriced} games this season`;
-
-  if (v.n_priced < MIN_GAMES) {
-    return `
-<div class="section-heading">Performance vs. Vegas Lines</div>
-<div class="rec-vegas-placeholder">
-  Vegas line tracking active — section populates as games accumulate (${v.n_priced} games have line data).
-</div>`;
-  }
-
-  function winPct(b) {
-    return b.n > 0 ? Math.round(b.wins / b.n * 100) + '%' : '—';
-  }
-  function hitPct(b) {
-    return b.n > 0 ? Math.round(b.hits / b.n * 100) + '%' : '—';
-  }
-  function roiStr(units, n) {
-    if (!n) return '—';
-    const pct  = (units / n * 100).toFixed(1);
-    const sign = units >= 0 ? '+' : '';
-    return `${sign}${pct}%`;
-  }
-  function roiCls(units) {
-    return units > 0 ? 'edge-pos' : units < 0 ? 'edge-neg' : '';
-  }
-  function edgeCls(bucket) {
-    const { n, wins } = bucket;
-    if (!n) return 'edge-card';
-    const rate = wins / n;
-    return `edge-card ${rate >= 0.55 ? 'edge-green' : rate >= 0.50 ? 'edge-amber' : 'edge-red'}`;
-  }
-  function totalsCls(bucket) {
-    const { n, hits } = bucket;
-    if (!n) return 'edge-card';
-    const rate = hits / n;
-    return `edge-card ${rate >= 0.55 ? 'edge-green' : rate >= 0.50 ? 'edge-amber' : 'edge-red'}`;
-  }
+  // Prediction accuracy by season (accuracy ONLY). Betting ROI is intentionally not shown here —
+  // the only validated, bet-and-tracked surface is the edge scoreboard (edgePerfSummaryHTML + the
+  // Edges tab). Reads backtestData (2021–25) + historyData (2026).
+  if (!(backtestData && backtestData.games) && !(historyData || []).length) return '';
 
   // Per-season prediction ACCURACY (win% of the model's predicted winner).
   // NOTE: this is accuracy only — we deliberately do NOT show a per-season moneyline ROI here.
@@ -2028,95 +1886,13 @@ function renderVegasSection() {
       }).join('');
   }
 
-  const { ml, totals } = v;
-  const b = ml.buckets;
-  const t = totals.buckets;
-  const mlRoi  = roiStr(ml.totalUnits,     ml.totalBets);
-  const totRoi = roiStr(totals.totalUnits, totals.totalBets);
-  const mlSign  = ml.totalUnits  >= 0 ? '+' : '';
-  const totSign = totals.totalUnits >= 0 ? '+' : '';
-
   return `
-<div class="section-heading">Performance vs. Vegas Lines</div>
-<p class="rec-priced-note">${v.n_priced.toLocaleString()} games with Pinnacle lines &nbsp;·&nbsp; ${btNote}</p>
-
-<div class="section-subheading">Season Breakdown — prediction accuracy</div>
+<div class="section-heading">Prediction accuracy by season <span class="scope-tag">2021–26</span></div>
+<p class="rec-priced-note">Win% of the model's predicted winner, by season. 2026 is <b>in-sample</b> for the recalibrated model — not directly comparable to the out-of-sample prior seasons. Betting ROI lives in the <b>Edges</b> tab and the Edge-performance section below — not here (the model's moneyline is ~0 EV).</p>
 <table class="season-year-table">
   <thead><tr><th>Season</th><th>Record</th><th>Acc%</th></tr></thead>
   <tbody>${buildSeasonRows()}</tbody>
-</table>
-<p class="rec-priced-note">Win% of the model's predicted winner. Betting ROI is not shown per-season here — moneyline is ~0 EV (no validated edge); the validated UNDER edges live in the <b>Edges</b> tab.</p>
-
-<div class="section-subheading" style="margin-top:16px;">Moneyline Edge Buckets</div>
-<div class="edge-bucket-grid">
-  <div class="${edgeCls(b.negative)}">
-    <div class="edge-card-label">${b.negative.label}</div>
-    <div class="edge-rate">${winPct(b.negative)}</div>
-    <div class="edge-n">${b.negative.n} games</div>
-    <div class="edge-desc">${b.negative.desc}</div>
-    <div class="edge-badge ${roiCls(b.negative.units) === 'edge-pos' ? 'badge-green' : roiCls(b.negative.units) === 'edge-neg' ? 'badge-red' : 'badge-amber'}">${roiStr(b.negative.units, b.negative.n)} ROI</div>
-  </div>
-  <div class="${edgeCls(b.low)}">
-    <div class="edge-card-label">${b.low.label}</div>
-    <div class="edge-rate">${winPct(b.low)}</div>
-    <div class="edge-n">${b.low.n} games</div>
-    <div class="edge-desc">${b.low.desc}</div>
-    <div class="edge-badge ${roiCls(b.low.units) === 'edge-pos' ? 'badge-green' : roiCls(b.low.units) === 'edge-neg' ? 'badge-red' : 'badge-amber'}">${roiStr(b.low.units, b.low.n)} ROI</div>
-  </div>
-  <div class="${edgeCls(b.mid)}">
-    <div class="edge-card-label">${b.mid.label}</div>
-    <div class="edge-rate">${winPct(b.mid)}</div>
-    <div class="edge-n">${b.mid.n} games</div>
-    <div class="edge-desc">${b.mid.desc}</div>
-    <div class="edge-badge ${roiCls(b.mid.units) === 'edge-pos' ? 'badge-green' : roiCls(b.mid.units) === 'edge-neg' ? 'badge-red' : 'badge-amber'}">${roiStr(b.mid.units, b.mid.n)} ROI</div>
-  </div>
-  <div class="${edgeCls(b.high)}">
-    <div class="edge-card-label">${b.high.label}</div>
-    <div class="edge-rate">${winPct(b.high)}</div>
-    <div class="edge-n">${b.high.n} games</div>
-    <div class="edge-desc">${b.high.desc}</div>
-    <div class="edge-badge ${roiCls(b.high.units) === 'edge-pos' ? 'badge-green' : roiCls(b.high.units) === 'edge-neg' ? 'badge-red' : 'badge-amber'}">${roiStr(b.high.units, b.high.n)} ROI</div>
-  </div>
-</div>
-
-<div class="section-subheading" style="margin-top:16px;">Totals Direction</div>
-<div class="rec-totals-grid">
-  <div class="${totalsCls(t.over)}">
-    <div class="edge-card-label">${t.over.label}</div>
-    <div class="edge-rate">${hitPct(t.over)}</div>
-    <div class="edge-n">${t.over.n} games</div>
-    <div class="edge-desc">Model predicted &gt; Vegas total</div>
-    <div class="edge-badge ${roiCls(t.over.units) === 'edge-pos' ? 'badge-green' : roiCls(t.over.units) === 'edge-neg' ? 'badge-red' : 'badge-amber'}">${roiStr(t.over.units, t.over.n)} ROI</div>
-  </div>
-  <div class="${totalsCls(t.under)}">
-    <div class="edge-card-label">${t.under.label}</div>
-    <div class="edge-rate">${hitPct(t.under)}</div>
-    <div class="edge-n">${t.under.n} games</div>
-    <div class="edge-desc">Model predicted &lt; Vegas total</div>
-    <div class="edge-badge ${roiCls(t.under.units) === 'edge-pos' ? 'badge-green' : roiCls(t.under.units) === 'edge-neg' ? 'badge-red' : 'badge-amber'}">${roiStr(t.under.units, t.under.n)} ROI</div>
-  </div>
-  <div class="edge-card">
-    <div class="edge-card-label">${t.push.label}</div>
-    <div class="edge-rate">${t.push.n}</div>
-    <div class="edge-n">games</div>
-    <div class="edge-desc">Model within 0.5 of Vegas line</div>
-    <div class="edge-badge badge-amber">No bet</div>
-  </div>
-</div>
-
-<div class="section-subheading" style="margin-top:16px;">Simulated ROI (flat $1 bets)</div>
-<div class="rec-roi-grid">
-  <div class="roi-card">
-    <div class="roi-label">Moneyline (${ml.totalBets} bets)</div>
-    <div class="roi-val ${ml.totalUnits >= 0 ? 'roi-pos' : 'roi-neg'}">${mlSign}${ml.totalUnits.toFixed(2)} u</div>
-    <div class="roi-sub">${mlRoi} ROI</div>
-  </div>
-  <div class="roi-card">
-    <div class="roi-label">Totals (${totals.totalBets} bets)</div>
-    <div class="roi-val ${totals.totalUnits >= 0 ? 'roi-pos' : 'roi-neg'}">${totSign}${totals.totalUnits.toFixed(2)} u</div>
-    <div class="roi-sub">${totRoi} ROI</div>
-  </div>
-</div>`;
+</table>`;
 }
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
@@ -2376,21 +2152,26 @@ function renderBacktestView() {
 
   // ── Hero KPIs ─────────────────────────────────────────────────────────────
   const totalGames = games.length;
-  const roi = roi_stats || {};
   const roiValCls = v => v == null ? '' : v > 0 ? 'kpi-green' : v < 0 ? 'kpi-red' : '';
+  // Honest hero: the only realized betting ROI is the validated edge (from the live scoreboard);
+  // the model's blind ML/totals ROI is ~0 EV and is no longer surfaced as a headline.
+  const sbEdges = (scoreboardData && scoreboardData.edges) || [];
+  const u8 = sbEdges.find(e => e.tag === 'UNDER_LINE_8_0');
+  const dec26 = (historyData || []).filter(r => (r.actual_winner === 'home' || r.actual_winner === 'away') && !r.sp_scratched);
+  const acc26 = dec26.length ? Math.round(dec26.filter(r => r.predicted_winner === r.actual_winner).length / dec26.length * 100) : null;
 
   const heroSection = `
-    <div class="bt-context-bar">${totalGames.toLocaleString()} games logged since 2021 &nbsp;·&nbsp; ROI = profit per $1 flat bet &nbsp;·&nbsp; Pinnacle closing lines<br><span class="bt-context-warn">⚠ The two 2026 ROI cards bet the model's side on <b>every</b> game — that's not a validated edge (moneyline is ~0 EV; see the <b>Edges</b> tab for the validated UNDER edges). 2026 is also in-sample for the recalibrated model, so it isn't comparable to prior out-of-sample seasons.</span></div>
+    <div class="bt-context-bar">${totalGames.toLocaleString()} games logged since 2021 &nbsp;·&nbsp; Pinnacle closing lines &nbsp;·&nbsp; betting ROI shown = the validated edge only (the model's blind ML/totals is ~0 EV and isn't surfaced)</div>
     <div class="bt-kpi-row">
-      <div class="bt-kpi-card bt-kpi-muted">
-        <div class="bt-kpi-val ${roiValCls(roi.ml_roi_pct)}">${fmtRoi(roi.ml_roi_pct)}</div>
-        <div class="bt-kpi-label">2026 ML ROI · all games <span class="bt-kpi-tag">no edge · in-sample</span></div>
-        <div class="bt-kpi-sub">${fmtUnits(roi.ml_units_won)} units · ${roi.ml_bets ?? 0} bets (full slate)</div>
+      <div class="bt-kpi-card">
+        <div class="bt-kpi-val ${roiValCls(u8 ? u8.hist_roi_pct : null)}">${u8 && u8.hist_roi_pct != null ? (u8.hist_roi_pct >= 0 ? '+' : '') + u8.hist_roi_pct.toFixed(1) + '%' : '—'}</div>
+        <div class="bt-kpi-label">UNDER 8.0 ROI <span class="bt-kpi-tag tag-good">validated · push-corrected</span></div>
+        <div class="bt-kpi-sub">${u8 ? `${u8.hist_n} bets · std-vig · 2021–26${u8.recent_n ? ` · ${u8.recent_roi_pct >= 0 ? '+' : ''}${u8.recent_roi_pct}% live (n=${u8.recent_n})` : ''}` : 'see edge scoreboard'}</div>
       </div>
-      <div class="bt-kpi-card bt-kpi-muted">
-        <div class="bt-kpi-val ${roiValCls(roi.total_roi_pct)}">${fmtRoi(roi.total_roi_pct)}</div>
-        <div class="bt-kpi-label">2026 Totals ROI · all games <span class="bt-kpi-tag">no edge · in-sample</span></div>
-        <div class="bt-kpi-sub">${fmtUnits(roi.total_units_won)} units · ${roi.total_bets ?? 0} bets (full slate)</div>
+      <div class="bt-kpi-card">
+        <div class="bt-kpi-val">${acc26 != null ? acc26 + '%' : '—'}</div>
+        <div class="bt-kpi-label">2026 Win Rate <span class="bt-kpi-tag">in-sample</span></div>
+        <div class="bt-kpi-sub">${dec26.length.toLocaleString()} games · predicted winner</div>
       </div>
       <div class="bt-kpi-card">
         <div class="bt-kpi-val">${pct(stats.win_pct_overall)}</div>
@@ -2437,6 +2218,7 @@ function renderBacktestView() {
       <span class="bt-sec-title">Moneyline Analysis</span>
       <span class="bt-sec-sub">Away edge vs. home favorite trap · 2021–2025</span>
     </summary>
+    <div class="bt-sec-caveat">⚠ Exploratory / calibration only — there is <b>no validated moneyline edge</b> (the away-ML angle was overfit and demoted). These OOS 2021–25 ROI tiers show where the model is least wrong, not a bettable edge. The only validated edges are in the <b>Edges</b> tab.</div>
     <div class="bt-ml-grid">
       <div>
         <div class="bt-subsection-title">Away Advantage · Edge × Pitcher Quality</div>
@@ -2625,15 +2407,17 @@ function renderBacktestView() {
     let totalUnits = 0, totalBets = 0, totalWins = 0;
     for (const g of allGames) {
       const ct = g.closing_total;
-      const over = g.total_went_over;
       const uPrice = g.under_price;
-      if (ct == null || over == null || uPrice == null) continue;
+      if (ct == null || uPrice == null) continue;
       if (ct < lo || ct >= hi) continue;
+      // Push-aware: a total landing exactly on the line is void (refunded), not an UNDER win.
+      const oc = totalsOutcome(g.actual_total, ct);
+      if (oc == null || oc === 'push') continue;
       const yr = g.season || parseInt(g.date);
       if (!yr || yr < 2022) continue;
       if (!bySeason[yr]) bySeason[yr] = { bets: 0, wins: 0, units: 0 };
       const s = bySeason[yr];
-      const won = !over; // betting UNDER wins when total does NOT go over
+      const won = oc === 'under'; // betting UNDER wins when total stays under
       const dec = uPrice >= 0 ? 1 + uPrice / 100 : 1 - 100 / uPrice;
       s.bets++; totalBets++;
       if (won) { s.wins++; totalWins++; s.units += dec - 1; totalUnits += dec - 1; }
@@ -3805,7 +3589,8 @@ function renderPropsView() {
 <div class="props-filter-row">${tabsHtml}</div>
 <div class="picks-list">
   ${filteredCards.length ? filteredCards.join('') : '<div class="empty-state">No picks match the current filter.</div>'}
-</div>`;
+</div>
+${renderPropsPerformance()}`;
 
   view.querySelectorAll('.pf-tab').forEach(btn => {
     btn.addEventListener('click', () => {

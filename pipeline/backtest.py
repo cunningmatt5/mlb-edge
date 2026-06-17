@@ -552,6 +552,14 @@ def _american_to_profit(odds: int | None) -> float | None:
     return odds / 100 if odds > 0 else 100 / abs(odds)
 
 
+def _is_total_push(r: dict, line_key: str = "closing_total") -> bool:
+    """True when the final total landed exactly on the line — a void (refunded) bet, not a win.
+    `total_went_over` is only over/not-over, so UNDER grading must skip pushes via actual_total."""
+    line = r.get(line_key)
+    at = r.get("actual_total")
+    return line is not None and at is not None and abs(at - line) < 1e-9
+
+
 def compute_segmentation(results: list[dict]) -> dict:
     """Compute ROI-by-segment breakdowns for games that have Vegas closing lines."""
     priced = [
@@ -786,6 +794,7 @@ def compute_segmentation(results: list[dict]) -> dict:
         sub = [
             r for r in totals_priced
             if fn(r["predicted_total"] - r["closing_total"])
+            and not _is_total_push(r)          # void pushes (not UNDER wins)
         ]
         if not sub:
             continue
@@ -831,6 +840,7 @@ def _aggregate_totals_signal(picks: list[dict]) -> dict:
     def _roi_subset(subset: list[dict]) -> dict:
         units = 0.0
         wins = 0
+        subset = [p for p in subset if not _is_total_push(p)]   # void pushes (not wins)
         for p in subset:
             bet_over = p["direction"] == "OVER"
             went_over = p["total_went_over"]
@@ -1000,7 +1010,8 @@ def compute_roi_from_history() -> dict:
         total_went_over = r.get("total_went_over")
         if (vegas_total is not None and pred_total is not None
                 and over_price is not None and under_price is not None
-                and total_went_over is not None):
+                and total_went_over is not None
+                and not _is_total_push(r, "vegas_total")):   # void pushes (refunded, not a win)
             try:
                 if pred_total > vegas_total:
                     price = int(over_price)
@@ -1098,11 +1109,11 @@ def generate_pitcher_value(all_results: list[dict]) -> None:
                         if won:
                             p["_ml_a_wins"] += 1
 
-            # UNDER ROI — requires closing total
+            # UNDER ROI — requires closing total; pushes voided (refunded, not wins)
             ct  = r.get("closing_total")
             tgo = r.get("total_went_over")
             up  = r.get("under_price")
-            if ct is not None and tgo is not None:
+            if ct is not None and tgo is not None and not _is_total_push(r):
                 price  = up if (up is not None) else -110
                 profit = _american_to_profit(price)
                 won    = not tgo

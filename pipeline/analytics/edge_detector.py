@@ -10,12 +10,13 @@ half-open range checks below are equivalent to exact-line matches:
 
 The 8.5 line is explicitly NOT an edge: -2.8% blind ROI across 2,171 games.
 
-Vig matters (research_under_8.py, 2021-2026):
-  At the 8.0 line the UNDER is a clean +12.6% / 6-of-6 seasons at STANDARD vig
-  (under_price -106..-110), weaker (+6%) at -111..-120, and NEGATIVE (-20.7%)
-  when priced worse than -120. The book charging heavy vig against the UNDER is
-  itself a signal not to take it. detect_edges() therefore tiers the 8.0 boost by
-  vig and suppresses the edge when the UNDER is priced worse than -120.
+Vig matters (research_under_8.py, 2021-2026, PUSH-CORRECTED — totals landing exactly on the
+line are voided, not counted as UNDER wins):
+  At the 8.0 line the UNDER is +5.5% / 4-of-6 seasons at STANDARD vig (under_price -106..-110),
+  but only ~0% outside that band — both cheaper-priced unders (the market already leans under)
+  and vig-against unders (-111..-120) underperform, and it's negative when priced worse than -120.
+  So detect_edges() gives the boost ONLY in the standard-vig band and suppresses it otherwise.
+  (Earlier metadata claimed +12.6% / 6-of-6; that was inflated entirely by pushes graded as wins.)
 """
 
 from __future__ import annotations
@@ -25,74 +26,73 @@ _VIG_STD_LO   = -110   # standard-vig favorable zone is [-110, -106]
 _VIG_STD_HI   = -106
 _VIG_SUPPRESS = -120   # worse than this (e.g. -125) → UNDER unprofitable, suppress
 
-# Metadata for each edge — ROI/season figures from research_under_8.py + edge_research.py.
+# Metadata for each edge — PUSH-CORRECTED ROI/season figures (research_under_8.py + edge_research.py
+# re-run with pushes voided). All ROI is realized at a flat $1 UNDER stake, pushes refunded.
 EDGE_METADATA: dict[str, dict] = {
     "UNDER_LINE_8_0": {
         "tag":        "UNDER_LINE_8_0",
         "label":      "Under Edge: Total = 8.0",
         "direction":  "UNDER",
         "bet_type":   "TOTAL",
-        "roi_pct":    12.59,
-        "n_games":    458,
+        "roi_pct":    5.47,
+        "n_games":    429,
         "confidence": "high",
-        "seasons":    "6/6 seasons profitable (2021–2026) at standard vig",
-        "season_roi": {"2021": 8.2, "2022": 16.8, "2023": 6.1, "2024": 15.8, "2025": 9.3, "2026": 19.5},
-        "signal_boost": 0.8,   # full boost; tiered down by vig in detect_edges()
+        "seasons":    "4/6 seasons profitable (2021–2026) at standard vig, push-corrected",
+        "season_roi": {"2021": -4.5, "2022": 10.1, "2023": -0.2, "2024": 9.4, "2025": 2.4, "2026": 10.1},
+        "signal_boost": 0.8,   # std-vig band only; suppressed otherwise in detect_edges()
     },
     "UNDER_LINE_9_0": {
         "tag":        "UNDER_LINE_9_0",
         "label":      "Under Edge: Total = 9.0",
         "direction":  "UNDER",
         "bet_type":   "TOTAL",
-        "roi_pct":    11.87,
-        "n_games":    1699,
+        "roi_pct":    2.55,
+        "n_games":    1405,
         "confidence": "watch",
-        "seasons":    "strong 2021–2025 (+11.9%) but COLLAPSED in 2026 (-13.9%) — watch only",
-        "season_roi": {"2021": 21.9, "2022": 9.9, "2023": 12.0, "2024": 12.2, "2025": 13.8, "2026": -13.9},
-        "signal_boost": 0.0,   # do not move live signals: the live season is negative
+        "seasons":    "barely +2.6% 2021–2025 (push-corrected), then -11.3% in 2026 — watch only",
+        "season_roi": {"2021": 8.6, "2022": -1.3, "2023": 1.8, "2024": 2.9, "2025": 2.4, "2026": -11.3},
+        "signal_boost": 0.0,   # do not move live signals: marginal historically, negative live
     },
     "UNDER_MODEL_DEV": {
         "tag":        "UNDER_MODEL_DEV",
         "label":      "Under Edge: Model–Vegas Gap",
         "direction":  "UNDER",
         "bet_type":   "TOTAL",
-        "roi_pct":    35.86,
-        "n_games":    42,
+        "roi_pct":    32.58,
+        "n_games":    46,
         "confidence": "emerging",
         "seasons":    "2026-only by construction (predicted_total was Vegas-anchored pre-2026); lines ≤9.0, small n",
-        "season_roi": {"2026": 35.9},
+        "season_roi": {"2026": 32.6},
         "signal_boost": 0.3,   # single season, small sample → modest boost
     },
 }
 
 
 def _vig_adjusted_boost(base_boost: float, under_price: float | None) -> float | None:
-    """Scale an UNDER edge's boost by the vig on the UNDER price.
+    """Boost the 8.0 UNDER edge ONLY in the standard-vig band; suppress otherwise.
 
-    Returns the adjusted boost, or None to suppress the edge entirely.
-    under_price None (no odds) → return base boost unchanged (can't assess vig).
+    Push-corrected, the edge lives only at standard vig (-110..-106, +5.5%). Cheaper-priced
+    unders (~0%, the market already leans under) and vig-against unders (-111..-120, ~0%/neg)
+    don't clear the bar, so they get no boost. under_price None → base boost (can't assess vig).
     """
     if under_price is None:
         return base_boost
-    if under_price < _VIG_SUPPRESS:          # worse than -120: UNDER is unprofitable
-        return None
-    if _VIG_STD_LO <= under_price <= _VIG_STD_HI:   # standard vig: the strong zone
+    if _VIG_STD_LO <= under_price <= _VIG_STD_HI:   # standard-vig band: the only validated zone
         return base_boost
-    return round(base_boost * 0.5, 2)        # cheaper-than-std or mild vig-against: half boost
+    return None                              # outside the std band → suppress
 
 
-# Validated UNDER-8.0 win rates for Kelly sizing (research_under_8.py: std-vig band
-# wins 58.7% / 6-of-6 seasons; reduced-vig band weaker). Conservative so Kelly
-# under-sizes rather than over-sizes. The 9.0 watch edge gets NO Kelly prob.
-_KELLY_WP_STD = 0.575
-_KELLY_WP_OFF = 0.555
+# Validated UNDER-8.0 win rate for Kelly sizing (research_under_8.py, PUSH-CORRECTED: std-vig
+# band wins 55.0%, Wilson-90 lower bound 0.52). Conservative single tier so Kelly under-sizes;
+# only the std-vig band sizes (it's the only validated slice). The 9.0 watch edge gets NO Kelly.
+_KELLY_WP_STD = 0.53
 
 
 def _under8_kelly_win_prob(under_price: float | None) -> float | None:
-    """Validated UNDER-8.0 win prob for Kelly, by vig tier; None when not sizable."""
-    if under_price is None or under_price < _VIG_SUPPRESS:
+    """Validated UNDER-8.0 win prob for Kelly; only the std-vig band is sizable, else None."""
+    if under_price is None or not (_VIG_STD_LO <= under_price <= _VIG_STD_HI):
         return None
-    return _KELLY_WP_STD if _VIG_STD_LO <= under_price <= _VIG_STD_HI else _KELLY_WP_OFF
+    return _KELLY_WP_STD
 
 
 # Conservative Kelly win prob for the model-dev edge (research_model_dev.py, 2026-only,
