@@ -1374,6 +1374,19 @@ function predictionHTML(g) {
     <span class="prob-label ${awayFav ? 'lose-label' : 'win-label'}">${g.home_team} ${homePct}%</span>
   </div>
 
+  ${(() => {
+    const mw = pred.model_home_win_pct;
+    if (mw == null) return '';
+    const mh = Math.round(mw * 100);
+    const gap = Math.abs(mh - homePct);
+    const hasOdds = g.odds && g.odds.home_ml != null;
+    const note = (hasOdds && gap >= 5) ? ` <span class="mwp-gap">${gap}pp vs market</span>` : '';
+    const tip = hasOdds
+      ? "The model's own input-only win probability (curated Statcast logistic, OOS AUC 0.60). The bar above is Vegas-anchored — Vegas (AUC 0.64) beats our model when odds exist."
+      : "The model's input-only win probability (curated Statcast logistic, OOS AUC 0.60) — used directly here since no market line is available.";
+    return `<div class="model-wp" title="${tip}">⌁ Model win-prob: <strong>${mh}%</strong> ${g.home_team} / ${100 - mh}% ${g.away_team}${note}</div>`;
+  })()}
+
   ${pred.predicted_home_runs != null ? `
   <div class="score-est">
     <span>${g.away_team} <strong>${pred.predicted_away_runs}</strong></span>

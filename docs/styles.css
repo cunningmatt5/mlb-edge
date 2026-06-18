@@ -1034,6 +1034,21 @@ header {
 .mc-div-gap   { font-weight: 700; color: var(--amber); margin-left: 3px; }
 .mc-div-info .mc-div-gap { color: var(--text-muted); }
 
+.model-wp {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 6px 0 2px;
+  padding: 4px 12px;
+  background: rgba(99,102,241,.05);
+  border-radius: 4px;
+}
+.model-wp strong { color: var(--text); }
+.mwp-gap {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: 4px;
+}
+
 .narrative {
   font-size: 13px;
   line-height: 1.6;

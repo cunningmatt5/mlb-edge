@@ -566,6 +566,17 @@ def build_game(
 
     home_bullpen = cache.get(f"bullpen:{home_team}")
     away_bullpen = cache.get(f"bullpen:{away_team}")
+
+    # Data-driven model win-probability (curated-Statcast logistic, no odds; AUC ~0.596).
+    # Surfaced as a transparent "model win-prob" and used as the no-odds fallback below.
+    from pipeline.winprob_model import extract_features as _wp_feats, predict_home_prob as _wp_predict
+    _wp_have_inputs = bool((home_lineup_players or home_sp) and (away_lineup_players or away_sp))
+    model_home_win_pct = _wp_predict(_wp_feats(
+        home_lineup_players, away_lineup_players, home_sp, away_sp,
+        home_bullpen, away_bullpen, park_run_factor,
+    )) if _wp_have_inputs else None
+    model_away_win_pct = round(1.0 - model_home_win_pct, 4) if model_home_win_pct is not None else None
+
     home_sp_throws = home_sp.get("throws")   # pitcher handedness for platoon splits
     away_sp_throws = away_sp.get("throws")
 
@@ -730,6 +741,14 @@ def build_game(
         last_start_dev_away=away_last_start_dev,
     )
 
+    # No-odds fallback: prefer the fitted, data-driven model over the hand-tuned stats path.
+    # (When odds exist, the Vegas-anchored estimate above is kept — it beats our model, AUC
+    # 0.64 vs 0.60 — so the fitted model only fills the gap when the market is unavailable.)
+    _used_model_fallback = vegas_home_prob is None and model_home_win_pct is not None
+    if _used_model_fallback:
+        home_win_pct = model_home_win_pct
+        away_win_pct = round(1.0 - home_win_pct, 4)
+
     # Umpire zone × pitcher advantage: a pitcher-friendly umpire (expands strike zone)
     # benefits the team with the better starter. Only applied when zone score is meaningful
     # (|score| ≥ 0.5) to avoid noise from career variance.
@@ -756,9 +775,12 @@ def build_game(
 
     # Platt scaling: compress overconfident extremes toward actual win rates.
     # Params (a=0.762, b=0.044) fit on 14,070 resolved games in data/calibration.json.
-    from pipeline.odds import calibrate_home_prob
-    home_win_pct = calibrate_home_prob(home_win_pct)
-    away_win_pct = round(1.0 - home_win_pct, 4)
+    # Skipped for the fitted-model fallback — the logistic is already self-calibrated, and
+    # Platt was fit on the old (hand-tuned/Vegas-anchored) outputs, not this model.
+    if not _used_model_fallback:
+        from pipeline.odds import calibrate_home_prob
+        home_win_pct = calibrate_home_prob(home_win_pct)
+        away_win_pct = round(1.0 - home_win_pct, 4)
 
     # Flag when model and Vegas both agree strongly on home — signal is dampened
     # (edge_mult 0.25 vs 0.5). Surfaces in UI so users weight picks accordingly.
@@ -877,6 +899,8 @@ def build_game(
             "predicted_away_runs": pred_away,
             "predicted_total":    round(pred_home + pred_away, 1),
             "narrative":          narrative,
+            "model_home_win_pct": model_home_win_pct,
+            "model_away_win_pct": model_away_win_pct,
             "model_edge_ml":      model_edge_ml,
             "pitcher_score_diff": pitcher_score_diff,
             "pick_tier":          pick_tier,
