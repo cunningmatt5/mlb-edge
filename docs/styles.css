@@ -356,6 +356,7 @@ header {
 .gc2-winprob { margin-top: 2px; }
 .gc2-wp-head { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
 .gc2-wp-label { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); }
+.gc2-wp-src { color: #c4b5fd; font-weight: 700; }
 .gc2-info { font-size: 11px; color: var(--text-dim); cursor: help; }
 .gc2-wp-bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--bg-input); }
 .gc2-wp-away { background: var(--c-away); }

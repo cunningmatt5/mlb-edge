@@ -552,9 +552,8 @@ function renderGamesView() {
     ${eliteHtml}
     ${localStorage.getItem('mlbedge_legend_hidden') ? '' : `
     <div class="games-legend" id="games-legend">
-      <span class="gl-item"><b>Win %</b> chance to win (model + market)</span>
-      <span class="gl-item"><b class="gl-i">⌁</b> our independent model</span>
-      <span class="gl-item"><b>pp vs market</b> gap from the de-vigged line</span>
+      <span class="gl-item"><b>Win %</b> our model's chance to win (lineups + Statcast)</span>
+      <span class="gl-item"><b class="gl-i">⌁ pp vs market</b> gap from the de-vigged Vegas line</span>
       <span class="gl-item"><b>Est. runs</b> expected combined total</span>
       <button class="games-legend-x" title="Dismiss" onclick="this.parentElement.style.display='none';localStorage.setItem('mlbedge_legend_hidden','1')">×</button>
     </div>`}
@@ -832,48 +831,62 @@ function gc2ScoreboardHTML(g) {
       <span class="gc2-chev">▾</span></div>`;
   }
 
-  // Preview — win probability is the hero
-  const pred    = g.prediction || {};
-  const homePct = Math.round((pred.home_win_pct || 0.5) * 100);
-  const awayPct = 100 - homePct;
+  // Preview — OUR MODEL's win probability is the hero
+  const d = winProbDisplay(g);
   return `
   <div class="gc2-winprob">
     <div class="gc2-wp-head">
-      <span class="gc2-wp-label">Win Probability</span>
-      <span class="gc2-info" title="Each team's chance to win — our model blended with the market line. The most reliable number on the card.">ⓘ</span>
+      <span class="gc2-wp-label">Win Probability${d.isModel ? ' <span class="gc2-wp-src">our model</span>' : ''}</span>
+      <span class="gc2-info" title="Our model's win probability from lineups + Statcast (out-of-sample AUC 0.60). The ⌁ line below shows how far it sits from the vig-adjusted market.">ⓘ</span>
     </div>
     <div class="gc2-wp-bar">
-      <div class="gc2-wp-seg gc2-wp-away" style="width:${awayPct}%"></div>
-      <div class="gc2-wp-seg gc2-wp-home" style="width:${homePct}%"></div>
+      <div class="gc2-wp-seg gc2-wp-away" style="width:${d.awayPct}%"></div>
+      <div class="gc2-wp-seg gc2-wp-home" style="width:${d.homePct}%"></div>
     </div>
     <div class="gc2-wp-pcts">
-      <span>${abbrev(g.away_team)} <strong>${awayPct}%</strong></span>
-      <span><strong>${homePct}%</strong> ${abbrev(g.home_team)}</span>
+      <span>${abbrev(g.away_team)} <strong>${d.awayPct}%</strong></span>
+      <span><strong>${d.homePct}%</strong> ${abbrev(g.home_team)}</span>
     </div>
   </div>
-  ${gc2ModelRowHTML(g)}
+  ${gc2ModelRowHTML(g, d)}
   <div class="gc2-chev-center">▾ <span>tap for pitchers · lineups · edges</span></div>`;
 }
 
-// Compact "our model" line: independent win%, pp variance vs no-vig market, est total.
-function gc2ModelRowHTML(g) {
+// Unified win-prob for display: OUR MODEL (fallback to headline only if model missing),
+// plus the percentage-point variance vs the no-vig (vig-adjusted) market for the leaned side.
+// One number everywhere — the bar, the reference line, the tier all use this.
+function winProbDisplay(g) {
+  const pred = g.prediction || {};
+  const mwRaw = pred.model_home_win_pct;
+  const mw = mwRaw != null ? mwRaw : (pred.home_win_pct != null ? pred.home_win_pct : 0.5);
+  const homePct = Math.round(mw * 100);
+  const leanHome = mw >= 0.5;
+  let varPp = null, marketSidePct = null;
+  if (g.odds && g.odds.home_ml != null && g.odds.away_ml != null) {
+    const mh = noVigProb(g.odds.home_ml, g.odds.away_ml)[0];
+    const modelSide = leanHome ? mw : 1 - mw;
+    const marketSide = leanHome ? mh : 1 - mh;
+    varPp = (modelSide - marketSide) * 100;
+    marketSidePct = Math.round(marketSide * 100);
+  }
+  return {
+    mw, homePct, awayPct: 100 - homePct, isModel: mwRaw != null,
+    leanHome, leanTeamName: leanHome ? g.home_team : g.away_team,
+    leanPct: Math.round((leanHome ? mw : 1 - mw) * 100), varPp, marketSidePct,
+  };
+}
+
+// Reference row under the win bar: pp variance vs the no-vig market + est. total.
+// (The bar itself is now our model's number, so this no longer repeats the model %.)
+function gc2ModelRowHTML(g, d) {
+  d = d || winProbDisplay(g);
   const pred = g.prediction || {};
   const parts = [];
-  if (pred.model_home_win_pct != null) {
-    const mw = pred.model_home_win_pct;
-    const leanHome = mw >= 0.5;
-    const leanTeam = abbrev(leanHome ? g.home_team : g.away_team);
-    const modelSide = leanHome ? mw : 1 - mw;
-    const leanPct = Math.round(modelSide * 100);
-    let varStr = '';
-    if (g.odds && g.odds.home_ml != null && g.odds.away_ml != null) {
-      const vHome = noVigProb(g.odds.home_ml, g.odds.away_ml)[0];
-      const marketSide = leanHome ? vHome : 1 - vHome;
-      const varPp = (modelSide - marketSide) * 100;
-      const sign = varPp >= 0 ? '+' : '−';
-      varStr = `<span class="gc2-var" title="Our model ${leanPct}% vs the vig-adjusted (no-vig) moneyline ${Math.round(marketSide*100)}% ${leanTeam} — transparency, not a bet signal.">${sign}${Math.abs(varPp).toFixed(1)}pp vs market</span>`;
-    }
-    parts.push(`<span class="gc2-model"><span class="gc2-model-i">⌁</span> Model <strong>${leanPct}% ${leanTeam}</strong></span>${varStr}`);
+  if (d.isModel && d.varPp != null) {
+    const sign = d.varPp >= 0 ? '+' : '−';
+    parts.push(`<span class="gc2-model"><span class="gc2-model-i">⌁</span> <strong>${sign}${Math.abs(d.varPp).toFixed(1)}pp</strong> vs market</span><span class="gc2-var" title="Our model ${d.leanPct}% vs the vig-adjusted (no-vig) moneyline ${d.marketSidePct}% ${abbrev(d.leanTeamName)} — transparency, not a bet signal.">de-vigged ${d.marketSidePct}% ${abbrev(d.leanTeamName)}</span>`);
+  } else if (d.isModel) {
+    parts.push(`<span class="gc2-model"><span class="gc2-model-i">⌁</span> our model · no market line</span>`);
   }
   if (pred.predicted_total != null) {
     parts.push(`<span class="gc2-total" title="Expected combined runs, anchored to the market total — a run-environment estimate, not a margin prediction.">Est. ${pred.predicted_total} runs</span>`);
@@ -903,7 +916,7 @@ function gameCardHTML(g) {
   const spChanged = g.sp_changed
     ? `<span class="gc2-spchg" title="Starting pitcher changed — stats updating on next rebuild">⚠ SP change</span>`
     : '';
-  const tier = status === 'preview' ? gameTier(pred.home_win_pct) : null;
+  const tier = status === 'preview' ? gameTier(winProbDisplay(g).mw) : null;
   const tierBadge = tier ? `<span class="gc2-tier tier-${tier}">${tier.toUpperCase()}</span>` : '';
   const cAway = teamColor(g.away_team), cHome = teamColor(g.home_team);
 
@@ -1468,8 +1481,9 @@ function lineupTableHTML(lineup) {
 function predictionHTML(g) {
   const pred    = g.prediction || {};
   const signals = pred.model_signals || {};
-  const homePct = Math.round((pred.home_win_pct || 0.5) * 100);
-  const awayPct = 100 - homePct;
+  const _wp     = winProbDisplay(g);          // OUR MODEL (one number, same as the card)
+  const homePct = _wp.homePct;
+  const awayPct = _wp.awayPct;
   const pHome   = signals.pitcher_score_home;
   const pAway   = signals.pitcher_score_away;
   const lHome   = signals.lineup_score_home;
@@ -1505,33 +1519,20 @@ function predictionHTML(g) {
   </div>
 
   ${(() => {
-    const mw = pred.model_home_win_pct;
-    if (mw == null) return '';
-    const leanHome  = mw >= 0.5;
-    const leanTeam  = leanHome ? g.home_team : g.away_team;
-    const modelSide = leanHome ? mw : 1 - mw;       // model prob for the leaned side
-    const leanPct   = Math.round(modelSide * 100);
-    const hasOdds = g.odds && g.odds.home_ml != null && g.odds.away_ml != null;
-    const tip = "Our model's independent win probability from lineups + Statcast (out-of-sample AUC 0.60). "
-      + (hasOdds
-          ? "The variance is how far it sits from the vig-adjusted (no-vig) moneyline for the same side — shown for transparency, NOT a betting signal (the market is sharper, AUC 0.64)."
-          : "Used as the headline here since no market line is available.");
-    let extra = '';
-    if (hasOdds) {
-      const vHome = noVigProb(g.odds.home_ml, g.odds.away_ml)[0];
-      const marketSide = leanHome ? vHome : 1 - vHome;       // no-vig market prob, same side
-      const varPp = (modelSide - marketSide) * 100;          // percentage-point variance
-      const varCls = Math.abs(varPp) >= 5 ? 'mr-var-hi' : 'mr-var-lo';
-      const sign = varPp >= 0 ? '+' : '−';
-      extra = `<span class="mr-var ${varCls}" title="Model ${leanPct}% vs no-vig moneyline ${Math.round(marketSide*100)}% ${abbrev(leanTeam)}">${sign}${Math.abs(varPp).toFixed(1)}pp vs market</span>`;
-    } else {
-      extra = `<span class="mr-note">no market line</span>`;
+    if (!_wp.isModel) return '';
+    const tip = "The bar above is OUR MODEL's win probability (lineups + Statcast, out-of-sample AUC 0.60). "
+      + "Below shows how far it sits from the vig-adjusted (no-vig) market — transparency, NOT a betting signal (the market is sharper, AUC 0.64).";
+    if (_wp.varPp == null) {
+      return `<div class="model-read" title="${tip}"><span class="mr-icon">⌁</span><span class="mr-main">Bar above is <strong>our model</strong> — no market line to compare</span></div>`;
     }
+    const sign = _wp.varPp >= 0 ? '+' : '−';
+    const varCls = Math.abs(_wp.varPp) >= 5 ? 'mr-var-hi' : 'mr-var-lo';
     return `
   <div class="model-read" title="${tip}">
     <span class="mr-icon">⌁</span>
-    <span class="mr-main">Our model: <strong>${leanPct}% ${abbrev(leanTeam)}</strong></span>
-    ${extra}
+    <span class="mr-main">Bar above is <strong>our model</strong></span>
+    <span class="mr-var ${varCls}">${sign}${Math.abs(_wp.varPp).toFixed(1)}pp vs market</span>
+    <span class="mr-note">de-vigged ${_wp.marketSidePct}% ${abbrev(_wp.leanTeamName)}</span>
     <span class="mr-info">ⓘ</span>
   </div>`;
   })()}
