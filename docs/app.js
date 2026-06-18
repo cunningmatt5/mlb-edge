@@ -635,42 +635,43 @@ function vsVegasHTML(g) {
   // ── Moneyline edge ─────────────────────────────────────────────────────────
   if (odds.home_ml != null && odds.away_ml != null) {
     const [vegasHomePct, vegasAwayPct] = noVigProb(odds.home_ml, odds.away_ml);
-    const modelHomePct = pred.home_win_pct ?? 0.5;
+    // Use the INDEPENDENT fitted-model win-prob (input-only). Falls back to the (anchored)
+    // home_win_pct for records that predate the model so older data still renders.
+    const modelHomePct = pred.model_home_win_pct ?? pred.home_win_pct ?? 0.5;
     const modelAwayPct = 1 - modelHomePct;
-    const homeEdge = modelHomePct - vegasHomePct;
-    const awayEdge = modelAwayPct - vegasAwayPct;
+    const homeDiv = modelHomePct - vegasHomePct;
+    const awayDiv = modelAwayPct - vegasAwayPct;
 
-    // Show edge on whichever column has a positive model advantage
-    const edgeSide = homeEdge >= awayEdge ? 'home' : 'away';
-    const edgePct  = Math.abs(edgeSide === 'home' ? homeEdge : awayEdge);
-    const edgeCls  = edgePct >= 0.05 ? 'vv-edge-strong' : edgePct >= 0.02 ? 'vv-edge-mild' : 'vv-edge-flat';
-
-    const homeEdgeStr = homeEdge >= 0 ? `+${(homeEdge*100).toFixed(1)}%` : `${(homeEdge*100).toFixed(1)}%`;
-    const awayEdgeStr = awayEdge >= 0 ? `+${(awayEdge*100).toFixed(1)}%` : `${(awayEdge*100).toFixed(1)}%`;
+    const homeDivStr = `${homeDiv >= 0 ? '+' : ''}${(homeDiv*100).toFixed(1)}%`;
+    const awayDivStr = `${awayDiv >= 0 ? '+' : ''}${(awayDiv*100).toFixed(1)}%`;
+    const isAnchored = pred.model_home_win_pct == null;
 
     sections.push(`
 <div class="vv-section">
-  <div class="vv-title">Moneyline Edge</div>
+  <div class="vv-title">Model vs Market <span class="vv-sub">moneyline</span></div>
   <div class="vv-row vv-row-head">
     <span></span>
     <span>${abbrev(g.away_team)}</span>
     <span>${abbrev(g.home_team)}</span>
   </div>
   <div class="vv-row">
-    <span class="vv-lbl">Model</span>
+    <span class="vv-lbl">Our model</span>
     <span>${(modelAwayPct*100).toFixed(1)}%</span>
     <span>${(modelHomePct*100).toFixed(1)}%</span>
   </div>
   <div class="vv-row">
-    <span class="vv-lbl">Vegas</span>
+    <span class="vv-lbl">Market</span>
     <span>${(vegasAwayPct*100).toFixed(1)}%</span>
     <span>${(vegasHomePct*100).toFixed(1)}%</span>
   </div>
-  <div class="vv-edge-row ${edgeCls}">
-    <span class="vv-lbl">Edge</span>
-    <span>${awayEdgeStr}</span>
-    <span>${homeEdgeStr}</span>
+  <div class="vv-edge-row vv-diverge">
+    <span class="vv-lbl">Divergence</span>
+    <span>${awayDivStr}</span>
+    <span>${homeDivStr}</span>
   </div>
+  <div class="vv-caption">${isAnchored
+    ? 'Model shown is market-anchored for this game (independent read unavailable).'
+    : 'Where our independent model differs from the market — shown for transparency, not as a betting signal (the market is sharper).'}</div>
 </div>`);
   }
 
@@ -928,7 +929,13 @@ function statusStrip(g) {
   <span class="ppr-home ${awayFav ? 'ppr-dog' : 'ppr-fav'}">${abbrev(g.home_team)} ${homePct}%</span>
 </div>`;
 
-  const badges = [tierBadge, pickTierBadge, oddsQual].filter(Boolean).join('');
+  const modelChip = pred.model_home_win_pct != null ? (() => {
+    const mh = Math.round(pred.model_home_win_pct * 100);
+    const leanHome = mh >= 50;
+    return `<span class="model-chip" title="Our independent model's win-prob from lineups + Statcast (AUC 0.60); the bar uses the market line.">⌁ Model ${leanHome ? mh : 100 - mh}% ${abbrev(leanHome ? g.home_team : g.away_team)}</span>`;
+  })() : '';
+
+  const badges = [tierBadge, pickTierBadge, oddsQual, modelChip].filter(Boolean).join('');
   const badgesRow = badges ? `<div class="pred-badges-row">${badges}</div>` : '';
 
   const scoreCenter = pred.predicted_away_runs != null ? `
@@ -1378,13 +1385,35 @@ function predictionHTML(g) {
     const mw = pred.model_home_win_pct;
     if (mw == null) return '';
     const mh = Math.round(mw * 100);
-    const gap = Math.abs(mh - homePct);
-    const hasOdds = g.odds && g.odds.home_ml != null;
-    const note = (hasOdds && gap >= 5) ? ` <span class="mwp-gap">${gap}pp vs market</span>` : '';
-    const tip = hasOdds
-      ? "The model's own input-only win probability (curated Statcast logistic, OOS AUC 0.60). The bar above is Vegas-anchored — Vegas (AUC 0.64) beats our model when odds exist."
-      : "The model's input-only win probability (curated Statcast logistic, OOS AUC 0.60) — used directly here since no market line is available.";
-    return `<div class="model-wp" title="${tip}">⌁ Model win-prob: <strong>${mh}%</strong> ${g.home_team} / ${100 - mh}% ${g.away_team}${note}</div>`;
+    const leanHome = mh >= 50;
+    const leanTeam = leanHome ? g.home_team : g.away_team;
+    const leanPct  = leanHome ? mh : 100 - mh;
+    const hasOdds = g.odds && g.odds.home_ml != null && g.odds.away_ml != null;
+    const tip = "Our model's independent win probability from lineups + Statcast (out-of-sample AUC 0.60). "
+      + (hasOdds
+          ? "The headline bar is anchored to the market line, which is sharper (AUC 0.64) — so any gap below is shown for transparency, NOT as a betting signal."
+          : "Used as the headline here since no market line is available.");
+    let cmp = '';
+    if (hasOdds) {
+      const vh  = Math.round(noVigProb(g.odds.home_ml, g.odds.away_ml)[0] * 100);
+      const gap = mh - vh;  // signed, model-home minus market-home
+      const lean = gap >= 0 ? g.home_team : g.away_team;
+      const gapAbs = Math.abs(gap);
+      const gapCls = gapAbs >= 7 ? 'mr-gap-hi' : 'mr-gap-lo';
+      cmp = `<span class="mr-market">Market: <strong>${vh}%</strong> ${abbrev(g.home_team)}</span>`
+          + (gapAbs >= 3
+              ? ` <span class="mr-gap ${gapCls}">leans ${abbrev(lean)} +${gapAbs}pp</span>`
+              : ` <span class="mr-gap mr-gap-lo">aligned with market</span>`);
+    } else {
+      cmp = `<span class="mr-note">headline read (no market line)</span>`;
+    }
+    return `
+  <div class="model-read" title="${tip}">
+    <span class="mr-icon">⌁</span>
+    <span class="mr-main">Our model: <strong>${leanPct}% ${abbrev(leanTeam)}</strong></span>
+    ${cmp}
+    <span class="mr-info">ⓘ</span>
+  </div>`;
   })()}
 
   ${pred.predicted_home_runs != null ? `
@@ -1602,6 +1631,30 @@ function renderPropsPerformance() {
 }
 
 // ── Record view ───────────────────────────────────────────────────────────────
+// Accuracy + calibration of the INDEPENDENT model win-prob vs the market-anchored headline,
+// on the same resolved games (only records that carry model_home_win_pct, i.e. post-rollout).
+function modelWinProbStats(decided) {
+  const rows = decided.filter(r => r.model_home_win_pct != null
+    && (r.actual_winner === 'home' || r.actual_winner === 'away'));
+  if (!rows.length) return { n: 0 };
+  let mCorrect = 0, hCorrect = 0, mBrier = 0, hBrier = 0;
+  for (const r of rows) {
+    const home = r.actual_winner === 'home' ? 1 : 0;
+    const m = r.model_home_win_pct;
+    const h = r.home_win_pct ?? 0.5;
+    if ((m >= 0.5 ? 'home' : 'away') === r.actual_winner) mCorrect++;
+    if ((h >= 0.5 ? 'home' : 'away') === r.actual_winner) hCorrect++;
+    mBrier += (m - home) ** 2;
+    hBrier += (h - home) ** 2;
+  }
+  const n = rows.length;
+  return {
+    n,
+    mAcc: Math.round(mCorrect / n * 100), hAcc: Math.round(hCorrect / n * 100),
+    mBrier: (mBrier / n).toFixed(3), hBrier: (hBrier / n).toFixed(3),
+  };
+}
+
 function renderRecordView() {
   const view = document.getElementById('record-view');
   // Graded universe: resolved games, EXCLUDING scratched-SP games (the predicted starter never
@@ -1673,6 +1726,26 @@ function renderRecordView() {
     <tbody>${tlRow('UNDER lean', tl.under)}${tlRow('OVER lean', tl.over)}</tbody>
   </table>
   <p class="rec-priced-note">Win% of the model's ≥0.5-run total lean (push-corrected${tl.push ? `, ${tl.push} pushes excluded` : ''}). Accuracy only — realized ROI is in Edge performance below.</p>
+</div>
+
+<div class="rec-modelwp">
+  <div class="section-heading">Model win-prob accuracy <span class="scope-tag">independent model · forward</span></div>
+  ${(() => {
+    const s = modelWinProbStats(decided);
+    if (!s.n) {
+      return `<p class="rec-priced-note">The independent model win-prob (lineups + Statcast, no market line) is now recorded with every prediction. Its winner accuracy and calibration will appear here as games resolve.</p>`;
+    }
+    const accCls = s.mAcc >= s.hAcc ? 'edge-pos' : '';
+    return `
+  <table class="season-year-table">
+    <thead><tr><th></th><th>Winner accuracy</th><th>Brier (lower = better)</th></tr></thead>
+    <tbody>
+      <tr><td>Our model (input-only)</td><td class="${accCls}">${s.mAcc}%</td><td>${s.mBrier}</td></tr>
+      <tr><td>Headline (market-anchored)</td><td>${s.hAcc}%</td><td>${s.hBrier}</td></tr>
+    </tbody>
+  </table>
+  <p class="rec-priced-note">Independent model vs the market-anchored headline over the same ${s.n} resolved game${s.n === 1 ? '' : 's'}. The market-anchored number is expected to be sharper — this tracks how close our pure-input model gets.</p>`;
+  })()}
 </div>
 
 <div class="rec-lens-label">② Edge performance — realized returns on the validated edges</div>

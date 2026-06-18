@@ -1034,20 +1034,57 @@ header {
 .mc-div-gap   { font-weight: 700; color: var(--amber); margin-left: 3px; }
 .mc-div-info .mc-div-gap { color: var(--text-muted); }
 
-.model-wp {
+/* ── Model vs Market readout (independent win-prob; informational, never bet-styled) ── */
+.model-read {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
   font-size: 12px;
   color: var(--text-muted);
   margin: 6px 0 2px;
-  padding: 4px 12px;
-  background: rgba(99,102,241,.05);
-  border-radius: 4px;
+  padding: 6px 12px;
+  background: rgba(99,102,241,.06);
+  border: 1px solid rgba(99,102,241,.16);
+  border-radius: 6px;
+  cursor: help;
 }
-.model-wp strong { color: var(--text); }
-.mwp-gap {
+.mr-icon { color: var(--accent); font-weight: 700; }
+.mr-main strong { color: var(--text); }
+.mr-market { color: var(--text-dim); }
+.mr-market strong { color: var(--text-muted); }
+.mr-gap {
   font-size: 11px;
-  color: var(--text-dim);
-  margin-left: 4px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: rgba(148,163,184,.14);
+  color: var(--text-muted);
 }
+.mr-gap-hi { background: rgba(99,102,241,.18); color: var(--accent); }  /* notable divergence — info, not value */
+.mr-gap-lo { background: rgba(148,163,184,.12); color: var(--text-dim); }
+.mr-note { color: var(--text-dim); font-style: italic; }
+.mr-info { margin-left: auto; color: var(--text-dim); font-size: 11px; }
+
+/* compact chip on the collapsed card */
+.model-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(99,102,241,.10);
+  border: 1px solid rgba(99,102,241,.18);
+  color: var(--text-muted);
+}
+
+/* Model vs Market table extras (vsVegasHTML) */
+.vv-sub { font-size: 11px; font-weight: 400; color: var(--text-dim); }
+.vv-diverge { color: var(--text-muted); }     /* neutral — divergence is not an edge claim */
+.vv-caption { font-size: 10.5px; color: var(--text-dim); margin-top: 4px; line-height: 1.4; }
+
+/* Record view: model win-prob accuracy section */
+.rec-modelwp { margin: 14px 0; }
 
 .narrative {
   font-size: 13px;

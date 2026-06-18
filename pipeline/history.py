@@ -130,6 +130,9 @@ def append_today(history: list[dict], games: list[dict], today_str: str) -> list
             "away_team":               g["away_team"],
             "predicted_winner":        "home" if pred.get("home_win_pct", 0) >= 0.5 else "away",
             "home_win_pct":            pred.get("home_win_pct"),
+            # Standalone fitted-model win-prob (input-only, no market) — persisted point-in-time
+            # so its accuracy/calibration can be validated against outcomes going forward.
+            "model_home_win_pct":      pred.get("model_home_win_pct"),
             "predicted_total":         pred.get("predicted_total"),
             # Monte Carlo (Statcast-pure) outputs — persisted point-in-time so the MC
             # divergence signal can be validated against outcomes going forward.
