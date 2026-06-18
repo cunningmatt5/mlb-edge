@@ -882,6 +882,19 @@ function gc2ModelRowHTML(g) {
   return `<div class="gc2-model-row">${parts.join('')}</div>`;
 }
 
+// Compact Vegas betting lines for the collapsed card: away ML · O/U total · home ML.
+function gc2OddsHTML(g) {
+  const o = g.odds;
+  if (!o || (o.away_ml == null && o.home_ml == null && o.total == null)) return '';
+  const ml = v => v == null ? '—' : (v > 0 ? `+${v}` : `${v}`);
+  return `
+  <div class="gc2-odds" title="Vegas betting lines — moneyline for each team and the Over/Under total.">
+    <span class="gc2-ml">${o.away_ml != null ? `${abbrev(g.away_team)} ${ml(o.away_ml)}` : ''}</span>
+    <span class="gc2-ou">${o.total != null ? `O/U ${o.total}` : ''}</span>
+    <span class="gc2-ml gc2-ml-r">${o.home_ml != null ? `${ml(o.home_ml)} ${abbrev(g.home_team)}` : ''}</span>
+  </div>`;
+}
+
 function gameCardHTML(g) {
   const status = g.game_status || 'preview';
   const fav    = gameFav(g);
@@ -908,6 +921,7 @@ function gameCardHTML(g) {
       <span class="gc2-at">@</span>
       ${gc2TeamHTML(g, 'home')}
     </div>
+    ${gc2OddsHTML(g)}
     ${gc2ScoreboardHTML(g)}
   </div>
   <div class="game-card-body" hidden>

@@ -345,6 +345,14 @@ header {
 .gc2-home .gc2-sub { text-align: right; }
 .gc2-at { color: var(--text-dim); font-size: 12px; font-weight: 600; }
 
+.gc2-odds {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px;
+  margin: -6px 0 12px; font-size: 12px;
+}
+.gc2-odds .gc2-ml { color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gc2-odds .gc2-ml-r { text-align: right; }
+.gc2-ou { font-size: 11px; color: var(--text-muted); padding: 2px 9px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 9px; white-space: nowrap; }
+
 .gc2-winprob { margin-top: 2px; }
 .gc2-wp-head { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
 .gc2-wp-label { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); }
