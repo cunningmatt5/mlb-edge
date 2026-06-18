@@ -321,9 +321,8 @@ function renderBestBetsSection(games) {
   const eliteGames = previewGames.filter(g => g.prediction?.pick_tier === 'model_away_lean');
   const hiConfGames = previewGames.filter(g => {
     if (g.prediction?.pick_tier === 'model_away_lean') return false;
-    const hwp = g.prediction?.home_win_pct;
-    if (hwp == null) return false;
-    return Math.max(hwp, 1 - hwp) >= 0.62;
+    const d = winProbDisplay(g);   // our model — same number the card shows
+    return Math.max(d.mw, 1 - d.mw) >= 0.62;
   });
 
   if (!eliteGames.length && !hiConfGames.length) return '';
@@ -340,7 +339,7 @@ function renderBestBetsSection(games) {
     const pred    = g.prediction || {};
     const sig     = pred.model_signals || {};
     const odds    = g.odds || {};
-    const awayPct = Math.round((1 - (pred.home_win_pct ?? 0.5)) * 100);
+    const awayPct = 100 - winProbDisplay(g).homePct;   // our model (matches the card)
     const edgePct = pred.model_edge_ml != null ? (+(-pred.model_edge_ml * 100).toFixed(1)) : null;
     const awayMl  = odds.away_ml != null ? (odds.away_ml > 0 ? `+${odds.away_ml}` : String(odds.away_ml)) : null;
     const sl      = spLine(g.away_sp, g.away_sp?.name || abbrev(g.away_team), g.home_sp, g.home_sp?.name || abbrev(g.home_team));
@@ -393,9 +392,9 @@ function renderBestBetsSection(games) {
   const hiConfCards = hiConfGames.map(g => {
     const pred    = g.prediction || {};
     const odds    = g.odds || {};
-    const hwp     = pred.home_win_pct ?? 0.5;
-    const awayFav = (1 - hwp) > hwp;
-    const favPct  = Math.round((awayFav ? 1 - hwp : hwp) * 100);
+    const d       = winProbDisplay(g);   // our model (matches the card)
+    const awayFav = d.awayPct > d.homePct;
+    const favPct  = awayFav ? d.awayPct : d.homePct;
     const favMl   = awayFav ? odds.away_ml : odds.home_ml;
     const favMlStr = favMl != null ? (favMl > 0 ? `+${favMl}` : String(favMl)) : null;
     const favSp   = awayFav ? g.away_sp : g.home_sp;
@@ -638,11 +637,8 @@ function toggleCard(pk) {
 // score numbers. Falls back to win probability (home-field-adjusted) when run
 // scores are missing or tied.
 function gameFav(g) {
-  const pred = g.prediction || {};
-  const hr = pred.predicted_home_runs;
-  const ar = pred.predicted_away_runs;
-  if (hr != null && ar != null && hr !== ar) return hr > ar ? 'home' : 'away';
-  return (pred.home_win_pct ?? 0.5) >= 0.5 ? 'home' : 'away';
+  // Match the displayed win-prob leader (our model) so card coloring never contradicts the bar.
+  return winProbDisplay(g).mw >= 0.5 ? 'home' : 'away';
 }
 
 function americanToDecimal(odds) {
@@ -960,134 +956,7 @@ function oddsQualityBadge(awayMl) {
   return '<span class="odds-q odds-q-heavy">Heavy fav</span>';
 }
 
-// Compact 1-2 line reasoning panel for pick-tier games.
-// Surfaces the xERA matchup, lineup xwOBA edge, and SP form signal.
-function buildPickReasoning(g) {
-  const pred = g.prediction || {};
-  if (!pred.pick_tier) return '';
-  const sig   = pred.model_signals || {};
-  const awySp = g.away_sp || {};
-  const hmSp  = g.home_sp || {};
-
-  const awyXera = awySp.season?.xera;
-  const hmXera  = hmSp.season?.xera;
-  const spLine  = (awyXera != null && hmXera != null)
-    ? `xERA ${awyXera.toFixed(2)} vs ${hmXera.toFixed(2)}`
-    : null;
-
-  // Lineup xwOBA averages from actual lineup players
-  const awyL  = (g.away_lineup || []).filter(b => b.xwoba != null);
-  const hmL   = (g.home_lineup  || []).filter(b => b.xwoba != null);
-  const awyX  = awyL.length >= 3 ? awyL.reduce((s, b) => s + b.xwoba, 0) / awyL.length : null;
-  const hmX   = hmL.length  >= 3 ? hmL.reduce((s, b)  => s + b.xwoba, 0) / hmL.length  : null;
-  const luLine = (awyX != null && hmX != null)
-    ? `.${Math.round(awyX * 1000)} vs .${Math.round(hmX * 1000)} xwOBA`
-    : null;
-
-  // Form note for the away SP (positive dev = recently worse for the HOME pitcher — we care about AWAY dev)
-  const awyDev = sig.last_start_dev_away;
-  let formNote = '';
-  if (awyDev != null && Math.abs(awyDev) >= 1.0) {
-    const dir = awyDev > 0 ? `+${awyDev.toFixed(1)} (cold)` : `${awyDev.toFixed(1)} (hot)`;
-    const awySPName = awySp.name ? awySp.name.split(',')[0] : 'Away SP';
-    formNote = ` · ${awySPName} ${dir} last 3`;
-  }
-
-  const signal = pred.pick_signal === 'pitcher_lineup' ? 'SP + Lineup edge' : 'SP edge';
-  const parts = [signal];
-  if (spLine)  parts.push(spLine);
-  if (luLine)  parts.push(luLine);
-
-  return `<div class="pick-reasoning">${parts.join(' · ')}${formNote}</div>`;
-}
-
-function statusStrip(g) {
-  const status = g.game_status || 'preview';
-
-  if (status === 'live') {
-    const aSc     = g.away_score ?? '–';
-    const hSc     = g.home_score ?? '–';
-    const inning  = g.inning_state || 'Live';
-    const outsStr = g.outs != null ? ` · ${g.outs} OUT${g.outs !== 1 ? 'S' : ''}` : '';
-    return `
-<div class="pred-strip">
-  <span class="live-state"><span class="live-dot"></span>${inning}${outsStr}</span>
-  <span class="live-score">${abbrev(g.away_team)} ${aSc} – ${hSc} ${abbrev(g.home_team)}</span>
-  <span class="expand-arrow">▼</span>
-</div>`;
-  }
-
-  if (status === 'final') {
-    const aSc = g.away_score ?? '–';
-    const hSc = g.home_score ?? '–';
-    return `
-<div class="pred-strip">
-  <span class="final-badge">FINAL</span>
-  <span class="live-score">${abbrev(g.away_team)} ${aSc} – ${hSc} ${abbrev(g.home_team)}</span>
-  <span class="expand-arrow">▼</span>
-</div>`;
-  }
-
-  // Preview
-  const pred    = g.prediction || {};
-  const homePct = Math.round((pred.home_win_pct || 0.5) * 100);
-  const awayPct = 100 - homePct;
-  const awayFav = awayPct > homePct;
-  const tier    = gameTier(pred.home_win_pct);
-  const tierLabel = tier === 'elite' ? 'ELITE' : tier === 'great' ? 'GREAT' : tier === 'good' ? 'GOOD' : '';
-  const tierBadge = tier ? `<span class="tier-badge tier-${tier}">${tierLabel}</span>` : '';
-  const pickTier = pred.pick_tier;
-  const pickTierBadge = pickTier === 'model_away_lean'
-    ? `<span class="pick-tier-badge tier-strong-away">◇ Model leans away</span>`
-    : '';
-  const oddsQual   = pickTier ? oddsQualityBadge(g.odds?.away_ml) : '';
-  const pickReason = buildPickReasoning(g);
-
-  // Inline probability bar
-  const probBar = `
-<div class="pred-prob-row">
-  <span class="ppr-away ${awayFav ? 'ppr-fav' : 'ppr-dog'}">${abbrev(g.away_team)} ${awayPct}%</span>
-  <div class="ppr-bar">
-    <div class="ppr-seg ${awayFav ? 'ppr-fav-fill' : 'ppr-dog-fill'}" style="width:${awayPct}%"></div>
-    <div class="ppr-seg ${awayFav ? 'ppr-dog-fill' : 'ppr-fav-fill'}" style="width:${homePct}%"></div>
-  </div>
-  <span class="ppr-home ${awayFav ? 'ppr-dog' : 'ppr-fav'}">${abbrev(g.home_team)} ${homePct}%</span>
-</div>`;
-
-  const modelChip = pred.model_home_win_pct != null ? (() => {
-    const mh = Math.round(pred.model_home_win_pct * 100);
-    const leanHome = mh >= 50;
-    return `<span class="model-chip" title="Our independent model's win-prob from lineups + Statcast (AUC 0.60); the bar uses the market line.">⌁ Model ${leanHome ? mh : 100 - mh}% ${abbrev(leanHome ? g.home_team : g.away_team)}</span>`;
-  })() : '';
-
-  const badges = [tierBadge, pickTierBadge, oddsQual, modelChip].filter(Boolean).join('');
-  const badgesRow = badges ? `<div class="pred-badges-row">${badges}</div>` : '';
-
-  const scoreCenter = pred.predicted_away_runs != null ? `
-  <span class="pred-score-est">
-    <span class="pse-team">${abbrev(g.away_team)}</span>
-    <strong class="pse-num pse-away">${pred.predicted_away_runs}</strong>
-    <span class="pse-dash">–</span>
-    <strong class="pse-num pse-home">${pred.predicted_home_runs}</strong>
-    <span class="pse-team">${abbrev(g.home_team)}</span>
-  </span>` : '<span></span>';
-
-  return `
-<div class="pred-strip">
-  <div class="pred-left">
-    ${probBar}
-    ${badgesRow}
-    ${pickReason}
-  </div>
-  ${scoreCenter}
-  <span class="expand-arrow">▼</span>
-</div>`;
-}
-
-function spEra(val, side = 'home') {
-  const cls = side === 'away' ? 'xera-tag xera-tag-away' : 'xera-tag';
-  return `<span class="${cls}">xERA ${val.toFixed(2)}</span>`;
-}
+// (Removed dead helpers buildPickReasoning / statusStrip / spEra — orphaned by the gc2 redesign.)
 
 // ── Game edge banner — prominent top-of-card callout for actionable picks ─────
 function gameEdgeBannerHTML(g) {
@@ -1191,7 +1060,7 @@ function vegasEdgeStripHTML(g) {
   // ML edge
   if (odds.home_ml != null && odds.away_ml != null && pred.home_win_pct != null) {
     const [vegasHomePct, vegasAwayPct] = noVigProb(odds.home_ml, odds.away_ml);
-    const modelHomePct = pred.home_win_pct;
+    const modelHomePct = winProbDisplay(g).mw;   // our model — consistent with the card/bar
     const homeEdge = modelHomePct - vegasHomePct;
     const awayEdge = (1 - modelHomePct) - vegasAwayPct;
     const edgeSide = homeEdge >= awayEdge ? 'home' : 'away';
@@ -1558,8 +1427,8 @@ function predictionHTML(g) {
     const mc = g.mc_simulation;
     const status = g.game_status || 'preview';
     if (!mc || status !== 'preview') return '';
-    const modelHome = pred.home_win_pct;
-    if (modelHome == null || mc.mc_win_pct == null) return '';
+    const modelHome = _wp.mw;   // our model — consistent with the bar above
+    if (mc.mc_win_pct == null) return '';
     const gapPp = Math.round(Math.abs(mc.mc_win_pct - modelHome) * 100);
     if (gapPp < 8) return '';
     // Exploratory only — a 2024-25 backtest found MC divergence does NOT predict
@@ -1854,7 +1723,8 @@ function renderRecordView() {
   ${(() => {
     const s = modelWinProbStats(decided);
     if (!s.n) {
-      return `<p class="rec-priced-note">The independent model win-prob (lineups + Statcast, no market line) is now recorded with every prediction. Its winner accuracy and calibration will appear here as games resolve.</p>`;
+      const tracked = historyData.filter(r => r.model_home_win_pct != null).length;
+      return `<p class="rec-priced-note">The independent model win-prob (lineups + Statcast, no market line) is now recorded with every prediction${tracked ? ` — <strong>${tracked}</strong> logged so far` : ''}. Winner accuracy and calibration will appear here as those games resolve.</p>`;
     }
     const accCls = s.mAcc >= s.hAcc ? 'edge-pos' : '';
     return `
@@ -2130,34 +2000,7 @@ function formatTimeET(utcStr) {
   } catch { return ''; }
 }
 
-function formatOddsLine(odds, awayTeam, homeTeam) {
-  const parts = [];
-  if (odds.away_ml != null) {
-    const sign = odds.away_ml > 0 ? '+' : '';
-    parts.push(`${abbrev(awayTeam)} ${sign}${odds.away_ml}`);
-  }
-  if (odds.home_ml != null) {
-    const sign = odds.home_ml > 0 ? '+' : '';
-    parts.push(`${abbrev(homeTeam)} ${sign}${odds.home_ml}`);
-  }
-  if (odds.total != null) {
-    parts.push(`O/U ${odds.total}`);
-  }
-  return parts.join(' · ');
-}
-
-
-function formatWeather(wx) {
-  if (!wx) return '';
-  if (wx.condition === 'Dome') return 'Dome';
-  const parts = [];
-  if (wx.temp_f != null) parts.push(`${wx.temp_f}°F`);
-  if (wx.wind_mph != null && wx.wind_mph > 0) {
-    const dir = wx.blowing_out === true ? 'Out' : wx.blowing_out === false ? 'In' : '';
-    parts.push(`${wx.wind_mph} mph${dir ? ' ' + dir : ''}`);
-  }
-  return parts.join(' · ');
-}
+// (Removed dead helpers formatOddsLine / formatWeather — orphaned by the gc2 redesign.)
 
 function fmtStatVal(val, label) {
   if (val == null) return dash();
@@ -2188,16 +2031,7 @@ function dash() {
 }
 
 
-function teamRecordHTML(rec) {
-  if (!rec) return '';
-  const isWin = rec.streak && rec.streak.startsWith('W');
-  return `
-<div class="team-record-stack">
-  <span class="rec-overall">${rec.wins}-${rec.losses}</span>
-  ${rec.l10_w != null ? `<span class="rec-l10">${rec.l10_w}-${rec.l10_l} L10</span>` : ''}
-  ${rec.streak ? `<span class="rec-streak ${isWin ? 'rec-win' : 'rec-loss'}">${rec.streak}</span>` : ''}
-</div>`;
-}
+// (Removed dead helper teamRecordHTML — orphaned by the gc2 redesign.)
 
 function teamLogoHTML(teamName) {
   const abbrev = TEAM_LOGO[teamName];
@@ -3366,20 +3200,17 @@ function mcSimulateGame(game, nSims, scenario) {
 function mcBuildDrivers(game, r) {
   const pred   = game.prediction || {};
   const sig    = pred.model_signals || {};
-  const modelHomePct = pred.home_win_pct != null ? pred.home_win_pct * 100 : null;
-  if (modelHomePct == null) return { gap: 0, drivers: [] };
+  if (pred.model_home_win_pct == null && pred.home_win_pct == null) return { gap: 0, drivers: [] };
+  const modelHomePct = winProbDisplay(game).mw * 100;   // our model — matches the bar
 
   const gap   = +(r.homeWinPct - modelHomePct).toFixed(1);
   const homeA = abbrev(game.home_team);
   const awayA = abbrev(game.away_team);
   const drivers = [];
 
-  // Vegas market anchor — the primary structural reason model and MC diverge.
-  // Model starts from market-implied probability; MC starts from pure Statcast.
-  if (game.odds?.total != null) {
-    drivers.push({ type: 'market', label: 'Vegas anchor',
-      body: `Primary model uses market-implied odds (O/U ${game.odds.total}) as its baseline; MC is a pure Statcast simulation with no market information. This is the main expected source of any residual gap.` });
-  }
+  // Both our model and the sim are Statcast-based now — some gap is just methodology.
+  drivers.push({ type: 'market', label: 'Method',
+    body: `Both are Statcast-based: our model is a fitted logistic on season inputs; the sim is a play-by-play Monte Carlo. Some divergence is expected purely from the two methods.` });
 
   // SP quality: pitcher_score drives BABIP in MC; directional K% blend also applied when misaligned
   const pHome = sig.pitcher_score_home, pAway = sig.pitcher_score_away;
@@ -3457,8 +3288,8 @@ function mcBuildDrivers(game, r) {
 // Render the model vs MC comparison block below the win strip.
 function mcRenderComparison(game, r) {
   const pred         = game.prediction || {};
-  const modelRaw     = pred.home_win_pct;
-  if (modelRaw == null) return '';
+  if (pred.model_home_win_pct == null && pred.home_win_pct == null) return '';
+  const modelRaw     = winProbDisplay(game).mw;   // our model — matches the bar
 
   const modelHomePct = Math.round(modelRaw * 1000) / 10;
   const modelAwayPct = Math.round((1 - modelRaw) * 1000) / 10;

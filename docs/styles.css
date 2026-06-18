@@ -393,6 +393,16 @@ header {
 .games-legend-x { margin-left: auto; background: none; border: none; color: var(--text-dim); font-size: 16px; cursor: pointer; line-height: 1; padding: 0 2px; }
 .games-legend-x:hover { color: var(--text); }
 
+/* Narrow phones: shrink logos/names so the matchup + odds rows never overflow */
+@media (max-width: 380px) {
+  .gc2-logo { width: 38px; height: 38px; }
+  .gc2-logo img { width: 28px; height: 28px; }
+  .gc2-name { font-size: 14px; }
+  .gc2-matchup { gap: 7px; }
+  .gc2-odds { gap: 6px; font-size: 11px; }
+  .gc2-model-row { font-size: 11px; }
+}
+
 /* 3-column matchup grid */
 .matchup-grid {
   display: grid;
