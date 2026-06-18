@@ -91,7 +91,8 @@ def _build_rows(prior=True):
             feats = _side_feats(hp, h_sp, h_bp) + _side_feats(ap, a_sp, a_bp) + [park]
             hs, as_ = float(g["home_score"]), float(g["away_score"])
             rows.append({"X": feats, "home_runs": hs, "away_runs": as_,
-                         "total": hs + as_, "margin": hs - as_, "vegas_total": g.get("closing_total")})
+                         "total": hs + as_, "margin": hs - as_, "vegas_total": g.get("closing_total"),
+                         "home_ml": g.get("home_ml"), "away_ml": g.get("away_ml")})
             matched += 1
         print(f"  {season}: {len(lineups)} games w/ lineups, matched {matched}")
     return rows
