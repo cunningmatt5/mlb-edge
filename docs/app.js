@@ -29,6 +29,37 @@ const TEAM_LOGO = {
   'Washington Nationals':  'wsh',
 };
 
+// ── Team colors (matchup identity) ────────────────────────────────────────────
+const TEAM_COLORS = {
+  ARI:'#A71930', ATL:'#CE1141', BAL:'#DF4601', BOS:'#BD3039', CHC:'#1E6BC5', CWS:'#C0C0C0',
+  CIN:'#C6011F', CLE:'#D4182E', COL:'#8B5CF6', DET:'#FA7C2B', HOU:'#EB6E1F', KC:'#C09A5B',
+  LAA:'#CE1126', LAD:'#3788C7', MIA:'#00A3E0', MIL:'#FFC52F', MIN:'#D31145', NYM:'#FF5910',
+  NYY:'#4A90D9', OAK:'#3EA843', PHI:'#E81828', PIT:'#FDB827', SD:'#C8941B', SF:'#FD5A1E',
+  SEA:'#4DBDAF', STL:'#C41E3A', TB:'#8FBCE6', TEX:'#2B6CB0', TOR:'#1B8FC8', WSH:'#AB0003',
+};
+
+function teamColor(teamName) {
+  const a = TEAM_LOGO[teamName];
+  if (!a) return '#94a3b8';
+  const key = a.toUpperCase() === 'CHW' ? 'CWS' : a.toUpperCase();
+  return TEAM_COLORS[key] || '#94a3b8';
+}
+
+// Short nickname for compact matchup display: drop the city, keep the team name.
+const _TEAM_NICK = {
+  'Boston Red Sox':'Red Sox','Chicago White Sox':'White Sox','Chicago Cubs':'Cubs',
+  'Toronto Blue Jays':'Blue Jays','Los Angeles Angels':'Angels','Los Angeles Dodgers':'Dodgers',
+  'New York Yankees':'Yankees','New York Mets':'Mets','San Francisco Giants':'Giants',
+  'San Diego Padres':'Padres','St. Louis Cardinals':'Cardinals','Tampa Bay Rays':'Rays',
+  'Kansas City Royals':'Royals','Arizona Diamondbacks':'D-backs','Washington Nationals':'Nationals',
+};
+function teamNick(name) {
+  if (!name) return '—';
+  if (_TEAM_NICK[name]) return _TEAM_NICK[name];
+  const parts = name.split(' ');
+  return parts[parts.length - 1];
+}
+
 // ── App state ─────────────────────────────────────────────────────────────────
 let gamesData    = null;
 let historyData   = [];
@@ -519,6 +550,14 @@ function renderGamesView() {
     <div class="bankroll-hint">Optional — enter your bankroll to get a suggested stake on each validated <b>UNDER</b> edge below, sized by the <b>Kelly</b> setting (most pros use ½ or ¼ Kelly to limit swings).</div>
     ${todaysEdgePlaysHTML(gamesData.games)}
     ${eliteHtml}
+    ${localStorage.getItem('mlbedge_legend_hidden') ? '' : `
+    <div class="games-legend" id="games-legend">
+      <span class="gl-item"><b>Win %</b> chance to win (model + market)</span>
+      <span class="gl-item"><b class="gl-i">⌁</b> our independent model</span>
+      <span class="gl-item"><b>pp vs market</b> gap from the de-vigged line</span>
+      <span class="gl-item"><b>Est. runs</b> expected combined total</span>
+      <button class="games-legend-x" title="Dismiss" onclick="this.parentElement.style.display='none';localStorage.setItem('mlbedge_legend_hidden','1')">×</button>
+    </div>`}
     <div class="game-list" id="game-list">
       ${gamesData.games.map(g => gameCardHTML(g)).join('')}
     </div>
@@ -755,62 +794,121 @@ function keySignalsHTML(g) {
   return `<div class="key-sig-row">${chips.join('')}</div>`;
 }
 
+// One side of the matchup: logo in a team-color ring + name + record · SP.
+function gc2TeamHTML(g, side) {
+  const name   = side === 'away' ? g.away_team : g.home_team;
+  const rec    = side === 'away' ? g.away_record : g.home_record;
+  const sp     = side === 'away' ? g.away_sp : g.home_sp;
+  const color  = teamColor(name);
+  const recStr = rec ? `${rec.wins}-${rec.losses}` : '';
+  const spStr  = sp?.name ? shortName(sp.name) : 'TBD';
+  const sub    = [recStr, spStr].filter(Boolean).join(' · ');
+  return `
+  <div class="gc2-team gc2-${side}" style="--team:${color}">
+    <div class="gc2-logo">${teamLogoHTML(name)}</div>
+    <div class="gc2-team-text">
+      <span class="gc2-name">${teamNick(name)}</span>
+      <span class="gc2-sub">${sub}</span>
+    </div>
+  </div>`;
+}
+
+// Scoreboard region: win-probability hero (preview) or live/final score.
+function gc2ScoreboardHTML(g) {
+  const status = g.game_status || 'preview';
+  const aSc = g.away_score ?? '–', hSc = g.home_score ?? '–';
+
+  if (status === 'live') {
+    const outs = g.outs != null ? ` · ${g.outs} OUT${g.outs !== 1 ? 'S' : ''}` : '';
+    return `<div class="gc2-score-row">
+      <span class="gc2-live"><span class="live-dot"></span>${g.inning_state || 'Live'}${outs}</span>
+      <span class="gc2-bigscore">${abbrev(g.away_team)} ${aSc} – ${hSc} ${abbrev(g.home_team)}</span>
+      <span class="gc2-chev">▾</span></div>`;
+  }
+  if (status === 'final') {
+    return `<div class="gc2-score-row">
+      <span class="final-badge">FINAL</span>
+      <span class="gc2-bigscore">${abbrev(g.away_team)} ${aSc} – ${hSc} ${abbrev(g.home_team)}</span>
+      <span class="gc2-chev">▾</span></div>`;
+  }
+
+  // Preview — win probability is the hero
+  const pred    = g.prediction || {};
+  const homePct = Math.round((pred.home_win_pct || 0.5) * 100);
+  const awayPct = 100 - homePct;
+  return `
+  <div class="gc2-winprob">
+    <div class="gc2-wp-head">
+      <span class="gc2-wp-label">Win Probability</span>
+      <span class="gc2-info" title="Each team's chance to win — our model blended with the market line. The most reliable number on the card.">ⓘ</span>
+    </div>
+    <div class="gc2-wp-bar">
+      <div class="gc2-wp-seg gc2-wp-away" style="width:${awayPct}%"></div>
+      <div class="gc2-wp-seg gc2-wp-home" style="width:${homePct}%"></div>
+    </div>
+    <div class="gc2-wp-pcts">
+      <span>${abbrev(g.away_team)} <strong>${awayPct}%</strong></span>
+      <span><strong>${homePct}%</strong> ${abbrev(g.home_team)}</span>
+    </div>
+  </div>
+  ${gc2ModelRowHTML(g)}
+  <div class="gc2-chev-center">▾ <span>tap for pitchers · lineups · edges</span></div>`;
+}
+
+// Compact "our model" line: independent win%, pp variance vs no-vig market, est total.
+function gc2ModelRowHTML(g) {
+  const pred = g.prediction || {};
+  const parts = [];
+  if (pred.model_home_win_pct != null) {
+    const mw = pred.model_home_win_pct;
+    const leanHome = mw >= 0.5;
+    const leanTeam = abbrev(leanHome ? g.home_team : g.away_team);
+    const modelSide = leanHome ? mw : 1 - mw;
+    const leanPct = Math.round(modelSide * 100);
+    let varStr = '';
+    if (g.odds && g.odds.home_ml != null && g.odds.away_ml != null) {
+      const vHome = noVigProb(g.odds.home_ml, g.odds.away_ml)[0];
+      const marketSide = leanHome ? vHome : 1 - vHome;
+      const varPp = (modelSide - marketSide) * 100;
+      const sign = varPp >= 0 ? '+' : '−';
+      varStr = `<span class="gc2-var" title="Our model ${leanPct}% vs the vig-adjusted (no-vig) moneyline ${Math.round(marketSide*100)}% ${leanTeam} — transparency, not a bet signal.">${sign}${Math.abs(varPp).toFixed(1)}pp vs market</span>`;
+    }
+    parts.push(`<span class="gc2-model"><span class="gc2-model-i">⌁</span> Model <strong>${leanPct}% ${leanTeam}</strong></span>${varStr}`);
+  }
+  if (pred.predicted_total != null) {
+    parts.push(`<span class="gc2-total" title="Expected combined runs, anchored to the market total — a run-environment estimate, not a margin prediction.">Est. ${pred.predicted_total} runs</span>`);
+  }
+  if (!parts.length) return '';
+  return `<div class="gc2-model-row">${parts.join('')}</div>`;
+}
+
 function gameCardHTML(g) {
-  const hXera = g.home_sp?.season?.xera;
-  const aXera = g.away_sp?.season?.xera;
-
-  const timeStr  = g.game_time_et || formatTimeET(g.game_time_utc);
-  const oddsStr  = g.odds ? formatOddsLine(g.odds, g.away_team, g.home_team) : '';
-  const wxStr    = formatWeather(g.weather);
-  const spChangedBadge = g.sp_changed
-    ? `<span class="sp-changed-badge" title="Starting pitcher changed — stats updating on next rebuild">⚠ SP Changed</span>`
+  const status = g.game_status || 'preview';
+  const fav    = gameFav(g);
+  const pred   = g.prediction || {};
+  const timeStr = g.game_time_et || formatTimeET(g.game_time_utc);
+  const spChanged = g.sp_changed
+    ? `<span class="gc2-spchg" title="Starting pitcher changed — stats updating on next rebuild">⚠ SP change</span>`
     : '';
-
-  const status  = g.game_status || 'preview';
-  const fav     = gameFav(g);
+  const tier = status === 'preview' ? gameTier(pred.home_win_pct) : null;
+  const tierBadge = tier ? `<span class="gc2-tier tier-${tier}">${tier.toUpperCase()}</span>` : '';
+  const cAway = teamColor(g.away_team), cHome = teamColor(g.home_team);
 
   return `
-<div class="game-card" data-pk="${g.gamePk}" data-status="${status}" data-fav="${fav}" data-pick-tier="${g.prediction?.pick_tier || ''}">
-  ${gameEdgeBannerHTML(g)}
+<div class="game-card gc2" data-pk="${g.gamePk}" data-status="${status}" data-fav="${fav}" data-pick-tier="${pred.pick_tier || ''}" style="--c-away:${cAway};--c-home:${cHome}">
   <div class="game-card-header">
-    <div class="matchup-grid">
-      <div class="team-cell away-cell">
-        <div class="logo-namerow">
-          <div class="logo-col">
-            <div class="logo-bubble away-bubble">${teamLogoHTML(g.away_team)}</div>
-            ${teamRecordHTML(g.away_record)}
-          </div>
-          <div class="team-info">
-            <span class="team-name away-name">${g.away_team}</span>
-            <span class="sp-line">${g.away_sp?.name || 'TBD'}</span>
-            ${aXera != null ? `<span class="xera-line">${spEra(aXera, 'away')}</span>` : ''}
-          </div>
-        </div>
-      </div>
-      <div class="game-info-cell">
-        <span class="game-time">${timeStr}</span>
-        <span class="venue-name">${g.venue}${spChangedBadge}</span>
-        ${wxStr || oddsStr ? `<span class="game-meta">${[wxStr, oddsStr].filter(Boolean).join(' · ')}</span>` : ''}
-      </div>
-      <div class="team-cell home-cell">
-        <div class="logo-namerow home-namerow">
-          <div class="team-info home-info">
-            <span class="team-name home-name">${g.home_team}</span>
-            <span class="sp-line">${g.home_sp?.name || 'TBD'}</span>
-            ${hXera != null ? `<span class="xera-line">${spEra(hXera, 'home')}</span>` : ''}
-          </div>
-          <div class="logo-col">
-            <div class="logo-bubble home-bubble">${teamLogoHTML(g.home_team)}</div>
-            ${teamRecordHTML(g.home_record)}
-          </div>
-        </div>
-      </div>
+    <div class="gc2-meta">
+      <span class="gc2-time">${timeStr}</span>
+      <span class="gc2-venue">${g.venue || ''}</span>
+      ${spChanged}
+      ${tierBadge}
     </div>
-    ${lineupStatusHTML(g)}
-    ${vegasEdgeStripHTML(g)}
-    ${kellyStripHTML(g)}
-    ${keySignalsHTML(g)}
-    ${statusStrip(g)}
+    <div class="gc2-matchup">
+      ${gc2TeamHTML(g, 'away')}
+      <span class="gc2-at">@</span>
+      ${gc2TeamHTML(g, 'home')}
+    </div>
+    ${gc2ScoreboardHTML(g)}
   </div>
   <div class="game-card-body" hidden>
     ${expandedBodyHTML(g)}
@@ -1188,20 +1286,31 @@ function getNotableBatters(lineup, maxShow = 3) {
 
 // ── Expanded card body ────────────────────────────────────────────────────────
 function expandedBodyHTML(g) {
+  // Betting + signals (relocated from the collapsed card to keep it clean)
+  const edgeBits = [vegasEdgeStripHTML(g), kellyStripHTML(g), keySignalsHTML(g)].filter(Boolean).join('');
+  const edgeBlock = (gameEdgeBannerHTML(g) || edgeBits)
+    ? `<div class="expanded-section">
+         <div class="section-heading">Edges &amp; Betting</div>
+         ${gameEdgeBannerHTML(g)}
+         ${edgeBits}
+       </div>`
+    : '';
+
   return `
 <div class="expanded-inner">
+  <div class="expanded-section">
+    <div class="section-heading">${(g.game_status && g.game_status !== 'preview') ? 'Pre-game Prediction' : 'Prediction'}</div>
+    ${predictionHTML(g)}
+  </div>
   <div class="expanded-section">
     <div class="section-heading">Pitchers</div>
     ${pitcherTableHTML(g)}
   </div>
   <div class="expanded-section">
-    <div class="section-heading">Lineups</div>
+    <div class="section-heading">Lineups ${lineupStatusHTML(g)}</div>
     ${lineupsHTML(g)}
   </div>
-  <div class="expanded-section">
-    <div class="section-heading">${(g.game_status && g.game_status !== 'preview') ? 'Pre-game Prediction' : 'Prediction'}</div>
-    ${predictionHTML(g)}
-  </div>
+  ${edgeBlock}
 </div>`;
 }
 
