@@ -1384,34 +1384,31 @@ function predictionHTML(g) {
   ${(() => {
     const mw = pred.model_home_win_pct;
     if (mw == null) return '';
-    const mh = Math.round(mw * 100);
-    const leanHome = mh >= 50;
-    const leanTeam = leanHome ? g.home_team : g.away_team;
-    const leanPct  = leanHome ? mh : 100 - mh;
+    const leanHome  = mw >= 0.5;
+    const leanTeam  = leanHome ? g.home_team : g.away_team;
+    const modelSide = leanHome ? mw : 1 - mw;       // model prob for the leaned side
+    const leanPct   = Math.round(modelSide * 100);
     const hasOdds = g.odds && g.odds.home_ml != null && g.odds.away_ml != null;
     const tip = "Our model's independent win probability from lineups + Statcast (out-of-sample AUC 0.60). "
       + (hasOdds
-          ? "The headline bar is anchored to the market line, which is sharper (AUC 0.64) — so any gap below is shown for transparency, NOT as a betting signal."
+          ? "The variance is how far it sits from the vig-adjusted (no-vig) moneyline for the same side — shown for transparency, NOT a betting signal (the market is sharper, AUC 0.64)."
           : "Used as the headline here since no market line is available.");
-    let cmp = '';
+    let extra = '';
     if (hasOdds) {
-      const vh  = Math.round(noVigProb(g.odds.home_ml, g.odds.away_ml)[0] * 100);
-      const gap = mh - vh;  // signed, model-home minus market-home
-      const lean = gap >= 0 ? g.home_team : g.away_team;
-      const gapAbs = Math.abs(gap);
-      const gapCls = gapAbs >= 7 ? 'mr-gap-hi' : 'mr-gap-lo';
-      cmp = `<span class="mr-market">Market: <strong>${vh}%</strong> ${abbrev(g.home_team)}</span>`
-          + (gapAbs >= 3
-              ? ` <span class="mr-gap ${gapCls}">leans ${abbrev(lean)} +${gapAbs}pp</span>`
-              : ` <span class="mr-gap mr-gap-lo">aligned with market</span>`);
+      const vHome = noVigProb(g.odds.home_ml, g.odds.away_ml)[0];
+      const marketSide = leanHome ? vHome : 1 - vHome;       // no-vig market prob, same side
+      const varPp = (modelSide - marketSide) * 100;          // percentage-point variance
+      const varCls = Math.abs(varPp) >= 5 ? 'mr-var-hi' : 'mr-var-lo';
+      const sign = varPp >= 0 ? '+' : '−';
+      extra = `<span class="mr-var ${varCls}" title="Model ${leanPct}% vs no-vig moneyline ${Math.round(marketSide*100)}% ${abbrev(leanTeam)}">${sign}${Math.abs(varPp).toFixed(1)}pp vs market</span>`;
     } else {
-      cmp = `<span class="mr-note">headline read (no market line)</span>`;
+      extra = `<span class="mr-note">no market line</span>`;
     }
     return `
   <div class="model-read" title="${tip}">
     <span class="mr-icon">⌁</span>
     <span class="mr-main">Our model: <strong>${leanPct}% ${abbrev(leanTeam)}</strong></span>
-    ${cmp}
+    ${extra}
     <span class="mr-info">ⓘ</span>
   </div>`;
   })()}

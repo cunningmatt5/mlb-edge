@@ -1051,17 +1051,17 @@ header {
 }
 .mr-icon { color: var(--accent); font-weight: 700; }
 .mr-main strong { color: var(--text); }
-.mr-market { color: var(--text-dim); }
-.mr-market strong { color: var(--text-muted); }
-.mr-gap {
+.mr-var {
   font-size: 11px;
+  font-weight: 600;
   padding: 1px 7px;
   border-radius: 10px;
-  background: rgba(148,163,184,.14);
+  background: rgba(148,163,184,.12);
   color: var(--text-muted);
+  cursor: help;
 }
-.mr-gap-hi { background: rgba(99,102,241,.18); color: var(--accent); }  /* notable divergence — info, not value */
-.mr-gap-lo { background: rgba(148,163,184,.12); color: var(--text-dim); }
+.mr-var-hi { background: rgba(99,102,241,.18); color: var(--accent); }  /* ≥5pp from market — info, not value */
+.mr-var-lo { background: rgba(148,163,184,.12); color: var(--text-dim); }
 .mr-note { color: var(--text-dim); font-style: italic; }
 .mr-info { margin-left: auto; color: var(--text-dim); font-size: 11px; }
 
