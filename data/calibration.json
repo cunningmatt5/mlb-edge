@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-20T04:54:47.195472+00:00",
+  "generated_at": "2026-06-20T08:21:14.670343+00:00",
   "seasons_used": [
     2021,
     2022,
@@ -8,36 +8,36 @@
     2025,
     2026
   ],
-  "total_graded": 14376,
+  "total_graded": 14378,
   "source_breakdown": {
-    "historical_backtest": 13285,
+    "historical_backtest": 13287,
     "live_history": 1091
   },
   "platt_params": {
-    "a": 0.828232,
-    "b": 0.04064
+    "a": 0.828558,
+    "b": 0.040857
   },
   "logistic_params": {
     "midpoint": 7.5,
     "slope": 0.45
   },
   "brier_score": {
-    "raw_model": 0.24569,
-    "calibrated": 0.245417
+    "raw_model": 0.245682,
+    "calibrated": 0.24541
   },
-  "overall_win_rate": 0.5567,
+  "overall_win_rate": 0.5568,
   "win_rates_by_confidence": {
     "50-55%": {
-      "n": 7434,
+      "n": 7432,
       "win_rate": 0.5015
     },
     "55-60%": {
-      "n": 4670,
-      "win_rate": 0.5405
+      "n": 4669,
+      "win_rate": 0.5402
     },
     "60-65%": {
-      "n": 1800,
-      "win_rate": 0.6028
+      "n": 1805,
+      "win_rate": 0.6039
     },
     "65%+": {
       "n": 472,
@@ -53,32 +53,32 @@
     },
     {
       "bin": "0.30-0.40",
-      "n": 311,
-      "model_prob_mean": 0.3754,
-      "actual_win_rate": 0.4277
+      "n": 309,
+      "model_prob_mean": 0.3753,
+      "actual_win_rate": 0.4272
     },
     {
       "bin": "0.40-0.50",
-      "n": 4181,
+      "n": 4174,
       "model_prob_mean": 0.4646,
-      "actual_win_rate": 0.4666
+      "actual_win_rate": 0.4672
     },
     {
       "bin": "0.50-0.60",
-      "n": 7923,
+      "n": 7927,
       "model_prob_mean": 0.5464,
-      "actual_win_rate": 0.5428
+      "actual_win_rate": 0.5423
     },
     {
       "bin": "0.60-0.70",
-      "n": 1894,
+      "n": 1901,
       "model_prob_mean": 0.629,
-      "actual_win_rate": 0.6309
+      "actual_win_rate": 0.6318
     },
     {
       "bin": "0.70-0.80",
       "n": 61,
-      "model_prob_mean": 0.7152,
+      "model_prob_mean": 0.7153,
       "actual_win_rate": 0.7213
     }
   ]
