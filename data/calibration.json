@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-26T19:39:41.490105+00:00",
+  "generated_at": "2026-06-26T21:13:21.437636+00:00",
   "seasons_used": [
     2021,
     2022,
@@ -14,72 +14,72 @@
     "live_history": 1163
   },
   "platt_params": {
-    "a": 0.816459,
-    "b": 0.039235
+    "a": 0.807127,
+    "b": 0.03981
   },
   "logistic_params": {
     "midpoint": 7.5,
     "slope": 0.45
   },
   "brier_score": {
-    "raw_model": 0.245895,
-    "calibrated": 0.245597
+    "raw_model": 0.246004,
+    "calibrated": 0.245679
   },
-  "overall_win_rate": 0.5548,
+  "overall_win_rate": 0.5546,
   "win_rates_by_confidence": {
     "50-55%": {
-      "n": 7613,
-      "win_rate": 0.5012
+      "n": 7654,
+      "win_rate": 0.5016
     },
     "55-60%": {
-      "n": 4729,
-      "win_rate": 0.5409
+      "n": 4736,
+      "win_rate": 0.5414
     },
     "60-65%": {
-      "n": 1746,
-      "win_rate": 0.6002
+      "n": 1711,
+      "win_rate": 0.6055
     },
     "65%+": {
-      "n": 441,
-      "win_rate": 0.6236
+      "n": 428,
+      "win_rate": 0.6028
     }
   },
   "calibration_curve": [
     {
       "bin": "0.20-0.30",
       "n": 5,
-      "model_prob_mean": 0.2841,
+      "model_prob_mean": 0.2832,
       "actual_win_rate": 0.6
     },
     {
       "bin": "0.30-0.40",
-      "n": 298,
-      "model_prob_mean": 0.3747,
-      "actual_win_rate": 0.4228
+      "n": 290,
+      "model_prob_mean": 0.376,
+      "actual_win_rate": 0.4172
     },
     {
       "bin": "0.40-0.50",
-      "n": 4264,
-      "model_prob_mean": 0.4647,
-      "actual_win_rate": 0.4667
+      "n": 4237,
+      "model_prob_mean": 0.4648,
+      "actual_win_rate": 0.4699
     },
     {
       "bin": "0.50-0.60",
-      "n": 8078,
-      "model_prob_mean": 0.5462,
-      "actual_win_rate": 0.5427
+      "n": 8153,
+      "model_prob_mean": 0.5461,
+      "actual_win_rate": 0.5412
     },
     {
       "bin": "0.60-0.70",
-      "n": 1837,
-      "model_prob_mean": 0.6288,
-      "actual_win_rate": 0.6331
+      "n": 1796,
+      "model_prob_mean": 0.6284,
+      "actual_win_rate": 0.6325
     },
     {
       "bin": "0.70-0.80",
-      "n": 47,
-      "model_prob_mean": 0.7161,
-      "actual_win_rate": 0.6596
+      "n": 48,
+      "model_prob_mean": 0.7165,
+      "actual_win_rate": 0.7083
     }
   ]
 }
