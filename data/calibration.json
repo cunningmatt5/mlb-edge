@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-30T04:51:58.176227+00:00",
+  "generated_at": "2026-06-30T22:03:33.270299+00:00",
   "seasons_used": [
     2021,
     2022,
@@ -14,66 +14,66 @@
     "live_history": 1215
   },
   "platt_params": {
-    "a": 0.818771,
-    "b": 0.037688
+    "a": 0.818594,
+    "b": 0.037727
   },
   "logistic_params": {
     "midpoint": 7.5,
     "slope": 0.45
   },
   "brier_score": {
-    "raw_model": 0.24587,
-    "calibrated": 0.245582
+    "raw_model": 0.245879,
+    "calibrated": 0.24559
   },
-  "overall_win_rate": 0.5549,
+  "overall_win_rate": 0.5545,
   "win_rates_by_confidence": {
     "50-55%": {
-      "n": 7668,
-      "win_rate": 0.5013
+      "n": 7655,
+      "win_rate": 0.5018
     },
     "55-60%": {
-      "n": 4762,
-      "win_rate": 0.5409
+      "n": 4780,
+      "win_rate": 0.5393
     },
     "60-65%": {
-      "n": 1764,
-      "win_rate": 0.5981
+      "n": 1761,
+      "win_rate": 0.6002
     },
     "65%+": {
-      "n": 445,
-      "win_rate": 0.6225
+      "n": 443,
+      "win_rate": 0.623
     }
   },
   "calibration_curve": [
     {
       "bin": "0.20-0.30",
       "n": 5,
-      "model_prob_mean": 0.2832,
+      "model_prob_mean": 0.2833,
       "actual_win_rate": 0.6
     },
     {
       "bin": "0.30-0.40",
-      "n": 309,
-      "model_prob_mean": 0.3749,
-      "actual_win_rate": 0.4272
+      "n": 305,
+      "model_prob_mean": 0.3747,
+      "actual_win_rate": 0.4262
     },
     {
       "bin": "0.40-0.50",
-      "n": 4310,
+      "n": 4315,
       "model_prob_mean": 0.4646,
-      "actual_win_rate": 0.4675
+      "actual_win_rate": 0.4679
     },
     {
       "bin": "0.50-0.60",
       "n": 8120,
       "model_prob_mean": 0.5462,
-      "actual_win_rate": 0.5425
+      "actual_win_rate": 0.5419
     },
     {
       "bin": "0.60-0.70",
-      "n": 1848,
-      "model_prob_mean": 0.629,
-      "actual_win_rate": 0.631
+      "n": 1847,
+      "model_prob_mean": 0.6288,
+      "actual_win_rate": 0.6329
     },
     {
       "bin": "0.70-0.80",
