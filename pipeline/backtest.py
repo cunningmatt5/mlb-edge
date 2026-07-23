@@ -341,7 +341,10 @@ def score_game(
         "correct":           correct,
     }
 
-    # Attach Vegas closing line data when available
+    # Attach Vegas closing line data when available. Totals and moneyline are
+    # attached INDEPENDENTLY — a game may carry a closing total but no moneyline
+    # (e.g. the SBR totals-only spine for pre-2022 seasons). Gating totals on the
+    # moneyline (the old behavior) silently dropped totals-only games.
     if odds_row:
         hml  = odds_row.get("home_ml")
         aml  = odds_row.get("away_ml")
@@ -349,20 +352,26 @@ def score_game(
         ct   = odds_row.get("closing_total")
         op   = odds_row.get("over_price")
         up   = odds_row.get("under_price")
+
+        # Totals — gated only on a closing total being present.
+        if pd.notna(ct):
+            ct_val = float(ct)
+            result.update({
+                "closing_total":   ct_val,
+                "over_price":      int(op) if pd.notna(op) else -110,
+                "under_price":     int(up) if pd.notna(up) else -110,
+                "total_went_over": (actual_home + actual_away) > ct_val,
+            })
+
+        # Moneyline — gated on ML + no-vig implied prob being present.
         if pd.notna(hml) and pd.notna(himp):
-            model_edge   = round(home_win_pct - float(himp), 4)
-            bet_home     = home_win_pct >= away_win_pct
-            bet_won      = (bet_home and actual_winner == "home") or \
-                           (not bet_home and actual_winner == "away")
-            ct_val       = float(ct) if pd.notna(ct) else None
-            total_went_over = (actual_home + actual_away) > ct_val if ct_val is not None else None
+            model_edge = round(home_win_pct - float(himp), 4)
+            bet_home   = home_win_pct >= away_win_pct
+            bet_won    = (bet_home and actual_winner == "home") or \
+                         (not bet_home and actual_winner == "away")
             result.update({
                 "home_ml":           int(hml) if pd.notna(hml) else None,
                 "away_ml":           int(aml) if pd.notna(aml) else None,
-                "closing_total":     ct_val,
-                "over_price":        int(op)  if pd.notna(op)  else -110,
-                "under_price":       int(up)  if pd.notna(up)  else -110,
-                "total_went_over":   total_went_over,
                 "home_implied_prob": round(float(himp), 4),
                 "model_edge_ml":     model_edge,
                 "bet_side":          "home" if bet_home else "away",
