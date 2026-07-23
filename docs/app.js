@@ -4501,6 +4501,18 @@ function edgeScoreboardHTML() {
   const clvNote = (t.clv_n >= CLV_MIN && t.clv_beat_pct != null)
     ? `CLV beat the close ${t.clv_beat_pct}% of ${t.clv_n} — a faster, lower-variance read than ROI.`
     : 'CLV: gathering… (how often the bet-time line beat the close).';
+  // Honesty flag: a strong realized ROI that CLV is NOT confirming (beat-rate below the
+  // ↑ band) is almost always small-sample variance, not a durable edge. A real edge shows
+  // up as closing-line value first, so surface the divergence instead of letting the big
+  // green ROI stand unqualified.
+  const CLV_CONFIRM = 53;   // matches clvKind's ↑ (confirming) threshold
+  const roiUnconfirmed = (
+    t.roi_pct != null && t.roi_pct >= 8 &&
+    t.clv_n >= CLV_MIN && t.clv_beat_pct != null && t.clv_beat_pct < CLV_CONFIRM
+  );
+  const caution = roiUnconfirmed
+    ? `<div class="ef-sb-caution" title="A genuine edge beats the closing line first; ROI catches up later. High ROI with a coin-flip CLV is usually variance over a small sample, not a repeatable edge.">⚠ The ${sgn(t.roi_pct)}${t.roi_pct}% isn't confirmed by CLV — it beat the close only ${Math.round(t.clv_beat_pct)}% of ${t.clv_n}. Treat as small-sample variance until CLV follows; don't size up on it.</div>`
+    : '';
   return `
     <div class="ef-scoreboard">
       <div class="ef-sb-hdr">
@@ -4508,6 +4520,7 @@ function edgeScoreboardHTML() {
         <span class="ef-sb-head-metrics">${headline}${headClv}</span>
       </div>
       <div class="ef-sb-sub">ROI = realized return, flat $1/bet${recentHead}. <span class="${(t.clv_n >= CLV_MIN) ? '' : 'ef-sb-clv-pending'}" title="${CLV_TIP}">${clvNote}</span></div>
+      ${caution}
       ${equityChartHTML(sb)}
       <div class="ef-sb-rowhdr">By edge <span class="ef-sb-rowhdr-note">(record per category · watch shown for context, not in the curve)</span></div>
       ${rows}

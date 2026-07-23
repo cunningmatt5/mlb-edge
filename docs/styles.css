@@ -3991,6 +3991,12 @@ header {
   padding: 1px 6px; border-radius: 4px; background: rgba(148,163,184,.12);
 }
 .ef-sb-sub { font-size: 11px; color: var(--text-muted); line-height: 1.5; padding: 4px 0 8px; }
+.ef-sb-caution {
+  font-size: 11px; line-height: 1.5; color: var(--amber); font-weight: 600;
+  background: color-mix(in srgb, var(--amber) 10%, transparent);
+  border-left: 3px solid var(--amber);
+  border-radius: 4px; padding: 6px 9px; margin: 0 0 10px;
+}
 .ef-sb-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto auto;
