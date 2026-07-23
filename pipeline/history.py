@@ -316,15 +316,6 @@ if __name__ == "__main__":
         hist = resolve_yesterday(hist)
         save_history(hist)
 
-        # Also resolve prop picks
-        try:
-            from pipeline.props_history import load_props_history, resolve_props, save_props_history
-            props = load_props_history()
-            props = resolve_props(props)
-            save_props_history(props)
-        except Exception as exc:
-            log.warning("Props resolution failed (non-fatal): %s", exc)
-
         # Refresh the realized edge scoreboard from the just-resolved history.
         try:
             from pipeline.edge_scoreboard import build_scoreboard
