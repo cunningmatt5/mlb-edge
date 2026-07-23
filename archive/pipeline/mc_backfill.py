@@ -26,7 +26,7 @@ import time
 from pathlib import Path
 from multiprocessing import Pool
 
-from pipeline.analytics.monte_carlo import simulate_game
+from archive.analytics.monte_carlo import simulate_game
 from pipeline.backtest import load_full_historical_cache, load_season_lineups
 from pipeline.predictor import _pitcher_score
 from pipeline.park_factors import get_run_factor

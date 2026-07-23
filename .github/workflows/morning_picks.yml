@@ -128,13 +128,8 @@ jobs:
           git add docs/games.json docs/history.json
           git add docs/edge_scoreboard.json 2>/dev/null || true
           git add docs/backtest.json 2>/dev/null || true
-          git add docs/pitcher_value.json 2>/dev/null || true
-          git add docs/picks.json 2>/dev/null || true
-          git add docs/props_history.json 2>/dev/null || true
-          git add docs/reversion.json 2>/dev/null || true
           git add data/calibration.json 2>/dev/null || true
           git add data/opening_lines.json 2>/dev/null || true
-          git add data/prop_cache.json 2>/dev/null || true
           git diff --staged --quiet || git commit -m "chore: update picks [skip ci]"
           # Stash any remaining unstaged changes so rebase doesn't abort
           git stash --include-untracked || true

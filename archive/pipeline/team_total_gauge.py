@@ -22,7 +22,7 @@ import json
 import sys
 from pathlib import Path
 
-from pipeline.analytics.team_totals import score_team_totals
+from archive.analytics.team_totals import score_team_totals
 from pipeline.backtest import load_full_historical_cache, load_season_lineups
 from pipeline.odds import no_vig_prob
 
