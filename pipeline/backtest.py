@@ -1258,6 +1258,23 @@ def run_backtest(seasons: Optional[list[int]] = None) -> None:
     all_results = all_results + existing_other
     all_results.sort(key=lambda r: r["date"], reverse=True)
 
+    # De-dup by gamePk (keep the most-recent row — first after the date-desc sort, and
+    # this run's freshly scored rows precede merged-in ones for the same date). The
+    # season-only merge above plus 2026 history splicing / re-scoring can otherwise
+    # reintroduce a gamePk, double-counting it in every ROI/win-rate aggregation.
+    _seen: set = set()
+    _deduped: list[dict] = []
+    for r in all_results:
+        pk = r.get("gamePk")
+        if pk is not None and pk in _seen:
+            continue
+        if pk is not None:
+            _seen.add(pk)
+        _deduped.append(r)
+    if len(_deduped) != len(all_results):
+        log.info("De-duped %d duplicate gamePk row(s)", len(all_results) - len(_deduped))
+    all_results = _deduped
+
     all_seasons = sorted(set(r.get("season") for r in all_results if r.get("season")))
     stats        = compute_stats(all_results)
     ev_stats     = compute_ev_stats(all_results)
