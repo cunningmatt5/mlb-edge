@@ -30,7 +30,7 @@ def _logit(p: float) -> float:
     return math.log(p / (1 - p))
 
 def _sigmoid(x: float) -> float:
-    return 1.0 / (1.0 + math.exp(-x))
+    return 1.0 / (1.0 + math.exp(-max(-30.0, min(30.0, x))))
 
 def _ml_units(odds: int, won: bool) -> float:
     ret = odds / 100 if odds > 0 else 100 / abs(odds)
@@ -154,46 +154,119 @@ def calibration_analysis(games: list[dict], n_bins: int = 10) -> list[dict]:
     return rows
 
 
-def regression_analysis(games: list[dict]) -> dict:
-    """Logistic regression: actual_winner_home ~ home_implied_prob + pitcher_diff.
+def _standardize(cols: list[list[float]]) -> tuple[list[list[float]], list[float], list[float]]:
+    """Z-score each feature column. Returns (standardized_rows, means, stds).
 
-    If pitcher_diff coefficient is near zero → Vegas already prices pitcher quality.
+    Features on very different scales (home_implied_prob ∈ [0,1] vs pitcher_diff ∈ ~±0.3)
+    make plain gradient descent under-converge at a shared learning rate — which is how a
+    *nested* joint model can post a worse in-sample log-loss than Vegas-only (statistically
+    impossible for a properly fit MLE). Standardizing puts both features on comparable
+    footing so the comparison is honest.
     """
-    X = [[g["home_implied_prob"], g["pitcher_diff"]] for g in games]
+    n_feat = len(cols[0])
+    means  = [sum(r[j] for r in cols) / len(cols) for j in range(n_feat)]
+    stds   = []
+    for j in range(n_feat):
+        var = sum((r[j] - means[j]) ** 2 for r in cols) / len(cols)
+        stds.append(math.sqrt(var) or 1.0)
+    std_rows = [[(r[j] - means[j]) / stds[j] for j in range(n_feat)] for r in cols]
+    return std_rows, means, stds
+
+
+def _log_loss(coef: list[float], X_data: list[list[float]], y_data: list[int]) -> float:
+    ll = 0.0
+    n_feat = len(X_data[0])
+    for xi, yi in zip(X_data, y_data):
+        p = _sigmoid(coef[0] + sum(coef[j + 1] * xi[j] for j in range(n_feat)))
+        p = max(1e-9, min(1 - 1e-9, p))
+        ll -= yi * math.log(p) + (1 - yi) * math.log(1 - p)
+    return ll / len(y_data)
+
+
+def _cv_log_loss(cols: list[list[float]], y: list[int], k: int = 5,
+                 lr: float = 0.3, epochs: int = 3000) -> float:
+    """K-fold cross-validated log-loss. Standardization is fit on each train fold only
+    (no leakage). This measures out-of-sample fit — the only fair test of whether an added
+    feature helps, since in-sample log-loss always favors the model with more parameters.
+    """
+    n = len(cols)
+    fold_losses = []
+    for f in range(k):
+        test_idx  = set(range(f, n, k))                       # strided folds
+        train     = [cols[i] for i in range(n) if i not in test_idx]
+        train_y   = [y[i]    for i in range(n) if i not in test_idx]
+        test      = [cols[i] for i in range(n) if i in test_idx]
+        test_y    = [y[i]    for i in range(n) if i in test_idx]
+        if not test or not train:
+            continue
+        n_feat = len(train[0])
+        means  = [sum(r[j] for r in train) / len(train) for j in range(n_feat)]
+        stds   = []
+        for j in range(n_feat):
+            var = sum((r[j] - means[j]) ** 2 for r in train) / len(train)
+            stds.append(math.sqrt(var) or 1.0)
+        std_train = [[(r[j] - means[j]) / stds[j] for j in range(n_feat)] for r in train]
+        std_test  = [[(r[j] - means[j]) / stds[j] for j in range(n_feat)] for r in test]
+        coef = _fit_logistic(std_train, train_y, lr=lr, epochs=epochs)
+        fold_losses.append(_log_loss(coef, std_test, test_y))
+    return sum(fold_losses) / len(fold_losses) if fold_losses else float("nan")
+
+
+def regression_analysis(games: list[dict]) -> dict:
+    """Does pitcher_diff add signal *beyond* the Vegas line?
+
+    Fits two logistic models — Vegas-only (home_implied_prob) and joint
+    (+ pitcher_diff) — on standardized features, and compares them by 5-fold
+    cross-validated log-loss. The honest test is out-of-sample: if the joint
+    model's CV log-loss doesn't beat Vegas-only, pitcher_diff adds nothing the
+    market hasn't already priced, regardless of how large its fitted coefficient is.
+    """
+    vegas_cols = [[g["home_implied_prob"]] for g in games]
+    joint_cols = [[g["home_implied_prob"], g["pitcher_diff"]] for g in games]
     y = [g["actual_winner_home"] for g in games]
 
-    # Vegas-only model
-    coef_vegas = _fit_logistic([[g["home_implied_prob"]] for g in games], y,
-                               lr=0.1, epochs=3000)
-    # Joint model
-    coef_joint = _fit_logistic(X, y, lr=0.05, epochs=3000)
+    # Standardized full-data fits (for reporting coefficients on a comparable scale).
+    std_joint, _, _ = _standardize(joint_cols)
+    coef_joint = _fit_logistic(std_joint, y, lr=0.3, epochs=3000)
 
-    # Log-loss for each model
-    def log_loss(coef, X_data, y_data):
-        ll = 0.0
-        n_feat = len(X_data[0])
-        for xi, yi in zip(X_data, y_data):
-            p = _sigmoid(coef[0] + sum(coef[j+1]*xi[j] for j in range(n_feat)))
-            p = max(1e-9, min(1 - 1e-9, p))
-            ll -= yi * math.log(p) + (1 - yi) * math.log(1 - p)
-        return ll / len(y_data)
+    # In-sample log-loss (kept for continuity, but not the basis for the verdict —
+    # in-sample always favors the model with more parameters).
+    std_vegas, _, _ = _standardize(vegas_cols)
+    coef_vegas = _fit_logistic(std_vegas, y, lr=0.3, epochs=3000)
+    ll_vegas_in = _log_loss(coef_vegas, std_vegas, y)
+    ll_joint_in = _log_loss(coef_joint, std_joint, y)
 
-    ll_vegas = log_loss(coef_vegas, [[g["home_implied_prob"]] for g in games], y)
-    ll_joint = log_loss(coef_joint, X, y)
-    ll_naive = -math.log(0.5)  # baseline: always predict 50%
+    # Out-of-sample: 5-fold CV log-loss is the verdict.
+    cv_vegas = _cv_log_loss(vegas_cols, y)
+    cv_joint = _cv_log_loss(joint_cols, y)
+    cv_delta = cv_vegas - cv_joint          # > 0 means joint predicts better OOS
+    ll_naive = -math.log(0.5)               # baseline: always predict 50%
+
+    # Verdict is gated on real out-of-sample improvement, not coefficient magnitude.
+    # ~0.0005 log-loss ≈ the noise floor at this sample size.
+    if cv_delta >= 0.0005:
+        interpretation = (f"pitcher_diff adds signal beyond Vegas "
+                          f"(CV log-loss {cv_delta:+.5f} better)")
+    elif cv_delta <= -0.0005:
+        interpretation = (f"pitcher_diff HURTS out-of-sample — Vegas already prices it "
+                          f"(CV log-loss {cv_delta:+.5f})")
+    else:
+        interpretation = ("pitcher_diff adds nothing beyond Vegas "
+                          f"(CV log-loss flat, {cv_delta:+.5f})")
 
     return {
-        "n_games":              len(games),
-        "vegas_only_log_loss":  round(ll_vegas, 6),
-        "joint_log_loss":       round(ll_joint, 6),
-        "naive_log_loss":       round(ll_naive, 6),
-        "pitcher_diff_coef":    round(coef_joint[2], 4),
-        "implied_prob_coef":    round(coef_joint[1], 4),
-        "intercept":            round(coef_joint[0], 4),
-        "interpretation": (
-            "pitcher_diff adds meaningful signal" if abs(coef_joint[2]) > 0.3
-            else "pitcher_diff adds little beyond Vegas (coef near 0)"
-        ),
+        "n_games":               len(games),
+        "coef_space":            "standardized (z-scored features)",
+        "vegas_only_log_loss":   round(ll_vegas_in, 6),   # in-sample
+        "joint_log_loss":        round(ll_joint_in, 6),   # in-sample
+        "cv_vegas_log_loss":     round(cv_vegas, 6),      # out-of-sample (5-fold)
+        "cv_joint_log_loss":     round(cv_joint, 6),      # out-of-sample (5-fold)
+        "cv_log_loss_delta":     round(cv_delta, 6),      # >0 = joint better OOS
+        "naive_log_loss":        round(ll_naive, 6),
+        "pitcher_diff_coef":     round(coef_joint[2], 4),
+        "implied_prob_coef":     round(coef_joint[1], 4),
+        "intercept":             round(coef_joint[0], 4),
+        "interpretation":        interpretation,
     }
 
 
@@ -363,12 +436,14 @@ def run_diagnostics() -> dict:
               f" {r['actual_wr']*100:>7.1f}%  {r['vegas_prob']*100:>7.1f}%"
               f"  {r['model_err']*100:>+8.1f}%  {r['vegas_err']*100:>+8.1f}%")
 
-    print(f"\nLOGISTIC REGRESSION")
-    print(f"  Vegas-only log-loss:  {reg['vegas_only_log_loss']:.6f}")
-    print(f"  Joint log-loss:       {reg['joint_log_loss']:.6f}")
-    print(f"  Naive baseline:       {reg['naive_log_loss']:.6f}")
-    print(f"  home_implied_prob coef: {reg['implied_prob_coef']:+.4f}")
-    print(f"  pitcher_diff coef:      {reg['pitcher_diff_coef']:+.4f}")
+    print(f"\nLOGISTIC REGRESSION — does pitcher_diff beat Vegas out-of-sample?")
+    print(f"  In-sample log-loss     vegas-only {reg['vegas_only_log_loss']:.6f}"
+          f"  joint {reg['joint_log_loss']:.6f}")
+    print(f"  5-fold CV log-loss     vegas-only {reg['cv_vegas_log_loss']:.6f}"
+          f"  joint {reg['cv_joint_log_loss']:.6f}  (delta {reg['cv_log_loss_delta']:+.6f})")
+    print(f"  Naive baseline:        {reg['naive_log_loss']:.6f}")
+    print(f"  coefs (standardized):  home_implied_prob {reg['implied_prob_coef']:+.4f}"
+          f"   pitcher_diff {reg['pitcher_diff_coef']:+.4f}")
     print(f"  => {reg['interpretation']}")
 
     print(f"\nEDGE ASYMMETRY (ROI by model_edge_ml bucket)")
