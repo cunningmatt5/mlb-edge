@@ -24,7 +24,7 @@ from pipeline.winprob_model import CURATED_FEATURES, MODEL_PATH, extract_feature
 import json as _json
 from pathlib import Path
 
-SEASONS = (2024, 2025)
+SEASONS = (2021, 2022, 2023, 2024, 2025)
 
 
 def _same_season_cache(season):
@@ -83,7 +83,7 @@ def run():
         "scaler_scale": sc.scale_.tolist(),
         "coef": clf.coef_[0].tolist(),
         "intercept": float(clf.intercept_[0]),
-        "trained_on": "2024-2025 same-season",
+        "trained_on": "2021-2025 same-season",
         "n": int(len(y)),
         "cv_auc": round(float(auc), 4),
         "cv_logloss": round(float(ll), 4),
