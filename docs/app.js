@@ -231,9 +231,6 @@ function gotoView(v) {
   if (b) b.click();
 }
 
-// Landing block that leads with TODAY'S VALIDATED edge plays (actionable edges only —
-// signal_boost > 0, i.e. the 8.0 UNDERs, not the 9.0 watch). Reuses the edge-confidence
-// map, per-season ROI chips, and the Kelly sizer.
 // Compact pointer to today's edge plays. The Edges tab is the authoritative surface for
 // edges (plays + watch + status + scoreboard + audit); this is a one-line banner so a user
 // on the Games tab knows plays exist and can jump there — not a second full copy of the list.
@@ -271,24 +268,12 @@ function renderGamesView() {
   }
 
   const label     = formatDateLabel(gamesData.date);
-  const savedBank = localStorage.getItem('mlbedge_bankroll') || '';
-  const savedFrac = parseFloat(localStorage.getItem('mlbedge_kelly_fraction') || '0.5');
-  const fracName  = _kellyFracName(savedFrac);
 
   view.innerHTML = `
     <div class="view-header">
       <h1>Today's Games</h1>
       <span class="sub-label">${label} &nbsp;·&nbsp; ${gamesData.game_count} games</span>
     </div>
-    <div class="bankroll-row">
-      <span class="bankroll-label">Bankroll</span>
-      <span class="bankroll-prefix">$</span>
-      <input type="number" id="bankroll-input" class="bankroll-input"
-             placeholder="10000" min="0" step="100" value="${savedBank}">
-      <button class="kelly-frac-btn" id="kelly-frac-btn"
-              title="Bet-sizing aggressiveness. Tap to cycle: Full Kelly → ½ Kelly → ¼ Kelly. Smaller = safer (less variance).">${fracName}</button>
-    </div>
-    <div class="bankroll-hint">Optional — enter your bankroll to get a suggested stake on each validated <b>UNDER</b> edge below, sized by the <b>Kelly</b> setting (most pros use ½ or ¼ Kelly to limit swings).</div>
     ${todaysEdgePlaysHTML(gamesData.games)}
     ${localStorage.getItem('mlbedge_legend_hidden') ? '' : `
     <div class="games-legend" id="games-legend">
@@ -312,40 +297,6 @@ function renderGamesView() {
       const pk   = +card.dataset.pk;
       toggleCard(pk);
     });
-  });
-
-  const bankInput = document.getElementById('bankroll-input');
-  const fracBtn   = document.getElementById('kelly-frac-btn');
-
-  function refreshKellyStrips() {
-    view.querySelectorAll('.game-card').forEach(card => {
-      const pk  = +card.dataset.pk;
-      const g   = gamesData.games.find(x => x.gamePk === pk);
-      if (!g) return;
-      const existing = card.querySelector('.kelly-strip');
-      const html = kellyStripHTML(g);
-      if (existing) {
-        existing.outerHTML = html || '';
-      } else if (html) {
-        const edgeStrip = card.querySelector('.edge-strip');
-        if (edgeStrip) edgeStrip.insertAdjacentHTML('afterend', html);
-      }
-    });
-  }
-
-  bankInput?.addEventListener('input', () => {
-    const val = parseFloat(bankInput.value);
-    if (!isNaN(val) && val >= 0) localStorage.setItem('mlbedge_bankroll', val);
-    else localStorage.removeItem('mlbedge_bankroll');
-    refreshKellyStrips();
-  });
-
-  fracBtn?.addEventListener('click', () => {
-    const cur  = parseFloat(localStorage.getItem('mlbedge_kelly_fraction') || '0.5');
-    const next = cur >= 1.0 ? 0.25 : cur >= 0.5 ? 1.0 : 0.5;
-    localStorage.setItem('mlbedge_kelly_fraction', next);
-    fracBtn.textContent = _kellyFracName(next);
-    refreshKellyStrips();
   });
 }
 
@@ -670,50 +621,6 @@ function gameEdgeBannerHTML(g) {
   return parts.join('');
 }
 
-// ── Kelly criterion stake strip ───────────────────────────────────────────────
-function _kellyFracLabel(frac) {
-  return frac >= 1.0 ? '1K' : frac >= 0.5 ? '½K' : '¼K';
-}
-
-// Fuller, self-explanatory label for the toggle button (vs the compact ¼K/½K/1K tag).
-function _kellyFracName(frac) {
-  return frac >= 1.0 ? 'Full Kelly' : frac >= 0.5 ? '½ Kelly' : '¼ Kelly';
-}
-
-function kellyStripHTML(g) {
-  const bankroll = parseFloat(localStorage.getItem('mlbedge_bankroll') || '0');
-  if (!bankroll || bankroll <= 0) return '';
-  const status = g.game_status || 'preview';
-  if (status !== 'preview') return '';
-  const odds = g.odds;
-  const fraction = parseFloat(localStorage.getItem('mlbedge_kelly_fraction') || '0.5');
-  const fracLabel = _kellyFracLabel(fraction);
-  const items = [];
-
-  // Kelly only sizes the VALIDATED, vig-acceptable UNDER edge — driven entirely by
-  // edge_detector's edge_conditions (single source of truth). This excludes the
-  // demoted 9.0 (watch, boost 0), heavy-vig 8.0 (suppressed), the emerging model-dev
-  // edge (no trusted win rate), and moneyline (no validated edge — ML Kelly removed,
-  // since home_win_pct overestimates the true win rate).
-  const underEdge = (g.edge_conditions || []).find(
-    e => e.direction === 'UNDER' && e.kelly_win_prob != null && (e.signal_boost ?? 0) > 0);
-  if (underEdge && odds?.total != null && odds?.under_price != null) {
-    const winProb = underEdge.kelly_win_prob;
-    const decOdds = americanToDecimal(odds.under_price);
-    const b       = decOdds - 1;
-    const fullK   = b > 0 ? (b * winProb - (1 - winProb)) / b : 0;
-    if (fullK > 0) {
-      const stake = Math.round(bankroll * fullK * fraction);
-      if (stake >= 1) {
-        items.push(`<span class="kelly-label kelly-under" title="Suggested stake at ${_kellyFracName(fraction)} of your bankroll">${fracLabel}</span><span class="kelly-amt">$${stake.toLocaleString()}</span><span class="kelly-on">UNDER ${odds.total}</span>`);
-      }
-    }
-  }
-
-  if (!items.length) return '';
-  return `<div class="kelly-strip">${items.map(i => `<span class="kelly-item">${i}</span>`).join('<span class="kelly-sep">·</span>')}</div>`;
-}
-
 // ── Vegas edge strip (collapsed card) — surfaces ML and total model edge ──────
 function vegasEdgeStripHTML(g) {
   const odds = g.odds;
@@ -814,7 +721,7 @@ function getNotableBatters(lineup, maxShow = 3) {
 // ── Expanded card body ────────────────────────────────────────────────────────
 function expandedBodyHTML(g) {
   // Betting + signals (relocated from the collapsed card to keep it clean)
-  const edgeBits = [vegasEdgeStripHTML(g), kellyStripHTML(g), keySignalsHTML(g)].filter(Boolean).join('');
+  const edgeBits = [vegasEdgeStripHTML(g), keySignalsHTML(g)].filter(Boolean).join('');
   const edgeBlock = (gameEdgeBannerHTML(g) || edgeBits)
     ? `<div class="expanded-section">
          <div class="section-heading">Edges &amp; Betting</div>
@@ -2224,19 +2131,6 @@ function _whyLine(g, e) {
   return `Our model projects ${pred.toFixed(1)} runs — under the ${total} line.`;
 }
 
-// ½-Kelly suggested stake for a play. Returns {stake, frac} | 'no-bank' | null.
-function edgePlayStake(g, e) {
-  const bankroll = parseFloat(localStorage.getItem('mlbedge_bankroll') || '0');
-  if (!bankroll || bankroll <= 0) return 'no-bank';
-  if (!e || e.kelly_win_prob == null || g.odds?.under_price == null) return null;
-  const fraction = parseFloat(localStorage.getItem('mlbedge_kelly_fraction') || '0.5');
-  const dec = americanToDecimal(g.odds.under_price), b = dec - 1;
-  const fullK = b > 0 ? (b * e.kelly_win_prob - (1 - e.kelly_win_prob)) / b : 0;
-  if (fullK <= 0) return null;
-  const stake = Math.round(bankroll * fullK * fraction);
-  return stake >= 1 ? { stake, frac: _kellyFracLabel(fraction) } : null;
-}
-
 function edgePlayCardHTML(g) {
   const unders = (g.edge_conditions || [])
     .filter(e => e.direction === 'UNDER')
@@ -2247,14 +2141,6 @@ function edgePlayCardHTML(g) {
   const time = g.game_time_et ? ` · ${escapeHtml(g.game_time_et)}` : '';
   const def = EDGE_DEFINITIONS[top?.tag];
   const edgeName = def?.name || top?.label || 'UNDER edge';
-
-  const st = edgePlayStake(g, top);
-  let stakeRow = '';
-  if (st === 'no-bank') {
-    stakeRow = `<button class="ef-play-setbank" onclick="gotoView('games')">Set a bankroll to size your bet →</button>`;
-  } else if (st) {
-    stakeRow = `<div class="ef-play-row"><span class="ef-play-k">Suggested bet</span><span class="ef-play-amt">$${st.stake.toLocaleString()}</span><span class="ef-play-frac">${st.frac}</span></div>`;
-  }
 
   // Price window — the actionable instruction. The app tracks the live line and only flags
   // this while the price is payable, so the number can drift out from under a user who checks
@@ -2296,7 +2182,6 @@ function edgePlayCardHTML(g) {
       ${priceBlock}
       <div class="ef-play-status ef-status-tracked">✓ Tracked play — graded and counted in this season's results below</div>
       <div class="ef-play-row"><span class="ef-play-k">Track record</span><span class="ef-play-rec">${escapeHtml(_recLine(top))}</span></div>
-      ${stakeRow}
       ${details}
     </div>`;
 }
