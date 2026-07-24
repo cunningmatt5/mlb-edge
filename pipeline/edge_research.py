@@ -49,8 +49,15 @@ def load_history_2026() -> pd.DataFrame:
     df = pd.DataFrame(games)
     if df.empty:
         return df
-    # Normalize to backtest field names
-    df = df.rename(columns={"vegas_total": "closing_total"})
+    # Normalize to backtest field names. history.json carries BOTH vegas_total and
+    # closing_total; renaming blindly produces two closing_total columns, which makes
+    # the later concat raise InvalidIndexError. Prefer the existing closing_total and
+    # only fall back to vegas_total for rows where it is absent.
+    if "closing_total" in df.columns and "vegas_total" in df.columns:
+        df["closing_total"] = df["closing_total"].fillna(df["vegas_total"])
+        df = df.drop(columns=["vegas_total"])
+    else:
+        df = df.rename(columns={"vegas_total": "closing_total"})
     df["season"] = 2026
     # Keep only records with complete odds + outcome
     needed = ["home_ml", "away_ml", "closing_total", "model_edge_ml", "actual_winner", "total_went_over"]
