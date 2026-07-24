@@ -1137,6 +1137,27 @@ function totalsOutcome(actualTotal, line) {
   return actualTotal > line ? 'over' : 'under';
 }
 
+// Plain-language definition of each edge, keyed by the tag the pipeline emits. One source
+// for every place an edge is named — the play card, the how-to glossary, and the audit —
+// so a user always sees the same short/long explanation of what triggered a play.
+const EDGE_DEFINITIONS = {
+  UNDER_LINE_8_0: {
+    name: 'Total = 8.0',
+    short: 'The line sits exactly on 8.0 at standard vig, and the model also projects under.',
+    long: 'Fires when the closing total is exactly 8.0 priced at standard vig (−110 to −106) AND the model independently projects fewer runs than the line. The round 8.0 number is one the market has historically over-priced the OVER on.',
+  },
+  UNDER_LINE_9_0: {
+    name: 'Total = 9.0',
+    short: 'The line sits exactly on 9.0 — flagged on the line alone.',
+    long: 'Fires whenever the closing total is exactly 9.0, on the line alone (the model-lean filter measured worse here, so it is deliberately not applied). Historically strong but softer in 2026 — watch, not a core play.',
+  },
+  UNDER_MODEL_DEV: {
+    name: 'Model–Vegas Gap',
+    short: 'The model projects at least 0.75 runs below a total of 9.0 or lower — a wide disagreement with the market.',
+    long: 'Fires when the model projects at least 0.75 runs FEWER than the Vegas total, at any line of 9.0 or below. It is the disagreement itself that is the signal: the bigger the gap between our projection and the market, the stronger the lean UNDER. Unlike the 8.0/9.0 edges it is not tied to one line — it catches a mispriced total wherever the model sees one. Emerging: 2026 is the first season the model prediction is anchor-free enough to test this, so the sample is still small.',
+  },
+};
+
 // The validated UNDER bands, defined once. Both the Performance tab's ROI figures and the
 // Edges tab's qualifying-game lists read these, so a game shown as qualifying is by
 // construction a game counted in the record — the list cannot drift from the number.
@@ -2141,6 +2162,8 @@ function edgePlayCardHTML(g) {
   const c = edgeConf(top);
   const total = g.odds?.total;
   const time = g.game_time_et ? ` · ${escapeHtml(g.game_time_et)}` : '';
+  const def = EDGE_DEFINITIONS[top?.tag];
+  const edgeName = def?.name || top?.label || 'UNDER edge';
 
   const st = edgePlayStake(g, top);
   let stakeRow = '';
@@ -2166,10 +2189,12 @@ function edgePlayCardHTML(g) {
     <div class="ef-play">
       <div class="ef-play-top">
         <span class="ef-conf-badge ${c.efCls}">${c.icon} ${escapeHtml(c.label)}</span>
+        <span class="ef-edge-name" title="${def ? escapeHtml(def.short) : ''}">${escapeHtml(edgeName)}</span>
         <span class="ef-play-match">${escapeHtml(g.away_team)} @ ${escapeHtml(g.home_team)}${time}</span>
       </div>
       <div class="ef-play-bet">Bet the UNDER ${total ?? ''}</div>
       <div class="ef-play-why">${escapeHtml(_whyLine(g, top))}</div>
+      ${def ? `<div class="ef-play-def">${escapeHtml(def.short)}</div>` : ''}
       <div class="ef-play-row"><span class="ef-play-k">Track record</span><span class="ef-play-rec">${escapeHtml(_recLine(top))}</span></div>
       ${stakeRow}
       ${details}
@@ -2198,13 +2223,21 @@ function edgesHowToHTML() {
         <p>Each play is an UNDER bet that our model and several seasons of data agree the market has mispriced. We only surface bets that beat real closing odds across multiple seasons.</p>
         <p><b>Confidence:</b> ⚡ Strong = positive multi-season ROI (push-corrected) · ★ Emerging = promising but 2026 only · ⚠ Watch = historically positive but down this season (not bet).</p>
         <p><b>Track record</b> on each play is its validated multi-season ROI. <b>This season's results</b> below show how the edges have actually done in 2026 — including CLV, whether our bet-time line beat the closing line.</p>
+        <div class="ef-glossary">
+          <div class="ef-glossary-hdr">The edge categories</div>
+          ${Object.values(EDGE_DEFINITIONS).map(d => `
+            <div class="ef-gloss-item">
+              <div class="ef-gloss-name">${escapeHtml(d.name)}</div>
+              <div class="ef-gloss-def">${escapeHtml(d.long)}</div>
+            </div>`).join('')}
+        </div>
       </div>
     </details>`;
 }
 
 // ── Qualifying-games audit ────────────────────────────────────────────────────
 // Every game behind each edge's record, so the headline ROI can be sourced and checked
-// rather than taken on faith. Rows come from computeUnderBandRoi — the same call that
+// rather than taken on faith. Rows come from computeUnderEdge — the same call that
 // produces the number — so the list and the number cannot disagree.
 
 let _edgeAuditOpen = {};   // band key → showing all rows rather than the recent slice
@@ -2391,6 +2424,7 @@ function edgeAuditSectionHTML() {
     <div class="ea-audit-band">
       <div class="ea-audit-hdr">
         <span class="ea-audit-title">${band.label}</span>
+        ${EDGE_DEFINITIONS[band.tag] ? `<span class="ea-audit-defname">${EDGE_DEFINITIONS[band.tag].name}</span>` : ''}
         <span class="ea-audit-agg">
           <span class="${data.roi >= 0 ? 'seg-pos' : 'seg-neg'}">${roiStr}</span>
           · ${data.totalBets.toLocaleString()} graded
@@ -2402,6 +2436,7 @@ function edgeAuditSectionHTML() {
           <span class="ea-audit-scope">app trigger · ${scope}</span>
         </span>
       </div>
+      ${EDGE_DEFINITIONS[band.tag] ? `<div class="ea-audit-def">${EDGE_DEFINITIONS[band.tag].long}</div>` : ''}
       <div class="ea-audit-note">${band.note} Pushes are excluded as void, so "graded" is below the raw count of games on this line.</div>
       ${reconcileHTML}
 
