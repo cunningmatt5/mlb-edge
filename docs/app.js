@@ -785,25 +785,6 @@ function seasonRoiStripHTML(e) {
   return `<div class="ef-season-strip" title="Historical ROI by season">${chips}</div>`;
 }
 
-function edgeConditionsHTML(g) {
-  const conds = g.edge_conditions;
-  if (!conds || !conds.length) return '';
-  const status = g.game_status || 'preview';
-  if (status !== 'preview') return '';
-
-  // Strongest (highest live boost) first so the actionable edge leads.
-  const ordered = [...conds].sort((a, b) => (b.signal_boost ?? 0) - (a.signal_boost ?? 0));
-  const badges = ordered.map(e => {
-    const c = edgeConf(e);
-    const roiStr = `${e.roi_pct >= 0 ? '+' : ''}${e.roi_pct.toFixed(1)}% ROI`;
-    const muted = (e.signal_boost ?? 0) === 0 ? ' muted' : '';
-    return `<span class="edge-cond-badge ${c.cls}${muted}" title="${e.seasons}">`
-         + `${c.icon} ${e.label} · ${roiStr}</span>`;
-  }).join('');
-
-  return `<div class="edge-cond-strip">${badges}</div>`;
-}
-
 // ── Lineup status (collapsed card) — batter highlights moved to expanded lineup section ──
 function lineupStatusHTML(g) {
   const status = g.lineup_status;
@@ -2201,18 +2182,39 @@ function edgePlayCardHTML(g) {
     </div>`;
 }
 
+// Watch list: games that landed on a validated edge line but whose edge is watch-only
+// (boost 0) — historically positive, not currently bet. Rendered as a visible section, not
+// a collapsed accordion, so a day with no actionable plays still shows what's being tracked
+// rather than reading as empty. Each row names the edge and states plainly it isn't a bet.
 function edgeWatchHTML(games) {
   if (!games.length) return '';
-  const items = games.map(g =>
-    `<li>${escapeHtml(g.away_team)} @ ${escapeHtml(g.home_team)}${g.odds?.total != null ? ` · ${g.odds.total} total` : ''}</li>`).join('');
+  const rows = games.map(g => {
+    // Name the specific watch-only edge that fired (there may be several; take the first
+    // UNDER condition, which is what the game qualified on).
+    const cond = (g.edge_conditions || []).find(e => e.direction === 'UNDER') || {};
+    const def  = EDGE_DEFINITIONS[cond.tag];
+    const name = def?.name || cond.label || 'UNDER edge';
+    const total = g.odds?.total;
+    const time = g.game_time_et ? escapeHtml(g.game_time_et) : '';
+    return `
+      <div class="ef-watch-row">
+        <div class="ef-watch-row-top">
+          <span class="ef-watch-edge" title="${def ? escapeHtml(def.short) : ''}">${escapeHtml(name)}</span>
+          <span class="ef-watch-match">${escapeHtml(g.away_team)} @ ${escapeHtml(g.home_team)}</span>
+          <span class="ef-watch-time">${time}</span>
+        </div>
+        <div class="ef-watch-line">UNDER ${total ?? '—'}${g.odds?.under_price != null ? ` <span class="ef-watch-px">${g.odds.under_price > 0 ? '+' : ''}${g.odds.under_price}</span>` : ''}</div>
+      </div>`;
+  }).join('');
   return `
-    <details class="ef-watch">
-      <summary>Watching, not betting — ${games.length} game${games.length !== 1 ? 's' : ''}</summary>
-      <div class="ef-watch-body">
-        <p>These hit the 9.0-line under — historically strong, but down in 2026, so we're sitting them out.</p>
-        <ul class="ef-watch-list">${items}</ul>
+    <section class="ef-section">
+      <div class="ef-section-hdr">
+        <h2 class="ef-section-title">On the watch line</h2>
+        <span class="ef-section-count">${games.length} game${games.length !== 1 ? 's' : ''} · not bet</span>
       </div>
-    </details>`;
+      <p class="ef-watch-intro">These landed on a validated edge line but on an edge we're <b>watching, not betting</b> — historically positive, but not clearing the bar this season (the 9.0 line reversed in 2026). Shown so you can see them, and track whether they'd have hit.</p>
+      <div class="ef-watch-rows">${rows}</div>
+    </section>`;
 }
 
 function edgesHowToHTML() {
@@ -2534,11 +2536,11 @@ function renderEdgesView() {
       </div>
       ${playsHTML}
     </section>
+    ${edgeWatchHTML(watch)}
     <section class="ef-section">
       ${edgeScoreboardHTML()}
     </section>
-    ${edgeAuditSectionHTML()}
-    ${edgeWatchHTML(watch)}`;
+    ${edgeAuditSectionHTML()}`;
 }
 
 // ── Reversion tool: good hitters slumping on bad luck (informational) ──────────

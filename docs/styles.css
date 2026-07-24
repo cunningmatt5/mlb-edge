@@ -3929,15 +3929,6 @@ header {
 }
 
 /* ── Edge Condition Badge (game cards) ───────────────────────────────────── */
-.edge-cond-strip {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 16px;
-  border-top: 1px solid rgba(34,197,94,.18);
-  background: rgba(34,197,94,.04);
-  flex-wrap: wrap;
-}
 .edge-cond-badge {
   padding: 2px 8px;
   border-radius: 4px;
@@ -4078,18 +4069,34 @@ header {
   padding-top: 6px; display: flex; flex-direction: column; gap: 4px;
 }
 
-.ef-howto, .ef-watch { margin: 10px 0; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card); }
-.ef-howto > summary, .ef-watch > summary {
+.ef-howto { margin: 10px 0; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card); }
+.ef-howto > summary {
   cursor: pointer; padding: 10px 14px; font-size: 12px; font-weight: 600;
   color: var(--text-muted); list-style: none;
 }
-.ef-howto > summary::-webkit-details-marker, .ef-watch > summary::-webkit-details-marker { display: none; }
-.ef-howto > summary::after, .ef-watch > summary::after { content: '▾'; float: right; }
-.ef-howto[open] > summary::after, .ef-watch[open] > summary::after { content: '▴'; }
-.ef-howto-body, .ef-watch-body { padding: 0 14px 12px; font-size: 12px; color: var(--text-muted); line-height: 1.55; }
-.ef-howto-body p, .ef-watch-body p { margin: 0 0 8px; }
-.ef-watch-list { margin: 6px 0 0; padding-left: 18px; }
-.ef-watch-list li { margin: 2px 0; }
+.ef-howto > summary::-webkit-details-marker { display: none; }
+.ef-howto > summary::after { content: '▾'; float: right; }
+.ef-howto[open] > summary::after { content: '▴'; }
+.ef-howto-body { padding: 0 14px 12px; font-size: 12px; color: var(--text-muted); line-height: 1.55; }
+.ef-howto-body p { margin: 0 0 8px; }
+
+/* Watch list — visible section (not an accordion) for watch-only edges that fired today. */
+.ef-watch-intro { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin: 0 0 10px; }
+.ef-watch-rows { display: flex; flex-direction: column; gap: 8px; }
+.ef-watch-row {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 12px; border-left: 2px solid rgba(234,179,8,.45);
+}
+.ef-watch-row-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ef-watch-edge {
+  font-size: 11px; font-weight: 700; letter-spacing: .2px;
+  color: #eab308; background: rgba(234,179,8,.10);
+  border: 1px solid rgba(234,179,8,.25); padding: 1px 8px; border-radius: 999px; white-space: nowrap;
+}
+.ef-watch-match { font-size: 13px; font-weight: 600; color: var(--text); }
+.ef-watch-time { font-size: 11px; color: var(--text-dim); margin-left: auto; }
+.ef-watch-line { font-size: 12px; color: var(--text-muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.ef-watch-px { color: var(--text-dim); }
 .ef-empty {
   padding: 16px; text-align: center; color: var(--text-muted); font-size: 13px;
   background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
