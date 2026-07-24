@@ -95,7 +95,12 @@ function setupNav() {
         document.getElementById(v + '-view').hidden = currentView !== v;
       }
       if (currentView === 'games')     renderGamesView();
-      if (currentView === 'edges')     Promise.all([loadGames(), loadEdgeScoreboard()]).then(renderEdgesView);
+      // backtest.json is large; render as soon as the light files land, then re-render when
+      // the game-level record arrives so the qualifying-games audit fills in.
+      if (currentView === 'edges') {
+        Promise.all([loadGames(), loadEdgeScoreboard()]).then(renderEdgesView);
+        loadBacktest().then(renderEdgesView);
+      }
       if (currentView === 'support')   renderSupportView();
       if (currentView === 'performance') {
         Promise.all([loadBacktest(), loadEdgeScoreboard()]).then(renderPerformanceView);
@@ -1132,6 +1137,154 @@ function totalsOutcome(actualTotal, line) {
   return actualTotal > line ? 'over' : 'under';
 }
 
+// The validated UNDER bands, defined once. Both the Performance tab's ROI figures and the
+// Edges tab's qualifying-game lists read these, so a game shown as qualifying is by
+// construction a game counted in the record — the list cannot drift from the number.
+// Every UNDER edge the app publishes, each with the predicate that decides whether a game
+// belongs to its record. `qualifies` defines the universe the ROI is built from; `flags`
+// mirrors detect_edges() in pipeline/analytics/edge_detector.py — what the app would
+// actually have surfaced. The edges do NOT share a trigger: 8.0 additionally requires the
+// model below the line, 9.0 deliberately fires on the line alone (the model filter measured
+// worse there), and the model-gap edge is not a line band at all. Keep these in step with
+// edge_detector.py — if they drift, the audit misstates what the app does.
+const EDGE_BANDS = [
+  {
+    key: 'u80', label: 'UNDER · Total = 8.0', tag: 'UNDER_LINE_8_0',
+    qualifies: r => r.line >= 8.0 && r.line < 8.5 && inStdVig(r.under_price),
+    note: 'Standard-vig band only (−110 to −106). Cheaper or vig-against prices do not qualify.',
+    flagLabel: '+ model lean · what the app flags',
+    flagNote: 'The app flags 8.0 only when the model also sits below the line, so the second build is the one behind the recommendation.',
+    flags: r => r.leansUnder === true,
+  },
+  {
+    key: 'u85', label: 'UNDER · Total = 8.5', tag: null, contrast: true,
+    qualifies: r => r.line >= 8.5 && r.line < 9.0,
+    note: 'Shown for contrast — this line is explicitly excluded from the edges. The audit is here so the exclusion can be checked rather than trusted.',
+    flagLabel: 'no trigger — never flagged',
+    flagNote: 'The app never flags 8.5. Both builds are identical because there is no filter to apply.',
+    flags: () => true,
+  },
+  {
+    key: 'u90', label: 'UNDER · Total = 9.0', tag: 'UNDER_LINE_9_0',
+    qualifies: r => r.line >= 9.0 && r.line < 9.5,
+    note: 'All prices qualify at this line.',
+    flagLabel: 'what the app flags · line alone',
+    flagNote: 'The app flags 9.0 on the line alone — the model-lean filter measured worse here, so it is deliberately not applied. The two builds are therefore identical; the per-row model-lean mark is reference only.',
+    flags: () => true,
+  },
+  {
+    key: 'udev', label: 'UNDER · Model–Vegas gap', tag: 'UNDER_MODEL_DEV',
+    qualifies: r => r.line <= 9.0 && r.predicted_total != null && (r.predicted_total - r.line) <= -0.75,
+    note: 'Not a line band: fires wherever the model sits ≥0.75 runs below a total of 9.0 or lower. Emerging — 2026 is the only season the model prediction is anchor-free enough to test.',
+    flagLabel: 'what the app flags',
+    flagNote: 'The gap condition is itself the trigger, so both builds are identical.',
+    flags: () => true,
+  },
+];
+
+// Std-vig band for the 8.0 edge: [-110, -106].
+function inStdVig(underPrice) {
+  return underPrice != null && underPrice <= -106 && underPrice >= -110;
+}
+
+
+// The full graded universe for edge auditing, in one shape.
+//
+// Two sources, because no single file covers every season:
+//   2021-2025  backtest.json — graded on the archived CLOSING line.
+//   2026       history.json  — graded on the BET-TIME line (vegas_total/under_price),
+//                              matching edge_scoreboard.py's _grade_under exactly. 2026 has
+//                              no closing_lines.parquet, so backtest.json's 2026 rows carry
+//                              no odds at all and are skipped here to avoid double-counting.
+// The line-source difference is real and is surfaced per row rather than blended away.
+function edgeAuditUniverse() {
+  const out = [];
+  for (const g of (backtestData?.games || [])) {
+    const yr = g.season || parseInt(g.date);
+    if (yr === 2026) continue;            // no odds on these rows; 2026 comes from history
+    if (g.closing_total == null || g.under_price == null) continue;
+    out.push({
+      date: g.date, season: yr, gamePk: g.gamePk,
+      away_team: g.away_team, home_team: g.home_team,
+      line: g.closing_total, under_price: g.under_price,
+      away_score: g.away_score, home_score: g.home_score,
+      actual_total: g.actual_total, lineSource: 'closing',
+      predicted_total: g.predicted_total,
+    });
+  }
+  for (const r of (historyData || [])) {
+    const yr = parseInt((r.date || '').slice(0, 4));
+    if (!yr || yr < 2026) continue;
+    if (r.vegas_total == null || r.under_price == null || r.actual_total == null) continue;
+    out.push({
+      date: r.date, season: yr, gamePk: r.gamePk,
+      away_team: r.away_team, home_team: r.home_team,
+      line: r.vegas_total, under_price: r.under_price,
+      away_score: r.away_score, home_score: r.home_score,
+      actual_total: r.actual_total, lineSource: 'bet-time',
+      closingLine: r.closing_total ?? null,     // present on ~41% of 2026 rows (CLV capture)
+      predicted_total: r.predicted_total,
+    });
+  }
+  return out;
+}
+
+// UNDER edge ROI for one band (same methodology as edge_research.py / edge_scoreboard.py).
+// Returns the aggregate AND every qualifying game with a running cumulative-units figure,
+// so the number can be shown alongside the rows it is built from.
+function computeUnderEdge(band, allGames) {
+  const bySeason = {};
+  const rows = [];
+  let totalUnits = 0, totalBets = 0, totalWins = 0;
+
+  // Chronological, so the running total accumulates in the order the bets were actually made.
+  const ordered = allGames.slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+  for (const g of ordered) {
+    // Accept both shapes: universe rows use `line`, raw backtest rows use `closing_total`.
+    const ct = g.line ?? g.closing_total;
+    const uPrice = g.under_price;
+    if (uPrice == null || ct == null) continue;
+    if (!band.qualifies({ ...g, line: ct })) continue;
+    // Push-aware: a total landing exactly on the line is void (refunded), not an UNDER win.
+    const oc = totalsOutcome(g.actual_total, ct);
+    if (oc == null || oc === 'push') continue;
+    const yr = g.season || parseInt(g.date);
+    // 2021 stays out: its backtest rows are lookahead-flagged (no 2020 prior cache). That
+    // matters for model-conditioned signals, arguably not for a blind line bet — revisit
+    // deliberately, since including it moves every published edge ROI.
+    if (!yr || yr < 2022) continue;
+    if (!bySeason[yr]) bySeason[yr] = { bets: 0, wins: 0, units: 0 };
+    const s = bySeason[yr];
+    const won = oc === 'under'; // betting UNDER wins when total stays under
+    const dec = uPrice >= 0 ? 1 + uPrice / 100 : 1 - 100 / uPrice;
+    const delta = won ? dec - 1 : -1;
+    s.bets++; totalBets++;
+    if (won) { s.wins++; totalWins++; }
+    s.units += delta; totalUnits += delta;
+    rows.push({
+      date: g.date, season: yr, gamePk: g.gamePk,
+      away: g.away_team, home: g.home_team,
+      line: ct, underPrice: uPrice,
+      awayScore: g.away_score, homeScore: g.home_score,
+      actual: g.actual_total, won, units: delta,
+      cum: totalUnits,                       // running units through this bet
+      lineSource: g.lineSource || 'closing',
+      predicted: g.predicted_total ?? null,
+      // Separates "the line qualified" from "the app would have flagged it".
+      leansUnder: g.predicted_total != null ? g.predicted_total < ct : null,
+    });
+  }
+  const roi = totalBets ? (totalUnits / totalBets * 100) : null;
+  return { bySeason, totalBets, totalWins, totalUnits, roi, rows };
+}
+
+// Look a band up by key. Used so the Performance tab and the Edges audit read the same
+// definitions rather than each carrying its own copy of the line boundaries.
+function edgeBand(key) {
+  return EDGE_BANDS.find(b => b.key === key);
+}
+
 // Compact "by edge" performance summary from the live edge scoreboard (the only validated,
 // bet-and-tracked surface). Mirrors the Edges-tab data; links there for full detail.
 function edgePerfSummaryHTML() {
@@ -1556,36 +1709,14 @@ function renderPerformanceView() {
     ${signalRoiBlock}`;
 
   // ── SECTION 6: Validated Edges ───────────────────────────────────────────
-  // Compute edge-band UNDER ROI from backtest games (same methodology as edge_research.py)
-  function computeUnderBandRoi(lo, hi, allGames, stdVigOnly = false) {
-    const bySeason = {};
-    let totalUnits = 0, totalBets = 0, totalWins = 0;
-    for (const g of allGames) {
-      const ct = g.closing_total;
-      const uPrice = g.under_price;
-      if (ct == null || uPrice == null) continue;
-      if (ct < lo || ct >= hi) continue;
-      if (stdVigOnly && (uPrice > -106 || uPrice < -110)) continue;  // std-vig band [-110,-106]
-      // Push-aware: a total landing exactly on the line is void (refunded), not an UNDER win.
-      const oc = totalsOutcome(g.actual_total, ct);
-      if (oc == null || oc === 'push') continue;
-      const yr = g.season || parseInt(g.date);
-      if (!yr || yr < 2022) continue;
-      if (!bySeason[yr]) bySeason[yr] = { bets: 0, wins: 0, units: 0 };
-      const s = bySeason[yr];
-      const won = oc === 'under'; // betting UNDER wins when total stays under
-      const dec = uPrice >= 0 ? 1 + uPrice / 100 : 1 - 100 / uPrice;
-      s.bets++; totalBets++;
-      if (won) { s.wins++; totalWins++; s.units += dec - 1; totalUnits += dec - 1; }
-      else      { s.units -= 1; totalUnits -= 1; }
-    }
-    const roi = totalBets ? (totalUnits / totalBets * 100) : null;
-    return { bySeason, totalBets, totalWins, roi };
-  }
-
-  const edge8to85  = computeUnderBandRoi(8.0, 8.5, games, true);  // 8.0 edge lives at std vig only
-  const edge9to95  = computeUnderBandRoi(9.0, 9.5, games);
-  const edge85to9  = computeUnderBandRoi(8.5, 9.0, games); // the dead zone — for contrast
+  // Same universe and same band definitions the Edges tab audits against, so the two tabs
+  // cannot report different ROI for the same edge. This includes the live 2026 season via
+  // history.json — backtest.json alone has no 2026 odds, which previously left the live
+  // season out of these cards entirely.
+  const edgeUniverse = edgeAuditUniverse();
+  const edge8to85 = computeUnderEdge(edgeBand('u80'), edgeUniverse);
+  const edge9to95 = computeUnderEdge(edgeBand('u90'), edgeUniverse);
+  const edge85to9 = computeUnderEdge(edgeBand('u85'), edgeUniverse); // the dead zone — contrast
 
   function edgeSeasonRows(bandData) {
     return Object.keys(bandData.bySeason).sort().map(yr => {
@@ -1621,17 +1752,39 @@ function renderPerformanceView() {
   const ec85RoiStr = ec85Roi != null ? (ec85Roi >= 0 ? '+' : '') + ec85Roi.toFixed(1) + '%' : '—';
   const ec9Conf = bandConf(edge9to95.bySeason);
 
+  // Card copy states its figures from the same data the card displays. These used to be
+  // written into the prose by hand ("+5.5%", "2026 reversed sharply (-13.9%)") and drifted
+  // the moment the underlying odds were reconciled, so a card could contradict its own
+  // headline number. Anything numeric in this section is derived.
+  const seasonsOf = d => Object.keys(d.bySeason).sort();
+  const profitableOf = d => seasonsOf(d).filter(y => d.bySeason[y].units > 0).length;
+  const liveOf = d => {
+    const yrs = seasonsOf(d).filter(y => parseInt(y) >= 2026);
+    if (!yrs.length) return null;
+    const s = yrs.reduce((a, y) => ({ bets: a.bets + d.bySeason[y].bets, units: a.units + d.bySeason[y].units }), { bets: 0, units: 0 });
+    return s.bets ? { bets: s.bets, roi: s.units / s.bets * 100, year: yrs[0] } : null;
+  };
+  const pctStr = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+  const liveStr = d => {
+    const l = liveOf(d);
+    return l ? `${l.year} so far: <strong>${pctStr(l.roi)}</strong> over ${l.bets} qualifying game${l.bets === 1 ? '' : 's'}` : 'no qualifying games this season yet';
+  };
+  const totalGraded = edge8to85.totalBets + edge85to9.totalBets + edge9to95.totalBets;
+  const scopeYrs = seasonsOf(edge9to95);
+  const scopeStr = scopeYrs.length ? `${scopeYrs[0]}–${scopeYrs[scopeYrs.length - 1]}` : '';
+
   const edgesSection = `
     <div class="bt-sec-head">
       <span class="bt-sec-num">01</span>
       <span class="bt-sec-title">Validated Edges</span>
-      <span class="bt-sec-sub">Per-line UNDER performance · 9,400+ games · 2022–2026</span>
+      <span class="bt-sec-sub">Per-line UNDER performance · ${totalGraded.toLocaleString()} graded bets · ${scopeStr}</span>
     </div>
     <p class="bt-sec-desc">
       MLB totals are set at discrete half-run increments (8.0, 8.5, 9.0, …). Each line behaves
-      differently — push-corrected, a flat UNDER on 8.0 at standard vig is +5.5% (4 of 6 seasons),
-      while 8.5 loses money. (Figures here void pushes — totals landing exactly on the line.)
-      The <strong>Edges tab</strong> flags today's qualifying games.
+      differently — push-corrected, a flat UNDER on 8.0 at standard vig is ${ec8RoiStr}
+      (${profitableOf(edge8to85)} of ${seasonsOf(edge8to85).length} seasons profitable), while 8.5
+      returns ${ec85RoiStr}. Figures void pushes — totals landing exactly on the line. The
+      <strong>Edges tab</strong> lists every game behind these numbers, game by game.
     </p>
     <div class="bt-edges-grid">
 
@@ -1644,7 +1797,7 @@ function renderPerformanceView() {
         </div>
         <div class="bt-ec2-body">
           <div class="bt-ec2-band-label">UNDER · Total = 8.0</div>
-          <p class="bt-ec2-desc">Our most reliable edge — push-corrected +5.5% at standard vig, profitable in 4 of 6 seasons. The market tends to over-price the over at the round 8.0 number. (Only the standard-vig band qualifies; cheaper or vig-against prices don't.)</p>
+          <p class="bt-ec2-desc">Our most reliable edge — push-corrected ${ec8RoiStr} at standard vig, profitable in ${profitableOf(edge8to85)} of ${seasonsOf(edge8to85).length} seasons. The market tends to over-price the over at the round 8.0 number. Only the standard-vig band qualifies; cheaper or vig-against prices don't. ${liveStr(edge8to85)}.</p>
           <div class="bt-table-wrap">
             <table class="seg-table">
               <thead><tr><th>Season</th><th>Games</th><th>Win%</th><th>ROI</th></tr></thead>
@@ -1663,7 +1816,7 @@ function renderPerformanceView() {
         </div>
         <div class="bt-ec2-body">
           <div class="bt-ec2-band-label">UNDER · Total = 8.5</div>
-          <p class="bt-ec2-desc">The single most common total line in MLB (~22% of games), and a consistent money-loser for UNDER bettors. No edge flag is generated for 8.5 games. The 8.0 and 9.0 edges do not extend here.</p>
+          <p class="bt-ec2-desc">The most common total line in MLB, and a money-loser for UNDER bettors over the full record (${ec85RoiStr}, ${profitableOf(edge85to9)} of ${seasonsOf(edge85to9).length} seasons profitable). No edge flag is generated for 8.5 — the 8.0 and 9.0 edges do not extend here. ${liveStr(edge85to9)}.</p>
           <div class="bt-table-wrap">
             <table class="seg-table">
               <thead><tr><th>Season</th><th>Games</th><th>Win%</th><th>ROI</th></tr></thead>
@@ -1682,7 +1835,7 @@ function renderPerformanceView() {
         </div>
         <div class="bt-ec2-body">
           <div class="bt-ec2-band-label">UNDER · Total = 9.0</div>
-          <p class="bt-ec2-desc">Strong 2022–2025 record (+10–14% ROI each year), but 2026 has reversed sharply (-13.9%). May be market correction or early-season variance — watch closely before leaning on this one.</p>
+          <p class="bt-ec2-desc">Profitable in ${profitableOf(edge9to95)} of ${seasonsOf(edge9to95).length} seasons at ${ec9RoiStr} overall, but thinner than 8.0 and it has swung hard between seasons — treat as watch-only rather than a play. ${liveStr(edge9to95)}.</p>
           <div class="bt-table-wrap">
             <table class="seg-table">
               <thead><tr><th>Season</th><th>Games</th><th>Win%</th><th>ROI</th></tr></thead>
@@ -2049,6 +2202,275 @@ function edgesHowToHTML() {
     </details>`;
 }
 
+// ── Qualifying-games audit ────────────────────────────────────────────────────
+// Every game behind each edge's record, so the headline ROI can be sourced and checked
+// rather than taken on faith. Rows come from computeUnderBandRoi — the same call that
+// produces the number — so the list and the number cannot disagree.
+
+let _edgeAuditOpen = {};   // band key → showing all rows rather than the recent slice
+const EDGE_AUDIT_PAGE = 50;
+
+// Today's games that land on an edge, regardless of whether the pipeline flagged them
+// actionable. Uses the band's own `qualifies` predicate — the same one the historical
+// record is built from — so "qualifies today" means exactly "would be counted".
+function todaysBandQualifiers(band) {
+  return (gamesData?.games || []).filter(g => {
+    const o = g.odds || {};
+    if (o.total == null || o.under_price == null) return false;
+    return band.qualifies({
+      line: o.total,
+      under_price: o.under_price,
+      predicted_total: g.prediction?.predicted_total ?? null,
+    });
+  });
+}
+
+function edgeAuditCsv(band, rows) {
+  const head = 'date,season,gamePk,away,home,line,line_source,under_price,away_score,home_score,actual_total,result,units,running_units,model_leans_under';
+  const body = rows.map(r => [
+    r.date, r.season, r.gamePk, `"${r.away}"`, `"${r.home}"`,
+    r.line, r.lineSource, r.underPrice, r.awayScore, r.homeScore, r.actual,
+    r.won ? 'WIN' : 'LOSS', r.units.toFixed(4), r.cum.toFixed(4),
+    r.leansUnder == null ? '' : (r.leansUnder ? 'yes' : 'no'),
+  ].join(',')).join('\n');
+  return head + '\n' + body;
+}
+
+function copyEdgeCsv(bandKey) {
+  const payload = window.__edgeCsv?.[bandKey];
+  if (!payload) return;
+  const done = () => {
+    const btn = document.querySelector(`[data-csv="${bandKey}"]`);
+    if (!btn) return;
+    const old = btn.textContent;
+    btn.textContent = `Copied ${payload.n} rows`;
+    setTimeout(() => { btn.textContent = old; }, 2000);
+  };
+  navigator.clipboard?.writeText(payload.csv).then(done, () => {});
+}
+
+function toggleEdgeAudit(bandKey) {
+  _edgeAuditOpen[bandKey] = !_edgeAuditOpen[bandKey];
+  renderEdgesView();
+}
+
+function edgeAuditSectionHTML() {
+  const btGames = backtestData?.games;
+  if (!btGames) {
+    return `<section class="ef-section">
+      <div class="ef-section-hdr"><h2 class="ef-section-title">Qualifying games</h2></div>
+      <div class="ef-empty">Loading the game-level record…</div>
+    </section>`;
+  }
+
+  window.__edgeCsv = {};
+
+  const universe = edgeAuditUniverse();
+
+  const blocks = EDGE_BANDS.map(band => {
+    const data = computeUnderEdge(band, universe);
+    // Most recent first — verification starts from the latest games, and it puts the final
+    // running total on the top row, where it should equal the headline units exactly.
+    const rows = data.rows.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    const showAll = !!_edgeAuditOpen[band.key];
+    const shown = showAll ? rows : rows.slice(0, EDGE_AUDIT_PAGE);
+    window.__edgeCsv[band.key] = { csv: edgeAuditCsv(band, rows), n: rows.length };
+
+    // The spot-check: the five most recent qualifying games, each showing the line it
+    // qualified on and the final total, so "yep, that worked" takes one glance. Prefers the
+    // live season — if 2026 has any, show only those rather than diluting with old games.
+    const live26 = rows.filter(r => r.season >= 2026);
+    const lastFiveLive = live26.length > 0;
+    const lastFive = (lastFiveLive ? live26 : rows).slice(0, 5);
+    const l5Units = lastFive.reduce((a, r) => a + r.units, 0);
+    const l5Wins = lastFive.filter(r => r.won).length;
+    const lastFiveHTML = lastFive.length ? `
+      <div class="ea-l5">
+        ${lastFive.map(r => `
+          <div class="ea-l5-row ${r.won ? 'ea-l5-win' : 'ea-l5-loss'}">
+            <span class="ea-l5-mark">${r.won ? '✓' : '✗'}</span>
+            <span class="ea-l5-date">${r.date}</span>
+            <span class="ea-l5-match">${abbrev(r.away)} @ ${abbrev(r.home)}</span>
+            <span class="ea-l5-line">UNDER ${r.line} <span class="ea-l5-px">${r.underPrice > 0 ? '+' : ''}${r.underPrice}</span></span>
+            <span class="ea-l5-res">${r.awayScore}–${r.homeScore} = <b>${r.actual}</b></span>
+            <span class="ea-l5-verdict">${r.won ? `stayed under by ${(r.line - r.actual).toFixed(1)}` : `went over by ${(r.actual - r.line).toFixed(1)}`}</span>
+            <span class="ea-l5-units ${r.units >= 0 ? 'seg-pos' : 'seg-neg'}">${(r.units >= 0 ? '+' : '') + r.units.toFixed(2)}u</span>
+          </div>`).join('')}
+        <div class="ea-l5-foot">
+          ${l5Wins}–${lastFive.length - l5Wins} over the last ${lastFive.length}
+          · <span class="${l5Units >= 0 ? 'seg-pos' : 'seg-neg'}">${(l5Units >= 0 ? '+' : '') + l5Units.toFixed(2)}u</span>
+          ${lastFiveLive ? '' : ' · no 2026 qualifiers yet, so these are the most recent from prior seasons'}
+        </div>
+      </div>` : `<div class="ea-audit-none">No graded qualifying games yet.</div>`;
+
+    const today = todaysBandQualifiers(band);
+    const todayHTML = today.length
+      ? `<table class="ea-audit-table">
+          <thead><tr><th>Matchup</th><th>Line</th><th>Under</th><th>Status</th></tr></thead>
+          <tbody>${today.map(g => {
+            const o = g.odds || {};
+            const live = (g.game_status || 'preview') !== 'preview';
+            return `<tr class="ea-audit-today">
+              <td>${abbrev(g.away_team)} @ ${abbrev(g.home_team)}</td>
+              <td><strong>${o.total}</strong></td>
+              <td>${o.under_price > 0 ? '+' : ''}${o.under_price ?? '—'}</td>
+              <td>${live ? `<span class="ea-audit-live">${escapeHtml(g.game_status)}</span>` : (g.game_time_et || 'scheduled')}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>`
+      : `<div class="ea-audit-none">No game today lands on this line.</div>`;
+
+    // Two builds per season: every game on the line, and the subset the app actually flags
+    // under this band's own trigger (see EDGE_BANDS.flags — the bands differ).
+    const bySeasonLean = {};
+    for (const r of data.rows) {
+      if (!band.flags(r)) continue;
+      const s = bySeasonLean[r.season] || (bySeasonLean[r.season] = { bets: 0, wins: 0, units: 0 });
+      s.bets++; if (r.won) s.wins++; s.units += r.units;
+    }
+    const leanRows = data.rows.filter(r => band.flags(r));
+    const leanUnits = leanRows.reduce((a, r) => a + r.units, 0);
+    const leanRoi = leanRows.length ? leanUnits / leanRows.length * 100 : null;
+
+    let runningCum = 0, runningLean = 0;
+    const seasonRows = Object.keys(data.bySeason).sort().map(yr => {
+      const s = data.bySeason[yr];
+      const l = bySeasonLean[yr] || { bets: 0, wins: 0, units: 0 };
+      const roi = s.bets ? s.units / s.bets * 100 : null;
+      const lroi = l.bets ? l.units / l.bets * 100 : null;
+      runningCum += s.units; runningLean += l.units;
+      const isLive = parseInt(yr) >= 2026;
+      const cls = v => v == null ? '' : v >= 0 ? 'seg-pos' : 'seg-neg';
+      return `<tr${isLive ? ' class="ea-audit-liverow"' : ''}>
+        <td><strong>${yr}</strong>${isLive ? ' <span class="ea-audit-livetag">live</span>' : ''}</td>
+        <td>${s.bets.toLocaleString()}</td>
+        <td class="${cls(roi)}">${roi == null ? '—' : (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%'}</td>
+        <td class="${cls(runningCum)}">${(runningCum >= 0 ? '+' : '') + runningCum.toFixed(2)}u</td>
+        <td class="ea-audit-sep">${l.bets.toLocaleString()}</td>
+        <td class="${cls(lroi)}">${lroi == null ? '—' : (lroi >= 0 ? '+' : '') + lroi.toFixed(1) + '%'}</td>
+        <td class="${cls(runningLean)}">${(runningLean >= 0 ? '+' : '') + runningLean.toFixed(2)}u</td>
+      </tr>`;
+    }).join('');
+
+    const gameRows = shown.map(r => `<tr class="${r.won ? 'row-hit' : 'row-miss'}">
+      <td class="ea-audit-date">${r.date}</td>
+      <td>${abbrev(r.away)} @ ${abbrev(r.home)}</td>
+      <td>${r.line}</td>
+      <td>${r.underPrice > 0 ? '+' : ''}${r.underPrice}</td>
+      <td>${r.awayScore}–${r.homeScore}</td>
+      <td><strong>${r.actual}</strong></td>
+      <td class="${r.won ? 'seg-pos' : 'seg-neg'}">${r.won ? 'WIN' : 'LOSS'}</td>
+      <td class="${r.units >= 0 ? 'seg-pos' : 'seg-neg'}">${(r.units >= 0 ? '+' : '') + r.units.toFixed(2)}</td>
+      <td class="ea-audit-cum ${r.cum >= 0 ? 'seg-pos' : 'seg-neg'}">${(r.cum >= 0 ? '+' : '') + r.cum.toFixed(2)}</td>
+      <td class="ea-audit-flag">${r.leansUnder ? '<span class="ea-audit-yes" title="Model also below the line — the app would have flagged this">✓</span>' : (r.leansUnder === null ? '<span class="ea-audit-src">?</span>' : '')}</td>
+      <td class="ea-audit-src">${r.lineSource === 'bet-time' ? 'bet-time' : 'closing'}</td>
+    </tr>`).join('');
+
+    const roiStr = data.roi == null ? '—' : (data.roi >= 0 ? '+' : '') + data.roi.toFixed(1) + '%';
+    const seasonsCovered = Object.keys(data.bySeason).sort();
+    const scope = seasonsCovered.length
+      ? `${seasonsCovered[0]}–${seasonsCovered[seasonsCovered.length - 1]}` : '—';
+
+    // The scoreboard's headline figure is a constant baked into edge_detector.py, not a
+    // recomputation. Show both side by side when they disagree: a verification surface that
+    // quietly hid a mismatch with the number above it would be worse than no surface at all.
+    const pub = ((scoreboardData && scoreboardData.edges) || []).find(e => e.tag === band.tag);
+    const pubRoi = pub?.hist_roi_pct, pubN = pub?.hist_n;
+    const drifted = pubRoi != null && data.roi != null &&
+      (Math.abs(pubRoi - data.roi) >= 0.05 || pubN !== data.totalBets);
+    const reconcileHTML = pubRoi == null ? '' : `
+      <div class="ea-audit-reconcile${drifted ? ' ea-audit-drift' : ''}">
+        <div><span class="ea-audit-rk">Published above</span>
+          <span class="ea-audit-rv">${(pubRoi >= 0 ? '+' : '') + pubRoi.toFixed(2)}% · n=${pubN?.toLocaleString() ?? '—'}</span></div>
+        <div><span class="ea-audit-rk">Recomputed here</span>
+          <span class="ea-audit-rv">${(data.roi >= 0 ? '+' : '') + data.roi.toFixed(2)}% · n=${data.totalBets.toLocaleString()}</span></div>
+        ${drifted ? `<div class="ea-audit-rwarn">These disagree. The published figure is a constant stored in the edge definition and covers 2021–26; the recomputed figure is derived live from the ${scope} rows below, the seasons with archived closing lines. Trust the rows — they are the data.</div>` : ''}
+      </div>`;
+
+    return `
+    <div class="ea-audit-band">
+      <div class="ea-audit-hdr">
+        <span class="ea-audit-title">${band.label}</span>
+        <span class="ea-audit-agg">
+          <span class="${data.roi >= 0 ? 'seg-pos' : 'seg-neg'}">${roiStr}</span>
+          · ${data.totalBets.toLocaleString()} graded
+          · ${(data.totalUnits >= 0 ? '+' : '') + data.totalUnits.toFixed(2)}u
+          <span class="ea-audit-scope">line only</span>
+          &nbsp;|&nbsp;
+          <span class="${leanRoi == null ? '' : leanRoi >= 0 ? 'seg-pos' : 'seg-neg'}">${leanRoi == null ? '—' : (leanRoi >= 0 ? '+' : '') + leanRoi.toFixed(1) + '%'}</span>
+          · ${leanRows.length.toLocaleString()} flagged
+          <span class="ea-audit-scope">app trigger · ${scope}</span>
+        </span>
+      </div>
+      <div class="ea-audit-note">${band.note} Pushes are excluded as void, so "graded" is below the raw count of games on this line.</div>
+      ${reconcileHTML}
+
+      <div class="ea-audit-subhdr">Today · ${todaysGameDateLabel()}</div>
+      ${todayHTML}
+
+      <div class="ea-audit-subhdr">Last 5 qualifying games${lastFiveLive ? ' · 2026' : ''}</div>
+      ${lastFiveHTML}
+
+      <div class="ea-audit-subhdr">The build, by season</div>
+      <div class="bt-table-wrap">
+        <table class="ea-audit-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th colspan="3" class="ea-audit-grp">Line only (blind)</th>
+              <th colspan="3" class="ea-audit-grp ea-audit-sep">${band.flagLabel}</th>
+            </tr>
+            <tr><th>Season</th><th>n</th><th>ROI</th><th>Running</th><th class="ea-audit-sep">n</th><th>ROI</th><th>Running</th></tr>
+          </thead>
+          <tbody>${seasonRows}</tbody>
+        </table>
+      </div>
+      <div class="ea-audit-note">
+        <b>Line only</b> bets every game on this line. The second build applies this band's own
+        trigger from <code>detect_edges()</code> — the two bands do not share one. ${band.flagNote}
+      </div>
+
+      <div class="ea-audit-subhdr">
+        Every qualifying game
+        <button class="ea-audit-csv" data-csv="${band.key}" onclick="copyEdgeCsv('${band.key}')">Copy all ${rows.length.toLocaleString()} as CSV</button>
+      </div>
+      <div class="bt-table-wrap">
+        <table class="ea-audit-table">
+          <thead><tr><th>Date</th><th>Matchup</th><th>Line</th><th>Under</th><th>Score</th><th>Total</th><th>Result</th><th>Units</th><th>Running</th><th title="Model also leaned under — the app would have flagged this">Flag</th><th>Line src</th></tr></thead>
+          <tbody>${gameRows}</tbody>
+        </table>
+      </div>
+      <div class="ea-audit-note">Newest first, so the top row's <b>Running</b> figure is the line-only band total — it should equal the units in the header. <b>Flag</b> ✓ = the model also leaned under, so the app would have surfaced it. <b>Line src</b>: <i>closing</i> = archived closing line (2022–25); <i>bet-time</i> = the line the pick was made at (2026, matching how the live scoreboard grades).</div>
+      ${rows.length > EDGE_AUDIT_PAGE ? `
+        <button class="ea-audit-more" onclick="toggleEdgeAudit('${band.key}')">
+          ${showAll ? `Show only the most recent ${EDGE_AUDIT_PAGE}` : `Show all ${rows.length.toLocaleString()} games`}
+        </button>` : ''}
+    </div>`;
+  }).join('');
+
+  return `<section class="ef-section">
+    <div class="ef-section-hdr">
+      <h2 class="ef-section-title">Qualifying games</h2>
+      <span class="ef-section-count">source data</span>
+    </div>
+    <p class="ea-audit-intro">
+      Every game counted in each edge's record — 2022 through the live 2026 season — with the
+      running unit total so you can see the ROI build rather than take it on faith. Today's
+      qualifiers are checked against the same rule as the historical rows. 2021 is excluded:
+      its pitcher caches carry lookahead bias. Seasons through 2025 are graded on archived
+      <b>closing</b> lines; 2026 is graded on the <b>bet-time</b> line it was actually picked
+      at, which is how the live scoreboard grades it too.
+    </p>
+    ${blocks}
+  </section>`;
+}
+
+function todaysGameDateLabel() {
+  const d = gamesData?.date;
+  if (!d) return 'today';
+  try { return formatDateLabel(d); } catch { return d; }
+}
+
 function renderEdgesView() {
   const el = document.getElementById('edges-view');
   const allGames = gamesData?.games || [];
@@ -2080,6 +2502,7 @@ function renderEdgesView() {
     <section class="ef-section">
       ${edgeScoreboardHTML()}
     </section>
+    ${edgeAuditSectionHTML()}
     ${edgeWatchHTML(watch)}`;
 }
 

@@ -5065,3 +5065,148 @@ header {
   .kelly-strip   { padding: 4px 12px; }
   .kelly-amt     { font-size: 13px; }
 }
+
+/* ── Edges: qualifying-games audit ─────────────────────────────────────────── */
+/* The source-data surface: every game behind each edge's record, plus today's
+   qualifiers. Dense on purpose — it is meant to be read and checked, not skimmed. */
+
+.ea-audit-intro {
+  font-size: 12px; color: var(--text-muted); line-height: 1.5;
+  margin: 0 0 12px; padding: 0 2px;
+}
+.ea-audit-band {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 0 0 12px;
+}
+.ea-audit-hdr {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap; margin: 0 0 4px;
+}
+.ea-audit-title { font-size: 14px; font-weight: 800; color: var(--text); letter-spacing: .2px; }
+.ea-audit-agg { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.ea-audit-note { font-size: 11px; color: var(--text-dim); line-height: 1.45; margin: 0 0 10px; }
+
+.ea-audit-subhdr {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  font-size: 10px; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--text-dim); font-weight: 700;
+  margin: 14px 0 6px; padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+.ea-audit-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ea-audit-table th {
+  text-align: left; padding: 6px 8px; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .4px; color: var(--text-dim);
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.ea-audit-table td {
+  padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.04);
+  color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.ea-audit-table tr:last-child td { border-bottom: none; }
+.ea-audit-date { color: var(--text-muted); }
+.ea-audit-today td { background: rgba(34,197,94,.06); }
+.ea-audit-live { color: var(--green-light); font-weight: 600; }
+.ea-audit-none { font-size: 12px; color: var(--text-dim); padding: 8px 2px; }
+
+.ea-audit-csv, .ea-audit-more {
+  font: inherit; font-size: 11px; font-weight: 600;
+  color: var(--text-muted); background: rgba(255,255,255,.04);
+  border: 1px solid var(--border); border-radius: 7px;
+  padding: 4px 10px; cursor: pointer; text-transform: none; letter-spacing: 0;
+}
+.ea-audit-csv:hover, .ea-audit-more:hover { color: var(--text); background: rgba(255,255,255,.08); }
+.ea-audit-more { display: block; width: 100%; margin: 10px 0 0; padding: 8px; }
+
+@media (max-width: 560px) {
+  .ea-audit-band { padding: 12px; }
+  .ea-audit-table { font-size: 11px; }
+  .ea-audit-table th, .ea-audit-table td { padding: 5px 6px; }
+}
+
+.ea-audit-scope { color: var(--text-dim); }
+.ea-audit-reconcile {
+  display: flex; flex-wrap: wrap; gap: 6px 22px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; margin: 0 0 4px;
+}
+.ea-audit-reconcile > div { display: flex; flex-direction: column; gap: 1px; }
+.ea-audit-rk {
+  font-size: 9px; text-transform: uppercase; letter-spacing: .5px;
+  color: var(--text-dim); font-weight: 700;
+}
+.ea-audit-rv { font-size: 12px; color: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
+.ea-audit-drift { border-color: rgba(234,179,8,.35); background: rgba(234,179,8,.06); }
+.ea-audit-rwarn {
+  flex-basis: 100%; font-size: 11px; line-height: 1.45;
+  color: var(--text-muted); font-weight: 400;
+}
+
+.ea-audit-cum { font-weight: 600; }
+.ea-audit-src { color: var(--text-dim); font-size: 10px; }
+.ea-audit-liverow td { background: rgba(34,197,94,.05); }
+.ea-audit-livetag {
+  font-size: 9px; text-transform: uppercase; letter-spacing: .5px;
+  color: var(--green-light); font-weight: 700; margin-left: 4px;
+}
+
+.ea-audit-grp {
+  font-size: 9px; color: var(--text-dim); text-align: center !important;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.ea-audit-sep { border-left: 1px solid rgba(255,255,255,.10); }
+.ea-audit-flag { text-align: center; }
+.ea-audit-yes { color: var(--green-light); font-weight: 700; }
+.ea-audit-note code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px; background: rgba(255,255,255,.06);
+  padding: 1px 4px; border-radius: 3px;
+}
+
+/* Last-5 spot check: the "yep, that worked" strip. Line, final total and verdict on one
+   line each, so a qualifying game can be verified without opening the full ledger. */
+.ea-l5 { margin: 0 0 4px; }
+.ea-l5-row {
+  display: grid;
+  grid-template-columns: 16px 78px minmax(90px,1fr) minmax(110px,auto) minmax(90px,auto) minmax(120px,auto) 56px;
+  align-items: baseline; gap: 8px;
+  padding: 6px 8px; border-radius: 7px;
+  font-size: 12px; font-variant-numeric: tabular-nums;
+  border: 1px solid transparent;
+}
+.ea-l5-win  { background: rgba(34,197,94,.07);  border-color: rgba(34,197,94,.18); }
+.ea-l5-loss { background: rgba(239,68,68,.06);  border-color: rgba(239,68,68,.16); }
+.ea-l5-row + .ea-l5-row { margin-top: 4px; }
+.ea-l5-mark { font-weight: 800; }
+.ea-l5-win  .ea-l5-mark { color: var(--green-light); }
+.ea-l5-loss .ea-l5-mark { color: var(--red-light, #f87171); }
+.ea-l5-date { color: var(--text-muted); }
+.ea-l5-match { color: var(--text); font-weight: 600; }
+.ea-l5-line { color: var(--text); }
+.ea-l5-px { color: var(--text-dim); }
+.ea-l5-res { color: var(--text); }
+.ea-l5-verdict { color: var(--text-muted); font-size: 11px; }
+.ea-l5-units { text-align: right; font-weight: 600; }
+.ea-l5-foot { font-size: 11px; color: var(--text-muted); padding: 6px 8px 0; }
+
+@media (max-width: 720px) {
+  .ea-l5-row {
+    grid-template-columns: 16px 1fr auto;
+    grid-template-areas:
+      "mark match units"
+      ".    line  line"
+      ".    res   res";
+    row-gap: 2px;
+  }
+  .ea-l5-mark { grid-area: mark; }
+  .ea-l5-match { grid-area: match; }
+  .ea-l5-units { grid-area: units; }
+  .ea-l5-line { grid-area: line; }
+  .ea-l5-res  { grid-area: res; }
+  .ea-l5-date, .ea-l5-verdict { display: none; }
+}
