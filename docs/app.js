@@ -1987,33 +1987,137 @@ function edgeScoreboardHTML() {
     ? `<span class="ef-sb-headclv ${clvKind(t.clv_beat_pct).c}" title="${CLV_TIP}">CLV ${Math.round(t.clv_beat_pct)}%</span>` : '';
   const recentHead = (t.recent_n >= 5 && t.recent_roi_pct != null)
     ? ` · 30d ${sgn(t.recent_roi_pct)}${t.recent_roi_pct}%` : '';
-  const clvNote = (t.clv_n >= CLV_MIN && t.clv_beat_pct != null)
-    ? `CLV beat the close ${t.clv_beat_pct}% of ${t.clv_n} — a faster, lower-variance read than ROI.`
-    : 'CLV: gathering… (how often the bet-time line beat the close).';
-  // Honesty flag: a strong realized ROI that CLV is NOT confirming (beat-rate below the
-  // ↑ band) is almost always small-sample variance, not a durable edge. A real edge shows
-  // up as closing-line value first, so surface the divergence instead of letting the big
-  // green ROI stand unqualified.
-  const CLV_CONFIRM = 53;   // matches clvKind's ↑ (confirming) threshold
-  const roiUnconfirmed = (
-    t.roi_pct != null && t.roi_pct >= 8 &&
-    t.clv_n >= CLV_MIN && t.clv_beat_pct != null && t.clv_beat_pct < CLV_CONFIRM
-  );
-  const caution = roiUnconfirmed
-    ? `<div class="ef-sb-caution" title="A genuine edge beats the closing line first; ROI catches up later. High ROI with a coin-flip CLV is usually variance over a small sample, not a repeatable edge.">⚠ The ${sgn(t.roi_pct)}${t.roi_pct}% isn't confirmed by CLV — it beat the close only ${Math.round(t.clv_beat_pct)}% of ${t.clv_n}. Treat as small-sample variance until CLV follows; don't size up on it.</div>`
-    : '';
   return `
     <div class="ef-scoreboard">
       <div class="ef-sb-hdr">
         <span class="ef-sb-title">This season's results · ${sb.season}</span>
         <span class="ef-sb-head-metrics">${headline}${headClv}</span>
       </div>
-      <div class="ef-sb-sub">ROI = realized return, flat $1/bet${recentHead}. <span class="${(t.clv_n >= CLV_MIN) ? '' : 'ef-sb-clv-pending'}" title="${CLV_TIP}">${clvNote}</span></div>
-      ${caution}
+      <div class="ef-sb-sub">ROI = realized return, flat $1/bet${recentHead}. CLV = how often we beat the closing line — <span class="ef-sb-clvptr" onclick="document.getElementById('clv-section')?.scrollIntoView({behavior:'smooth'})">explained below ↓</span></div>
       ${equityChartHTML(sb)}
       <div class="ef-sb-rowhdr">By edge <span class="ef-sb-rowhdr-note">(record per category · watch shown for context, not in the curve)</span></div>
       ${rows}
     </div>`;
+}
+
+// ── Closing Line Value: the education section ─────────────────────────────────
+// CLV was previously a cryptic "CLV 32% ↓ -0.1" chip explained only in hover tooltips
+// (invisible on mobile, undiscoverable). This teaches the concept once, then gives every
+// edge a plain-language verdict a bettor can act on — especially the ROI-vs-CLV divergence,
+// which is the single most important-but-hidden signal on the page.
+const CLV_MIN_GRADED = 5;
+
+// Extract the line number from a line-based edge label ("UNDER · Total = 8.0" -> "8.0").
+function _clvLineNum(e) {
+  if (e.tag !== 'UNDER_LINE_8_0' && e.tag !== 'UNDER_LINE_9_0') return null;
+  const m = String(e.label || '').match(/(\d+(?:\.\d+)?)/);
+  return m ? m[1] : null;
+}
+
+// Verdict bucket for a beat-rate. 50% = coin-flip vs the close; a ±3pt dead band keeps an
+// edge that profits for other reasons from reading as an outright failure.
+function clvVerdict(beat) {
+  if (beat >= 53) return { word: 'Beating the close', cls: 'clv-good', icon: '✓' };
+  if (beat >= 47) return { word: 'Coin-flip on the close', cls: 'clv-neutral', icon: '≈' };
+  return { word: 'Not beating the close', cls: 'clv-bad', icon: '✗' };
+}
+
+// Plain-language, data-driven interpretation for one edge. Generic (no hardcoded numbers)
+// so it stays correct as the daily scoreboard updates.
+function clvInterp(e) {
+  const beat = e.clv_beat_pct, roi = e.roi_pct, n = e.clv_n, avg = e.avg_clv_line;
+  const sgn = v => (v >= 0 ? '+' : '');
+  const avgTxt = avg != null ? `${sgn(avg)}${avg.toFixed(2)} runs a bet` : '';
+  const line = _clvLineNum(e);
+  const roiStrong = roi != null && roi >= 8;
+  if (beat >= 53) {
+    return `We're consistently getting a better number than the market's final line${avgTxt ? ` (${avgTxt} of value)` : ''}. This is the most trustworthy signal here — a real edge beats the close before it shows up in the win column.`;
+  }
+  if (beat >= 47) {
+    if (roiStrong) {
+      return `The ${sgn(roi)}${roi}% return is running well ahead of the close, which sits at a coin-flip (${Math.round(beat)}%). Across ${n} bets that gap usually means variance, not a repeatable edge — treat the ROI as unconfirmed and don't size up until CLV clears 50%.`;
+    }
+    return `Right at a coin-flip versus the close — neither confirmed nor refuted. Needs more graded games before it means anything.`;
+  }
+  // beat < 47
+  if (roiStrong) {
+    return `Despite the ${sgn(roi)}${roi}% return, we're not beating the market — on average we take a slightly worse number than the close${avgTxt ? ` (${avgTxt})` : ''}. This edge profits from a fixed mispricing${line ? ` at the round ${line} line` : ''}, not from line value. The money is real, but it's built on a static quirk: expect it to hold, not to compound, and don't size up on it.`;
+  }
+  return `We're losing line value${avgTxt ? ` (${avgTxt})` : ''} — the market isn't confirming this edge. Be cautious.`;
+}
+
+function clvSectionHTML(sb) {
+  if (!sb || !sb.edges || !sb.edges.length) return '';
+  const sgn = v => (v >= 0 ? '+' : '');
+  const graded = sb.edges.filter(e => e.clv_n >= CLV_MIN_GRADED && e.clv_beat_pct != null);
+
+  const cards = sb.edges.map(e => {
+    const label = escapeHtml(e.label || e.tag);
+    if (!(e.clv_n >= CLV_MIN_GRADED && e.clv_beat_pct != null)) {
+      return `
+        <div class="clv-card clv-pending">
+          <div class="clv-card-hdr"><span class="clv-card-name">${label}</span>
+            <span class="clv-card-verdict">Gathering</span></div>
+          <div class="clv-card-body">Not enough resolved games with a captured closing line yet (${e.clv_n || 0} so far). CLV needs a handful of graded closes before it means anything.</div>
+        </div>`;
+    }
+    const beat = Math.round(e.clv_beat_pct);
+    const v = clvVerdict(e.clv_beat_pct);
+    // Bar: 0–100%, with the 50% coin-flip reference marked.
+    const fill = Math.max(0, Math.min(100, e.clv_beat_pct));
+    return `
+      <div class="clv-card">
+        <div class="clv-card-hdr">
+          <span class="clv-card-name">${label}</span>
+          <span class="clv-card-verdict ${v.cls}">${v.icon} ${v.word}</span>
+        </div>
+        <div class="clv-bar" title="50% = coin-flip vs the close">
+          <div class="clv-bar-fill ${v.cls}" style="width:${fill}%"></div>
+          <div class="clv-bar-mid" style="left:50%"></div>
+        </div>
+        <div class="clv-bar-scale"><span>0%</span><span class="clv-bar-mid-lbl">50% coin-flip</span><span>100%</span></div>
+        <div class="clv-card-stats">
+          <span class="clv-stat"><b class="${v.cls}">${beat}%</b> beat the close</span>
+          <span class="clv-stat">${e.avg_clv_line != null ? `<b>${sgn(e.avg_clv_line)}${e.avg_clv_line.toFixed(2)}</b> runs of line value/bet` : ''}</span>
+          <span class="clv-stat clv-stat-n">${e.clv_n} graded closes</span>
+        </div>
+        <div class="clv-card-body">${clvInterp(e)}</div>
+      </div>`;
+  }).join('');
+
+  return `
+    <section class="ef-section" id="clv-section">
+      <div class="ef-section-hdr">
+        <h2 class="ef-section-title">Closing Line Value</h2>
+        <span class="ef-section-count">why sharps trust it over ROI</span>
+      </div>
+
+      <div class="clv-explain">
+        <p><b>The idea.</b> When you bet UNDER 8.5 at −105 and the line later <i>closes</i> at
+          8.0 / −110, you <b>beat the close</b> — you locked a better number than the market's
+          final, sharpest price. Do that consistently and you're ahead of the market itself.</p>
+        <p><b>Why it beats ROI as a signal.</b> The closing line is the sharpest the market
+          ever gets — it's had all day and all the money to correct. Beating it is the earliest,
+          most reliable proof you're on the right side, and it stabilises far faster than win/loss.
+          100 bets of ROI is mostly noise; 100 bets of CLV is signal. That's why professionals
+          track it first.</p>
+        <p class="clv-key"><b>Reading it:</b> <span class="clv-good">above 50%</span> = you're
+          beating the market's close (durable). <span class="clv-neutral">~50%</span> = a coin-flip,
+          unconfirmed. <span class="clv-bad">below 50%</span> = the market is closing sharper than
+          your number — a warning, even if the ROI looks good.</p>
+      </div>
+
+      <div class="clv-cards">${cards}</div>
+
+      <div class="clv-howto">
+        <div class="clv-howto-hdr">How to use this</div>
+        <ul>
+          <li><b>Trust CLV above ROI.</b> A smaller return with a positive CLV is more bankable than a big return on a coin-flip CLV.</li>
+          <li><b>High ROI + weak CLV is a warning.</b> The profit is likely variance or a one-off mispricing, not a repeatable skill — don't size up on it.</li>
+          <li><b>Give CLV time.</b> A handful of games says little; the read gets trustworthy over dozens of graded closes.</li>
+        </ul>
+      </div>
+    </section>`;
 }
 
 // Season equity curve — cumulative units (flat 1u/bet) over the actionable plays.
@@ -2514,6 +2618,7 @@ function renderEdgesView() {
     <section class="ef-section">
       ${edgeScoreboardHTML()}
     </section>
+    ${clvSectionHTML(scoreboardData)}
     ${edgeAuditSectionHTML()}`;
 }
 
