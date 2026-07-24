@@ -65,7 +65,6 @@ let scoreboardData = null;
 let expandedPk   = null;
 let currentView  = 'games';
 let lastCheckedAt = null;
-let _perfSub     = 'record';   // Performance tab active sub-view: 'record' | 'backtest'
 
 // player MLBAM id → full team name; rebuilt whenever gamesData loads
 let _playerTeamMap = new Map();
@@ -73,7 +72,6 @@ let _playerTeamMap = new Map();
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   setupNav();
-  setupSubNav();
   await Promise.all([loadGames(), loadHistory()]);
   lastCheckedAt = Date.now();
   renderGamesView();
@@ -81,9 +79,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ── Navigation ────────────────────────────────────────────────────────────────
-// Four top-level views: games, edges, performance, support.
-// `performance` is a parent container that hosts sub-views via setupSubNav():
-//   performance → record | backtest
+// Four top-level views: games, edges, performance, support. Each is a single flat
+// page — Performance used to split into record|backtest sub-views, which duplicated
+// the confidence table, the season-accuracy table and the game log across both, with
+// nothing marking which was authoritative. One page, each stat stated once.
 const _PARENT_VIEWS = ['games', 'edges', 'performance', 'support'];
 
 function setupNav() {
@@ -98,34 +97,9 @@ function setupNav() {
       if (currentView === 'games')     renderGamesView();
       if (currentView === 'edges')     Promise.all([loadGames(), loadEdgeScoreboard()]).then(renderEdgesView);
       if (currentView === 'support')   renderSupportView();
-      if (currentView === 'performance') _renderSub('performance', _perfSub);
-    });
-  });
-}
-
-// Lazy loader+render for each sub-view, reusing the existing per-view promises.
-function _renderSub(parent, sub) {
-  if (parent === 'performance') {
-    if (sub === 'record')   Promise.all([loadBacktest(), loadEdgeScoreboard()]).then(renderRecordView);
-    if (sub === 'backtest') Promise.all([loadBacktest(), loadEdgeScoreboard()]).then(renderBacktestView);
-  }
-}
-
-// Wires the in-tab segmented sub-nav under Performance.
-function setupSubNav() {
-  const subViews = {
-    performance: ['record', 'backtest'],
-  };
-  document.querySelectorAll('.subnav-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const parent = btn.closest('.subnav').dataset.parent;
-      const sub = btn.dataset.sub;
-      if (parent === 'performance') _perfSub = sub;
-      btn.parentElement.querySelectorAll('.subnav-btn').forEach(b => b.classList.toggle('active', b === btn));
-      for (const v of subViews[parent]) {
-        document.getElementById(v + '-view').hidden = v !== sub;
+      if (currentView === 'performance') {
+        Promise.all([loadBacktest(), loadEdgeScoreboard()]).then(renderPerformanceView);
       }
-      _renderSub(parent, sub);
     });
   });
 }
@@ -1150,10 +1124,6 @@ function americanToProfit(odds) {
   return odds > 0 ? odds / 100 : 100 / Math.abs(odds);
 }
 
-function fmtUnits(u) {
-  return (u >= 0 ? '+' : '') + u.toFixed(2) + 'u';
-}
-
 // Totals outcome vs a line: 'over' | 'under' | 'push' (final runs exactly on the line).
 // Pushes are void — never scored as a win or loss. null when inputs are missing.
 function totalsOutcome(actualTotal, line) {
@@ -1197,47 +1167,6 @@ function edgePerfSummaryHTML() {
 
 // ── Game log cell helpers ─────────────────────────────────────────────────────
 
-function mlEdgeCell(r) {
-  if (r.model_edge_ml == null) {
-    return `<td class="hist-edge-ml"><span style="color:var(--text-dim)">—</span></td>`;
-  }
-  const edge     = r.model_edge_ml;
-  const absPct   = Math.abs(edge * 100).toFixed(1);
-  const sign     = edge >= 0 ? '+' : '–';
-  const teamAbbr = abbrev(edge >= 0 ? r.home_team : r.away_team);
-  const edgeWon  = edge >= 0 ? r.actual_winner === 'home' : r.actual_winner === 'away';
-  const icon     = r.sp_scratched ? '' : (edgeWon
-    ? '<span class="edge-call-hit">✓</span>'
-    : '<span class="edge-call-miss">✗</span>');
-  const cellCls  = Math.abs(edge) >= 0.10
-    ? (edge < 0 ? 'hist-edge-ml edge-strong-away' : 'hist-edge-ml edge-strong-home')
-    : 'hist-edge-ml';
-  return `<td class="${cellCls}">${sign}${absPct}% ${teamAbbr} ${icon}</td>`;
-}
-
-function totalLeanCell(r) {
-  if (r.predicted_total == null || r.vegas_total == null) {
-    return `<td class="hist-total"><span style="color:var(--text-dim)">—</span></td>`;
-  }
-  const lean = +(r.predicted_total - r.vegas_total).toFixed(1);
-  if (lean === 0) return `<td class="hist-total"><span style="color:var(--text-dim)">—</span></td>`;
-  const dir    = lean > 0 ? 'OVER' : 'UNDER';
-  const dirCls = lean > 0 ? 'dir-over' : 'dir-under';
-  const gap    = Math.abs(lean).toFixed(1);
-  let icon = '';
-  // Push-aware: grade against the actual total vs the line (a push is void, not a miss).
-  const oc = totalsOutcome(r.actual_total, r.vegas_total);
-  if (oc && !r.sp_scratched) {
-    if (oc === 'push') {
-      icon = '<span class="edge-call-push" title="Pushed — final total landed on the line">P</span>';
-    } else {
-      const hit = (lean > 0 && oc === 'over') || (lean < 0 && oc === 'under');
-      icon = hit ? '<span class="edge-call-hit">✓</span>' : '<span class="edge-call-miss">✗</span>';
-    }
-  }
-  return `<td class="hist-total"><span class="${dirCls}">${dir} +${gap}</span> ${icon}</td>`;
-}
-
 // ── Props performance ─────────────────────────────────────────────────────────
 function modelWinProbStats(decided) {
   const rows = decided.filter(r => r.model_home_win_pct != null
@@ -1259,258 +1188,6 @@ function modelWinProbStats(decided) {
     mAcc: Math.round(mCorrect / n * 100), hAcc: Math.round(hCorrect / n * 100),
     mBrier: (mBrier / n).toFixed(3), hBrier: (hBrier / n).toFixed(3),
   };
-}
-
-function renderRecordView() {
-  const view = document.getElementById('record-view');
-  // Graded universe: resolved games, EXCLUDING scratched-SP games (the predicted starter never
-  // pitched → the prediction is invalid). Ties/unresolved already excluded. Keeps accuracy honest
-  // and consistent with the edge ROI (which also drops scratched).
-  const decidedAll = historyData.filter(r => r.actual_winner === 'home' || r.actual_winner === 'away');
-  const scratched  = decidedAll.filter(r => r.sp_scratched).length;
-  const decided    = decidedAll.filter(r => !r.sp_scratched);
-
-  if (!decided.length) {
-    view.innerHTML = `<div class="empty-state">No resolved predictions yet.<br>Check back after games have been played.</div>`;
-    return;
-  }
-
-  const correct = decided.filter(r => r.predicted_winner === r.actual_winner).length;
-  const pct     = Math.round(correct / decided.length * 100);
-  const streak  = calcStreak(decided);
-  const streakLabel = streak.count > 1
-    ? `<span class="streak-badge streak-${streak.type}">${streak.type === 'W' ? '🔥' : '❄'} ${streak.count}-game ${streak.type === 'W' ? 'win' : 'loss'} streak</span>`
-    : '';
-
-  const confRows  = calcConfidenceTiers(decided);
-  const signals   = calcSignalAccuracy(decided);
-  const byDate    = groupByDate(decided);
-  const tl        = totalsLeanAccuracy(decided);
-  const tlRow = (label, b) => {
-    const n = b.w + b.l, p = n ? Math.round(b.w / n * 100) : null;
-    return `<tr><td>${label}</td><td>${b.w}–${b.l}</td><td class="${p == null ? '' : p >= 55 ? 'edge-pos' : p >= 50 ? '' : 'edge-neg'}">${p == null ? '—' : p + '%'}</td></tr>`;
-  };
-
-  view.innerHTML = `
-<div class="view-header">
-  <h1>Prediction Record</h1>
-  <span class="sub-label">${correct}–${decided.length - correct} (${pct}%) &nbsp;·&nbsp; ${decided.length} games graded${scratched ? ` &nbsp;·&nbsp; ${scratched} excluded (SP scratched)` : ''} ${streakLabel}</span>
-</div>
-
-<div class="rec-lens-label">① Model accuracy — how often the prediction is right (accuracy, not betting)</div>
-
-<div class="rec-vegas-section">
-  ${renderVegasSection()}
-</div>
-
-<div class="record-top-grid">
-  <div class="record-conf-section">
-    <div class="section-heading">Record by confidence <span class="scope-tag">2026 · in-sample</span></div>
-    <table class="conf-tier-table">
-      <thead><tr><th>Confidence</th><th>Record</th><th>Win%</th></tr></thead>
-      <tbody>${confRows.map(t => `
-        <tr>
-          <td>${t.label}${t.badge ? ' <span class="tier-badge tier-' + t.badgeCls + '">' + t.badge + '</span>' : ''}</td>
-          <td class="conf-record">${t.correct}–${t.total - t.correct}</td>
-          <td class="conf-pct ${t.cls}">${t.total > 0 ? Math.round(t.correct / t.total * 100) + '%' : '—'}</td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-  </div>
-  <div class="record-signal-section">
-    <div class="section-heading">Signal accuracy <span class="scope-tag">2026 · in-sample</span></div>
-    <div class="signal-grid compact-signal-grid">
-      ${Object.values(signals).map(s => signalCardHTML(s)).join('')}
-    </div>
-  </div>
-</div>
-
-<div class="rec-totals-lean">
-  <div class="section-heading">Totals-lean accuracy <span class="scope-tag">2026 · in-sample</span></div>
-  <table class="season-year-table">
-    <thead><tr><th>Model lean</th><th>Record</th><th>Win%</th></tr></thead>
-    <tbody>${tlRow('UNDER lean', tl.under)}${tlRow('OVER lean', tl.over)}</tbody>
-  </table>
-  <p class="rec-priced-note">Win% of the model's ≥0.5-run total lean (push-corrected${tl.push ? `, ${tl.push} pushes excluded` : ''}). Accuracy only — realized ROI is in Edge performance below.</p>
-</div>
-
-<div class="rec-modelwp">
-  <div class="section-heading">Model win-prob accuracy <span class="scope-tag">independent model · forward</span></div>
-  ${(() => {
-    const s = modelWinProbStats(decided);
-    if (!s.n) {
-      const tracked = historyData.filter(r => r.model_home_win_pct != null).length;
-      return `<p class="rec-priced-note">The independent model win-prob (lineups + Statcast, no market line) is now recorded with every prediction${tracked ? ` — <strong>${tracked}</strong> logged so far` : ''}. Winner accuracy and calibration will appear here as those games resolve.</p>`;
-    }
-    const accCls = s.mAcc >= s.hAcc ? 'edge-pos' : '';
-    return `
-  <table class="season-year-table">
-    <thead><tr><th></th><th>Winner accuracy</th><th>Brier (lower = better)</th></tr></thead>
-    <tbody>
-      <tr><td>Our model (input-only)</td><td class="${accCls}">${s.mAcc}%</td><td>${s.mBrier}</td></tr>
-      <tr><td>Headline (market-anchored)</td><td>${s.hAcc}%</td><td>${s.hBrier}</td></tr>
-    </tbody>
-  </table>
-  <p class="rec-priced-note">Independent model vs the market-anchored headline over the same ${s.n} resolved game${s.n === 1 ? '' : 's'}. The market-anchored number is expected to be sharper — this tracks how close our pure-input model gets.</p>`;
-  })()}
-</div>
-
-<div class="rec-lens-label">② Edge performance — realized returns on the validated edges</div>
-${edgePerfSummaryHTML()}
-
-<div class="history-section">
-  <div class="section-heading">Game Log <span class="scope-tag">2026 · prediction hit/miss</span></div>
-  ${byDate.map(({ date: d, games }) => {
-    const dc = games.filter(r => r.predicted_winner === r.actual_winner).length;
-    const dLabel = formatDateLabel(d);
-    return `
-  <div class="day-group">
-    <div class="day-header">
-      <div class="day-header-main">
-        <span class="day-label">${dLabel}</span>
-        <span class="day-record ${dc / games.length >= 0.5 ? 'day-win' : 'day-loss'}">Picks ${dc}–${games.length - dc}</span>
-      </div>
-    </div>
-    <div class="history-table-wrap">
-      <table class="history-table">
-        <thead>
-          <tr>
-            <th>Matchup</th>
-            <th>Predicted</th>
-            <th>Actual</th>
-            <th>ML Edge</th>
-            <th>Total</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          ${games.slice().reverse().map(r => {
-            const hit      = r.predicted_winner === r.actual_winner;
-            const predTeam = r.predicted_winner === 'home' ? r.home_team : r.away_team;
-            const actTeam  = r.actual_winner    === 'home' ? r.home_team : r.away_team;
-            const predPct  = r.predicted_winner === 'home'
-              ? Math.round((r.home_win_pct || 0.5) * 100)
-              : Math.round((1 - (r.home_win_pct || 0.5)) * 100);
-            const conf     = Math.max(r.home_win_pct || 0.5, 1 - (r.home_win_pct || 0.5));
-            const tierCls  = conf >= 0.70 ? 'elite' : conf >= 0.65 ? 'great' : conf >= 0.60 ? 'good' : '';
-            const score    = r.home_score != null
-              ? `<span class="hist-score">${r.away_score}–${r.home_score}</span>`
-              : '';
-            const spBadge  = r.sp_scratched
-              ? ' <span class="sp-scratch-badge" title="Predicted starter did not start">⚠ SP</span>' : '';
-            return `
-          <tr class="${r.sp_scratched ? 'row-scratch' : (hit ? 'row-hit' : 'row-miss')}">
-            <td class="hist-matchup">${abbrev(r.away_team)} @ ${abbrev(r.home_team)}${spBadge}</td>
-            <td class="hist-pred">
-              ${abbrev(predTeam)} <span class="hist-pct${tierCls ? ' tier-badge tier-' + tierCls : ''}">${predPct}%</span>
-            </td>
-            <td class="hist-actual">${abbrev(actTeam)} ${score}</td>
-            ${mlEdgeCell(r)}
-            ${totalLeanCell(r)}
-            <td class="result-icon">${r.sp_scratched ? '<span class="res-scratch">–</span>' : (hit ? '<span class="res-hit">✓</span>' : '<span class="res-miss">✗</span>')}</td>
-          </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  </div>`;
-  }).join('')}
-</div>`;
-}
-
-function calcStreak(decided) {
-  if (!decided.length) return { type: 'W', count: 0 };
-  const last = decided[decided.length - 1];
-  const type = last.predicted_winner === last.actual_winner ? 'W' : 'L';
-  let count = 0;
-  for (let i = decided.length - 1; i >= 0; i--) {
-    const hit = decided[i].predicted_winner === decided[i].actual_winner;
-    if ((type === 'W') === hit) count++;
-    else break;
-  }
-  return { type, count };
-}
-
-function calcConfidenceTiers(decided) {
-  const tiers = [
-    { label: '70%+',   badge: 'ELITE', badgeCls: 'elite', lo: 0.70, hi: 1.00, correct: 0, total: 0 },
-    { label: '65–70%', badge: 'GREAT', badgeCls: 'great', lo: 0.65, hi: 0.70, correct: 0, total: 0 },
-    { label: '60–65%', badge: 'GOOD',  badgeCls: 'good',  lo: 0.60, hi: 0.65, correct: 0, total: 0 },
-    { label: 'Under 60%', badge: null, badgeCls: '',       lo: 0.50, hi: 0.60, correct: 0, total: 0 },
-  ];
-  for (const r of decided) {
-    const conf = Math.max(r.home_win_pct || 0.5, 1 - (r.home_win_pct || 0.5));
-    const hit  = r.predicted_winner === r.actual_winner;
-    for (const t of tiers) {
-      if (conf >= t.lo && (t.hi === 1.00 ? conf <= t.hi : conf < t.hi)) {
-        t.total++;
-        if (hit) t.correct++;
-        break;
-      }
-    }
-  }
-  return tiers.map(t => ({
-    ...t,
-    cls: t.total === 0 ? '' : (t.correct / t.total >= 0.60 ? 'conf-strong' : t.correct / t.total >= 0.50 ? 'conf-ok' : 'conf-weak'),
-  }));
-}
-
-function groupByDate(decided) {
-  const map = new Map();
-  for (const r of decided) {
-    if (!map.has(r.date)) map.set(r.date, []);
-    map.get(r.date).push(r);
-  }
-  return Array.from(map.entries())
-    .sort(([a], [b]) => b.localeCompare(a))
-    .map(([date, games]) => ({ date, games }));
-}
-
-function signalCardHTML(s) {
-  const rate = s.total > 0 ? Math.round(s.correct / s.total * 100) : null;
-  const cls  = rate == null ? '' : rate >= 60 ? 'sig-good' : rate >= 52 ? 'sig-ok' : 'sig-weak';
-  return `
-<div class="sig-card ${cls}">
-  <div class="sig-card-label">${s.label}</div>
-  <div class="sig-card-rate">${rate != null ? rate + '%' : '—'}</div>
-  <div class="sig-card-count">${s.correct}/${s.total}</div>
-</div>`;
-}
-
-function calcSignalAccuracy(decided) {
-  const m = {
-    pitcher: { label: 'Pitcher edge ≥ 5pts', correct: 0, total: 0 },
-    comps:   { label: 'Comps signal ≥ 55%',  correct: 0, total: 0 },
-    conf60:  { label: 'Picks at 60%+',        correct: 0, total: 0 },
-    conf65:  { label: 'Picks at 65%+',        correct: 0, total: 0 },
-  };
-
-  for (const r of decided) {
-    const homeWon = r.actual_winner === 'home';
-    const hit     = r.predicted_winner === r.actual_winner;
-    const conf    = Math.max(r.home_win_pct || 0.5, 1 - (r.home_win_pct || 0.5));
-
-    const ph = r.pitcher_score_home, pa = r.pitcher_score_away;
-    if (ph != null && pa != null && Math.abs(ph - pa) >= 0.05) {
-      const favouredHomeWin = ph > pa;
-      m.pitcher.total++;
-      if (favouredHomeWin === homeWon) m.pitcher.correct++;
-    }
-
-    if (r.comps_home_win_rate != null) {
-      const compsHome = r.comps_home_win_rate >= 0.55;
-      const compsAway = r.comps_home_win_rate <= 0.45;
-      if (compsHome || compsAway) {
-        m.comps.total++;
-        if ((compsHome && homeWon) || (compsAway && !homeWon)) m.comps.correct++;
-      }
-    }
-
-    if (conf >= 0.60) { m.conf60.total++; if (hit) m.conf60.correct++; }
-    if (conf >= 0.65) { m.conf65.total++; if (hit) m.conf65.correct++; }
-  }
-
-  return m;
 }
 
 // ── Season accuracy / totals-lean accuracy ────────────────────────────────────
@@ -1536,56 +1213,42 @@ function totalsLeanAccuracy(records) {
   return out;
 }
 
-function renderVegasSection() {
-  // Prediction accuracy by season (accuracy ONLY). Betting ROI is intentionally not shown here —
-  // the only validated, bet-and-tracked surface is the edge scoreboard (edgePerfSummaryHTML + the
-  // Edges tab). Reads backtestData (2021–25) + historyData (2026).
-  if (!(backtestData && backtestData.games) && !(historyData || []).length) return '';
-
-  // Per-season prediction ACCURACY (win% of the model's predicted winner).
-  // NOTE: this is accuracy only — we deliberately do NOT show a per-season moneyline ROI here.
-  // Betting the model's side on every game is not a validated edge (ML is ~0 EV; see the Edges
-  // tab for the validated UNDER edges), and showing it invited an apples-to-oranges read where
-  // 2026 (in-sample for the recalibrated model) dwarfed the out-of-sample prior seasons.
-  // 2026 is sourced ONLY from history (backtest.json also carries 2026 rows → would double-count).
-  function buildSeasonRows() {
-    const byYear = {};
-    for (const r of (backtestData && backtestData.games) || []) {
-      const yr = String(r.season || (r.date || '').slice(0, 4));
-      if (!yr || yr === '2026') continue;   // 2026 comes from history below (avoid double-count)
-      if (!byYear[yr]) byYear[yr] = { n: 0, correct: 0 };
-      byYear[yr].n++;
-      if (r.correct) byYear[yr].correct++;
-    }
-    for (const r of (historyData || [])) {
-      if (r.actual_winner !== 'home' && r.actual_winner !== 'away') continue;
-      const yr = (r.date || '').slice(0, 4) || '2026';
-      if (!byYear[yr]) byYear[yr] = { n: 0, correct: 0 };
-      byYear[yr].n++;
-      if (r.predicted_winner === r.actual_winner) byYear[yr].correct++;
-    }
-    return Object.entries(byYear)
-      .sort(([a], [b]) => Number(a) - Number(b))
-      .map(([yr, d]) => {
-        const acc = d.n ? Math.round(d.correct / d.n * 100) : 0;
-        const inSample = yr === '2026'
-          ? ' <span class="syr-insample" title="2026 is in-sample for the recalibrated model — not directly comparable to the out-of-sample prior seasons">in-sample</span>'
-          : '';
-        return `<tr>
-          <td class="syr-yr">${yr}${inSample}</td>
-          <td>${d.correct}–${d.n - d.correct}</td>
-          <td class="${acc >= 55 ? 'edge-pos' : acc >= 50 ? '' : 'edge-neg'}">${acc}%</td>
-        </tr>`;
-      }).join('');
+// Per-season prediction ACCURACY rows (win% of the model's predicted winner).
+// Accuracy only — deliberately no per-season moneyline ROI. Betting the model's side on
+// every game is not a validated edge (ML is ~0 EV), and showing it invited an
+// apples-to-oranges read where 2026 (in-sample for the recalibrated model) dwarfed the
+// out-of-sample prior seasons.
+// 2026 is sourced ONLY from history (backtest.json also carries 2026 rows → double-count).
+function seasonAccuracyRows() {
+  const byYear = {};
+  for (const r of (backtestData && backtestData.games) || []) {
+    const yr = String(r.season || (r.date || '').slice(0, 4));
+    if (!yr || yr === '2026') continue;   // 2026 comes from history below (avoid double-count)
+    if (!byYear[yr]) byYear[yr] = { n: 0, correct: 0 };
+    byYear[yr].n++;
+    if (r.correct) byYear[yr].correct++;
   }
-
-  return `
-<div class="section-heading">Prediction accuracy by season <span class="scope-tag">2021–26</span></div>
-<p class="rec-priced-note">Win% of the model's predicted winner, by season. 2026 is <b>in-sample</b> for the recalibrated model — not directly comparable to the out-of-sample prior seasons. Betting ROI lives in the <b>Edges</b> tab and the Edge-performance section below — not here (the model's moneyline is ~0 EV).</p>
-<table class="season-year-table">
-  <thead><tr><th>Season</th><th>Record</th><th>Acc%</th></tr></thead>
-  <tbody>${buildSeasonRows()}</tbody>
-</table>`;
+  for (const r of (historyData || [])) {
+    if (r.actual_winner !== 'home' && r.actual_winner !== 'away') continue;
+    const yr = (r.date || '').slice(0, 4) || '2026';
+    if (!byYear[yr]) byYear[yr] = { n: 0, correct: 0 };
+    byYear[yr].n++;
+    if (r.predicted_winner === r.actual_winner) byYear[yr].correct++;
+  }
+  return Object.entries(byYear)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([yr, d]) => {
+      const acc = d.n ? Math.round(d.correct / d.n * 100) : 0;
+      const inSample = yr === '2026'
+        ? ' <span class="syr-insample" title="2026 is in-sample for the recalibrated model — not directly comparable to the out-of-sample prior seasons">in-sample</span>'
+        : '';
+      return `<tr>
+        <td class="syr-yr">${yr}${inSample}</td>
+        <td>${d.n.toLocaleString()}</td>
+        <td>${d.correct}–${d.n - d.correct}</td>
+        <td class="${acc >= 55 ? 'edge-pos' : acc >= 50 ? '' : 'edge-neg'}">${acc}%</td>
+      </tr>`;
+    }).join('');
 }
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
@@ -1669,116 +1332,28 @@ function shortName(name) {
   return parts.length >= 2 ? `${parts[parts.length - 1]}, ${parts[0][0]}.` : name;
 }
 
-// ── Backtest segmentation ─────────────────────────────────────────────────────
+// ── Performance view ──────────────────────────────────────────────────────────
 
-// ── Backtest view ─────────────────────────────────────────────────────────────
-
-function renderBacktestView() {
-  const el = document.getElementById('backtest-view');
+// The single Performance page: validated edges and their realized return up top, then the
+// supporting model diagnostics. Deliberately absent — the old "Moneyline Analysis" section,
+// which carried its own banner saying there is no validated moneyline edge and that the
+// away-ML angle was overfit and demoted. Pages of ROI tiers for a demoted signal read as a
+// recommendation no matter how they are captioned.
+function renderPerformanceView() {
+  const el = document.getElementById('performance-view');
 
   if (!backtestData) {
     el.innerHTML = `<div class="empty-state"><p>Backtest data not available yet. Run the pipeline to generate it.</p></div>`;
     return;
   }
 
-  const { stats, games = [], roi_stats, segmentation } = backtestData;
+  const { stats, games = [] } = backtestData;
   if (!stats) {
     el.innerHTML = `<div class="empty-state"><p>No backtest stats found in data.</p></div>`;
     return;
   }
 
-  const fmtRoi   = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
-  const fmtUnits = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2);
-  const pct      = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
-  const roiCls   = v => v == null ? '' : v >= 0 ? 'roi-pos' : 'roi-neg';
-  const segCls   = v => v == null ? '' : v >= 0 ? 'seg-pos' : 'seg-neg';
-  const roiColor = v => v == null ? '' : v >= 5 ? 'bt-val-green' : v >= 0 ? 'bt-val-pos' : 'bt-val-neg';
-
-  // ── Compute away tier × pitcher advantage from games array ────────────────
-  const awayTierDefs = [
-    { label: 'Slight Lean',  sub: '0–3% edge',    cond: e => e < 0 && e >= -0.03 },
-    { label: 'Moderate',     sub: '3–6% edge',    cond: e => e < -0.03 && e >= -0.06 },
-    { label: 'Strong',       sub: '6–10% edge',   cond: e => e < -0.06 && e >= -0.10 },
-    { label: 'Very Strong',  sub: '10%+ edge',    cond: e => e < -0.10 },
-  ];
-  const mkCell = () => ({ bets: 0, wins: 0, units: 0 });
-  const awayTierData = awayTierDefs.map(() => ({ sp: mkCell(), no_sp: mkCell() }));
-
-  for (const g of games) {
-    const edge = g.model_edge_ml;
-    if (edge == null || edge >= 0 || !g.bet_side) continue;
-    const ml = g.bet_side === 'home' ? g.home_ml : g.away_ml;
-    if (ml == null) continue;
-    const spAdv = (g.pitcher_score_home - g.pitcher_score_away) < -0.05;
-    for (let i = 0; i < awayTierDefs.length; i++) {
-      if (awayTierDefs[i].cond(edge)) {
-        const c = spAdv ? awayTierData[i].sp : awayTierData[i].no_sp;
-        c.bets++;
-        if (g.bet_won) {
-          c.wins++;
-          c.units += ml > 0 ? ml / 100 : 100 / Math.abs(ml);
-        } else {
-          c.units -= 1.0;
-        }
-        break;
-      }
-    }
-  }
-
-  function fmtCell(c) {
-    if (!c.bets) return { roi: '—', detail: '—', roiClass: '', isBlank: true };
-    const roi = c.units / c.bets * 100;
-    const wr  = c.wins / c.bets * 100;
-    return {
-      roi:      (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%',
-      detail:   c.bets.toLocaleString() + ' bets · ' + wr.toFixed(0) + '% win',
-      roiClass: roi >= 0 ? 'pos' : 'neg',
-      isBlank:  false,
-    };
-  }
-
-  // ── Compute home tier ROI from games array ───────────────────────────────
-  const homeTierDefs = [
-    { label: 'Slight Lean', sub: '0–3% edge',   cond: e => e > 0 && e <= 0.03 },
-    { label: 'Moderate',    sub: '3–6% edge',   cond: e => e > 0.03 && e <= 0.06 },
-    { label: 'Strong',      sub: '6–10% edge',  cond: e => e > 0.06 && e <= 0.10 },
-    { label: 'Very Strong', sub: '10%+ edge',   cond: e => e > 0.10 },
-  ];
-  const homeTierData = homeTierDefs.map(() => mkCell());
-
-  for (const g of games) {
-    const edge = g.model_edge_ml;
-    if (edge == null || edge <= 0 || !g.bet_side) continue;
-    const ml = g.bet_side === 'home' ? g.home_ml : g.away_ml;
-    if (ml == null) continue;
-    for (let i = 0; i < homeTierDefs.length; i++) {
-      if (homeTierDefs[i].cond(edge)) {
-        const c = homeTierData[i];
-        c.bets++;
-        if (g.bet_won) {
-          c.wins++;
-          c.units += ml > 0 ? ml / 100 : 100 / Math.abs(ml);
-        } else {
-          c.units -= 1.0;
-        }
-        break;
-      }
-    }
-  }
-
-  const homeTierRows = homeTierDefs.map((def, i) => {
-    const c = homeTierData[i];
-    if (!c.bets) return `<tr><td class="bt-away-tier-label">${def.label}<span class="bt-tier-meta">${def.sub}</span></td><td>—</td><td>—</td><td>—</td></tr>`;
-    const roi = c.units / c.bets * 100;
-    const wr  = c.wins / c.bets * 100;
-    const rClass = roi >= 0 ? 'pos' : 'neg';
-    return `<tr>
-      <td class="bt-away-tier-label">${def.label}<span class="bt-tier-meta">${def.sub}</span></td>
-      <td>${c.bets.toLocaleString()}</td>
-      <td>${wr.toFixed(1)}%</td>
-      <td class="bt-cell-roi ${rClass}">${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%</td>
-    </tr>`;
-  }).join('');
+  const pct = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
 
   // ── Compute totals accuracy by year from games array ─────────────────────
   const totalsByYear = {};
@@ -1795,18 +1370,6 @@ function renderBacktestView() {
     else         { t.ub++; if (at < ct) t.uw++; }
   }
 
-  // ── Compute year-over-year win rate from games array ─────────────────────
-  const byYr = {};
-  for (const g of games) {
-    const yr = g.season || g.date?.slice(0, 4);
-    if (!yr) continue;
-    if (!byYr[yr]) byYr[yr] = { n: 0, correct: 0 };
-    if (g.actual_winner && g.actual_winner !== 'tie') {
-      byYr[yr].n++;
-      if (g.correct) byYr[yr].correct++;
-    }
-  }
-
   // ── Hero KPIs ─────────────────────────────────────────────────────────────
   const totalGames = games.length;
   const roiValCls = v => v == null ? '' : v > 0 ? 'kpi-green' : v < 0 ? 'kpi-red' : '';
@@ -1814,11 +1377,12 @@ function renderBacktestView() {
   // the model's blind ML/totals ROI is ~0 EV and is no longer surfaced as a headline.
   const sbEdges = (scoreboardData && scoreboardData.edges) || [];
   const u8 = sbEdges.find(e => e.tag === 'UNDER_LINE_8_0');
-  const dec26 = (historyData || []).filter(r => (r.actual_winner === 'home' || r.actual_winner === 'away') && !r.sp_scratched);
-  const acc26 = dec26.length ? Math.round(dec26.filter(r => r.predicted_winner === r.actual_winner).length / dec26.length * 100) : null;
 
+  // Three KPIs, not four. The old "2026 Win Rate · in-sample" card put an in-sample number in
+  // the most prominent slot on the page; in-sample accuracy belongs in the season table where
+  // its caveat sits next to it, not in a headline.
   const heroSection = `
-    <div class="bt-context-bar">${totalGames.toLocaleString()} games logged since 2021 &nbsp;·&nbsp; Pinnacle closing lines &nbsp;·&nbsp; betting ROI shown = the validated edge only (the model's blind ML/totals is ~0 EV and isn't surfaced)</div>
+    <div class="bt-context-bar">${totalGames.toLocaleString()} games logged since 2021 &nbsp;·&nbsp; closing lines &nbsp;·&nbsp; the only betting ROI shown anywhere on this page is the validated UNDER edge</div>
     <div class="bt-kpi-row">
       <div class="bt-kpi-card">
         <div class="bt-kpi-val ${roiValCls(u8 ? u8.hist_roi_pct : null)}">${u8 && u8.hist_roi_pct != null ? (u8.hist_roi_pct >= 0 ? '+' : '') + u8.hist_roi_pct.toFixed(1) + '%' : '—'}</div>
@@ -1826,13 +1390,8 @@ function renderBacktestView() {
         <div class="bt-kpi-sub">${u8 ? `${u8.hist_n} bets · std-vig · 2021–26${u8.recent_n ? ` · ${u8.recent_roi_pct >= 0 ? '+' : ''}${u8.recent_roi_pct}% live (n=${u8.recent_n})` : ''}` : 'see edge scoreboard'}</div>
       </div>
       <div class="bt-kpi-card">
-        <div class="bt-kpi-val">${acc26 != null ? acc26 + '%' : '—'}</div>
-        <div class="bt-kpi-label">2026 Win Rate <span class="bt-kpi-tag">in-sample</span></div>
-        <div class="bt-kpi-sub">${dec26.length.toLocaleString()} games · predicted winner</div>
-      </div>
-      <div class="bt-kpi-card">
         <div class="bt-kpi-val">${pct(stats.win_pct_overall)}</div>
-        <div class="bt-kpi-label">Prediction Accuracy</div>
+        <div class="bt-kpi-label">Prediction Accuracy <span class="bt-kpi-tag">accuracy, not profit</span></div>
         <div class="bt-kpi-sub">${(stats.total_correct ?? 0).toLocaleString()} / ${(stats.total_decided ?? 0).toLocaleString()} games</div>
       </div>
       <div class="bt-kpi-card">
@@ -1842,77 +1401,6 @@ function renderBacktestView() {
       </div>
     </div>`;
 
-  // liveSection replaced by heroSection above
-
-  // ── Section 02: Moneyline Analysis ────────────────────────────────────────
-  const awayTierRows = awayTierDefs.map((def, i) => {
-    const sp    = fmtCell(awayTierData[i].sp);
-    const no_sp = fmtCell(awayTierData[i].no_sp);
-    const isElite = i === 3;
-    return `<tr class="${isElite ? 'bt-away-elite-row' : ''}">
-      <td class="bt-away-tier-label">
-        ${def.label}
-        <span class="bt-tier-meta">${def.sub}</span>
-      </td>
-      <td class="${isElite ? 'bt-cell-elite' : ''}">
-        <div class="bt-cell-inner">
-          <div class="bt-cell-roi ${sp.roiClass}">${sp.roi}</div>
-          <div class="bt-cell-detail">${sp.detail}</div>
-        </div>
-      </td>
-      <td>
-        <div class="bt-cell-inner">
-          <div class="bt-cell-roi ${no_sp.roiClass}">${no_sp.roi}</div>
-          <div class="bt-cell-detail">${no_sp.detail}</div>
-        </div>
-      </td>
-    </tr>`;
-  }).join('');
-
-  const moneylineSection = `
-    <summary class="bt-sec-head bt-sec-toggle">
-      <span class="bt-sec-num">02</span>
-      <span class="bt-sec-title">Moneyline Analysis</span>
-      <span class="bt-sec-sub">Away edge vs. home favorite trap · 2021–2025</span>
-    </summary>
-    <div class="bt-sec-caveat">⚠ Exploratory / calibration only — there is <b>no validated moneyline edge</b> (the away-ML angle was overfit and demoted). These OOS 2021–25 ROI tiers show where the model is least wrong, not a bettable edge. The only validated edges are in the <b>Edges</b> tab.</div>
-    <div class="bt-ml-grid">
-      <div>
-        <div class="bt-subsection-title">Away Advantage · Edge × Pitcher Quality</div>
-        <p class="bt-sec-desc">When the model strongly favors the away team and the away starter has better metrics, the combination has produced the highest ROI in the database — on underdogs priced around +170.</p>
-        <div class="bt-away-grid-wrap">
-          <table class="bt-away-grid">
-            <thead><tr>
-              <th class="bt-away-tier-col">Model Away Edge vs. Vegas</th>
-              <th class="bt-away-sp-col bt-col-sp">Away SP Better</th>
-              <th class="bt-away-sp-col">Home SP Better / Even</th>
-            </tr></thead>
-            <tbody>${awayTierRows}</tbody>
-          </table>
-        </div>
-        <div class="bt-signal-note">
-          <strong>Why does 40% win rate beat 73%?</strong> The 10%+ / pitcher advantage picks are on underdogs (~+170). Winning 40% at those odds is very profitable. The 73% column bets heavy favorites — you need ~75% just to break even.
-        </div>
-      </div>
-      <div>
-        <div class="bt-subsection-title">Home Favorite Trap</div>
-        <p class="bt-sec-desc">When the model and Vegas both strongly favor the home team, the combined signal becomes over-confident. The home coefficient was cut from 1.0× to 0.4× after this data.</p>
-        <div class="bt-away-grid-wrap">
-          <table class="bt-away-grid">
-            <thead><tr>
-              <th class="bt-away-tier-col">Model Home Edge vs. Vegas</th>
-              <th>Bets</th><th>Win%</th><th>ROI</th>
-            </tr></thead>
-            <tbody>${homeTierRows}</tbody>
-          </table>
-        </div>
-        <div class="bt-signal-note">
-          The 10%+ tier had <strong>-9.4% ROI</strong> across five seasons. Dampening this signal lets the model trust Vegas pricing rather than amplifying it.
-        </div>
-      </div>
-    </div>`;
-
-  // ── SECTION 4: Model Calibration ─────────────────────────────────────────
   const tierLabels = { '50_55': '50–55%', '55_60': '55–60%', '60_65': '60–65%', '65_plus': '65%+' };
   const confRows = Object.entries(stats.win_pct_by_confidence || {}).map(([key, t]) => {
     const pctTxt = t.pct != null ? (t.pct * 100).toFixed(1) + '%' : '—';
@@ -1927,28 +1415,18 @@ function renderBacktestView() {
     </tr>`;
   }).join('');
 
-  const yrRows = Object.keys(byYr).sort().map(yr => {
-    const y = byYr[yr];
-    const wr = y.n > 0 ? (y.correct / y.n * 100).toFixed(1) + '%' : '—';
-    const wrf = y.n > 0 ? y.correct / y.n : 0;
-    const wrCls = wrf >= 0.56 ? 'tier-pct-good' : wrf >= 0.53 ? 'tier-pct-ok' : '';
-    const isLive = parseInt(yr) === 2026;
-    return `<tr${isLive ? ' class="yr-live"' : ''}>
-      <td><strong>${yr}${isLive ? ' <span class="live-tag">live</span>' : ''}</strong></td>
-      <td>${y.n.toLocaleString()}</td>
-      <td class="${wrCls}">${wr}</td>
-    </tr>`;
-  }).join('');
-
+  // Season rows come from seasonAccuracyRows() rather than the backtest games array, because
+  // backtest.json also carries 2026 rows — counting those AND history would double-count 2026.
   const calibrationSection = `
     <summary class="bt-sec-head bt-sec-toggle">
-      <span class="bt-sec-num">03</span>
+      <span class="bt-sec-num">02</span>
       <span class="bt-sec-title">Model Accuracy</span>
       <span class="bt-sec-sub">Win rate by confidence level and by season</span>
     </summary>
     <p class="bt-sec-desc">
-      Higher model confidence correlates directly with better accuracy. At 65%+, the model has been right
-      nearly 4 out of 5 times — but these picks are rare by design (only when pitcher stats are very lopsided).
+      Higher model confidence correlates with better accuracy. This is <strong>accuracy, not profit</strong> —
+      picking winners more than half the time does not by itself beat the vig. The only surface where
+      accuracy has converted into realized return is the validated UNDER edge above.
     </p>
     <div class="bt-two-col">
       <div>
@@ -1961,13 +1439,14 @@ function renderBacktestView() {
         </div>
       </div>
       <div>
-        <div class="bt-subsection-title">Year-over-Year</div>
+        <div class="bt-subsection-title">By Season</div>
         <div class="bt-table-wrap">
           <table class="seg-table">
-            <thead><tr><th>Season</th><th>Games</th><th>Win Rate</th></tr></thead>
-            <tbody>${yrRows}</tbody>
+            <thead><tr><th>Season</th><th>Games</th><th>Record</th><th>Acc%</th></tr></thead>
+            <tbody>${seasonAccuracyRows()}</tbody>
           </table>
         </div>
+        <p class="bt-sec-desc" style="margin-top:8px">2026 is <b>in-sample</b> for the recalibrated model — not directly comparable to the out-of-sample prior seasons.</p>
       </div>
     </div>`;
 
@@ -2038,17 +1517,36 @@ function renderBacktestView() {
     </div>
     <div class="bt-signal-note">${tsbYrNote} Signal scored using pitcher quality (xFIP/SIERA/barrel%) + park factor + lineup xwOBA where available. Weather modifiers not applied historically. Bullpen xERA/K%/BB% applied from 2022 onward via prior-season caches.</div>` : '';
 
+  // 2026 totals-lean accuracy, folded in here rather than living in its own section — it is the
+  // live continuation of the same historical table beneath it, not a separate statistic.
+  const decLive = (historyData || []).filter(r => (r.actual_winner === 'home' || r.actual_winner === 'away') && !r.sp_scratched);
+  const tl = totalsLeanAccuracy(decLive);
+  const tlRow = (label, b) => {
+    const n = b.w + b.l, p = n ? Math.round(b.w / n * 100) : null;
+    return `<tr><td><strong>${label}</strong></td><td>${n.toLocaleString()}</td><td>${b.w}–${b.l}</td><td class="${p == null ? '' : p >= 55 ? 'seg-pos' : p >= 50 ? '' : 'seg-neg'}">${p == null ? '—' : p + '%'}</td></tr>`;
+  };
+  const leanLiveBlock = (tl.under.w + tl.under.l + tl.over.w + tl.over.l) ? `
+    <div class="bt-subsection-title" style="margin-top:14px">2026 live · model lean ≥ 0.5 runs</div>
+    <div class="bt-table-wrap">
+      <table class="seg-table">
+        <thead><tr><th>Model lean</th><th>Graded</th><th>Record</th><th>Win%</th></tr></thead>
+        <tbody>${tlRow('UNDER', tl.under)}${tlRow('OVER', tl.over)}</tbody>
+      </table>
+    </div>
+    <div class="bt-signal-note">Push-corrected${tl.push ? ` — ${tl.push} push${tl.push === 1 ? '' : 'es'} excluded` : ''}. Accuracy of the lean only; realized return on the validated edge is in section 01.</div>` : '';
+
   const totalsSection = `
     <summary class="bt-sec-head bt-sec-toggle">
-      <span class="bt-sec-num">04</span>
+      <span class="bt-sec-num">03</span>
       <span class="bt-sec-title">Totals Performance</span>
-      <span class="bt-sec-sub">OVER/UNDER prediction accuracy · historical seasons</span>
+      <span class="bt-sec-sub">OVER/UNDER prediction accuracy · all seasons</span>
     </summary>
     <p class="bt-sec-desc">
       The model consistently predicts fewer runs than the Vegas line — a lean that has been correct ~52–53%
       of the time most seasons. That modest accuracy only becomes a (small, push-corrected) edge at the
       specific 8.0 standard-vig line above; betting the lean on every game is roughly break-even.
     </p>
+    ${leanLiveBlock}
     ${totalsYrRows ? `<div class="bt-table-wrap">
       <table class="seg-table">
         <thead><tr><th>Season</th><th>Over Bets</th><th>Over Accuracy</th><th>Under Bets</th><th>Under Accuracy</th></tr></thead>
@@ -2203,7 +1701,34 @@ function renderBacktestView() {
       </div>
     </div>`;
 
-  // (Props Performance lives once under Performance → Live record, not duplicated here.)
+  // ── Section 04: Model win-prob vs the market-anchored headline ────────────
+  // Kept because it is a genuine model diagnostic — how close the pure-input model gets to
+  // the market-anchored number — not a bettable surface.
+  const winProbSection = (() => {
+    const s = modelWinProbStats(decLive);
+    const body = !s.n
+      ? (() => {
+          const tracked = (historyData || []).filter(r => r.model_home_win_pct != null).length;
+          return `<p class="bt-sec-desc">The independent model win-prob (lineups + Statcast, no market line) is recorded with every prediction${tracked ? ` — <strong>${tracked.toLocaleString()}</strong> logged so far` : ''}. Winner accuracy and calibration appear here as those games resolve.</p>`;
+        })()
+      : `<div class="bt-table-wrap">
+      <table class="seg-table">
+        <thead><tr><th></th><th>Winner accuracy</th><th>Brier (lower = better)</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Our model (input-only)</strong></td><td class="${s.mAcc >= s.hAcc ? 'seg-pos' : ''}">${s.mAcc}%</td><td>${s.mBrier}</td></tr>
+          <tr><td>Headline (market-anchored)</td><td>${s.hAcc}%</td><td>${s.hBrier}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="bt-signal-note">Independent model vs the market-anchored headline over the same ${s.n.toLocaleString()} resolved game${s.n === 1 ? '' : 's'}. The market-anchored number is expected to be sharper — this tracks how close the pure-input model gets.</div>`;
+    return `
+    <summary class="bt-sec-head bt-sec-toggle">
+      <span class="bt-sec-num">04</span>
+      <span class="bt-sec-title">Model vs Market</span>
+      <span class="bt-sec-sub">Input-only win-prob against the market-anchored headline</span>
+    </summary>
+    ${body}`;
+  })();
 
   // ── Section 05: Game Log ──────────────────────────────────────────────────
   const logRows = games.slice(0, 200).map(g => {
@@ -2227,15 +1752,16 @@ function renderBacktestView() {
     </tr>`;
   }).join('');
 
-  // Lead with the headline KPIs + the validated edge; the deeper analytical grids and the
-  // full game log are collapsed by default (tap to expand) so the tab isn't a wall of tables.
+  // Lead with the headline KPIs + the validated edge and its realized return; the supporting
+  // diagnostics and the full game log are collapsed by default so the tab isn't a wall of tables.
   el.innerHTML = `
     <div class="backtest-wrap">
       ${heroSection}
       ${edgesSection}
-      <details class="bt-sec-collapse">${moneylineSection}</details>
+      ${edgePerfSummaryHTML()}
       <details class="bt-sec-collapse">${calibrationSection}</details>
       <details class="bt-sec-collapse">${totalsSection}</details>
+      <details class="bt-sec-collapse">${winProbSection}</details>
       <details class="bt-sec-collapse">
         <summary class="bt-sec-head bt-sec-toggle bt-sec-head-log">
           <span class="bt-sec-num">05</span>
