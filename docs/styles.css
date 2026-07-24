@@ -2126,24 +2126,6 @@ header {
   .ea-audit-table th, .ea-audit-table td { padding: 5px 6px; }}
 
 .ea-audit-scope { color: var(--text-dim); }
-.ea-audit-reconcile {
-  display: flex; flex-wrap: wrap; gap: 6px 22px;
-  background: rgba(255,255,255,.03);
-  border: 1px solid var(--border); border-radius: 8px;
-  padding: 8px 10px; margin: 0 0 4px;
-}
-.ea-audit-reconcile > div { display: flex; flex-direction: column; gap: 1px; }
-.ea-audit-rk {
-  font-size: 9px; text-transform: uppercase; letter-spacing: .5px;
-  color: var(--text-dim); font-weight: 700;
-}
-.ea-audit-rv { font-size: 12px; color: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
-.ea-audit-drift { border-color: rgba(234,179,8,.35); background: rgba(234,179,8,.06); }
-.ea-audit-rwarn {
-  flex-basis: 100%; font-size: 11px; line-height: 1.45;
-  color: var(--text-muted); font-weight: 400;
-}
-
 .ea-audit-cum { font-weight: 600; }
 .ea-audit-src { color: var(--text-dim); font-size: 10px; }
 .ea-audit-liverow td { background: rgba(34,197,94,.05); }

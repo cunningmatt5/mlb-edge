@@ -604,17 +604,21 @@ function gameEdgeBannerHTML(g) {
   const pk = g.gamePk;
 
   for (const e of conds) {
-    const roiStr = `+${e.roi_pct.toFixed(1)}% ROI`;
-    const icon   = e.direction === 'UNDER' ? '⚡' : '★';
+    const icon = e.direction === 'UNDER' ? '⚡' : '★';
+    const h = edgeHistorical(e.tag);   // null on Games tab until backtest loads
+    const detail = h && h.roi != null
+      ? `<span class="geb-detail">${h.roi >= 0 ? '+' : ''}${h.roi.toFixed(1)}% historical</span>`
+      : `<span class="geb-detail">validated edge</span>`;
+    const sub = h ? h.seasonsStr : 'see the Edges tab for the record';
     parts.push(`
-<div class="game-edge-banner banner-edge-under" onclick="toggleCard(${pk})">
+<div class="game-edge-banner banner-edge-under" onclick="gotoView('edges')">
   <span class="geb-icon">${icon}</span>
   <div class="geb-body">
     <span class="geb-label">${e.label}</span>
     <span class="geb-sep"></span>
-    <span class="geb-detail">${roiStr} historical</span>
+    ${detail}
   </div>
-  <span class="geb-sub">${e.seasons}</span>
+  <span class="geb-sub">${sub}</span>
 </div>`);
   }
 
@@ -660,16 +664,19 @@ const edgeConf = e => EDGE_CONF[e.confidence] || EDGE_CONF.high;
 const edgeStrength = g => Math.max(0, ...(g.edge_conditions || []).map(e => e.signal_boost ?? 0));
 const edgeTopRoi   = g => Math.max(...(g.edge_conditions || []).map(e => e.roi_pct ?? 0));
 
-// Compact per-season ROI chips (green/red by sign). Empty if the pipeline hasn't
-// emitted season_roi yet (older games.json).
+// Compact per-season ROI chips (green/red by sign), computed live from the reconciled data
+// via edgeHistorical — not the pipeline's frozen season_roi. Empty until backtest loads.
 function seasonRoiStripHTML(e) {
-  if (!e.season_roi || !Object.keys(e.season_roi).length) return '';
-  const chips = Object.entries(e.season_roi).map(([yr, roi]) => {
+  const h = edgeHistorical(e.tag);
+  if (!h || !h.bySeason) return '';
+  const chips = Object.keys(h.bySeason).sort().map(yr => {
+    const s = h.bySeason[yr];
+    const roi = s.bets ? s.units / s.bets * 100 : 0;
     const pos = roi >= 0;
     return `<span class="ef-season-chip ${pos ? 'pos' : 'neg'}">`
          + `${yr.slice(2)} ${pos ? '+' : ''}${roi.toFixed(0)}%</span>`;
   }).join('');
-  return `<div class="ef-season-strip" title="Historical ROI by season">${chips}</div>`;
+  return chips ? `<div class="ef-season-strip" title="ROI by season (recomputed from data)">${chips}</div>` : '';
 }
 
 // ── Lineup status (collapsed card) — batter highlights moved to expanded lineup section ──
@@ -1192,6 +1199,41 @@ function edgeBand(key) {
   return EDGE_BANDS.find(b => b.key === key);
 }
 
+// SINGLE SOURCE OF TRUTH for an edge's validated historical figure. Recomputed live from the
+// reconciled backtest+history data via computeUnderEdge — NEVER a frozen constant. The old
+// hardcoded EDGE_METADATA roi_pct/n_games/season_roi drifted from the data after the odds
+// reconciliation and showed conflicting numbers; this makes the figure the app displays and
+// the figure the audit computes literally the same call, so they cannot disagree.
+//
+// This is the edge's FULL multi-season record (every season with archived lines through the
+// live one), identical to the audit's "line only" headline — the same computeUnderEdge call —
+// so the Performance tab, the play cards, and the audit all show one number that cannot
+// disagree. The scoreboard's separate 2026 figure is the "this season" callout. Returns null
+// until backtest data is loaded.
+let _edgeHistCache = null, _edgeHistKey = null;
+function edgeHistorical(tag) {
+  if (!backtestData || !tag) return null;
+  const key = (backtestData.generated_at || '') + '|' + (historyData ? historyData.length : 0);
+  if (_edgeHistKey !== key) { _edgeHistCache = {}; _edgeHistKey = key; }
+  if (tag in _edgeHistCache) return _edgeHistCache[tag];
+
+  const band = EDGE_BANDS.find(b => b.tag === tag);
+  if (!band) return (_edgeHistCache[tag] = null);
+  const d = computeUnderEdge(band, edgeAuditUniverse());
+  const yrs = Object.keys(d.bySeason).sort();
+  const pos = yrs.filter(y => d.bySeason[y].units > 0).length;
+  const multiSeason = yrs.length > 1;
+  const res = {
+    roi: d.roi, n: d.totalBets, wins: d.totalWins,
+    seasonsProfitable: pos, seasonsTotal: yrs.length,
+    bySeason: d.bySeason, full: d,
+    seasonsStr: multiSeason
+      ? `${pos}/${yrs.length} seasons profitable (${yrs[0]}–${yrs[yrs.length - 1]})`
+      : `${yrs[0] || 2026} only, small sample`,
+  };
+  return (_edgeHistCache[tag] = res);
+}
+
 // Compact "by edge" performance summary from the live edge scoreboard (the only validated,
 // bet-and-tracked surface). Mirrors the Edges-tab data; links there for full detail.
 function edgePerfSummaryHTML() {
@@ -1210,9 +1252,10 @@ function edgePerfSummaryHTML() {
     const wins = Math.round((e.win_pct || 0) / 100 * (e.n || 0));
     const clv = e.clv_beat_pct != null ? `${Math.round(e.clv_beat_pct)}%` : '—';
     const live = e.n ? `${wins}–${e.n - wins} <span class="${pctCls(e.roi_pct)}">${pctStr(e.roi_pct)}</span>` : '—';
+    const h = edgeHistorical(e.tag);   // live-recomputed validated ROI, not a frozen constant
     return `<tr>
       <td class="ep-name">${e.label || e.tag} ${confTag(e.confidence)}</td>
-      <td class="${pctCls(e.hist_roi_pct)}">${pctStr(e.hist_roi_pct)}</td>
+      <td class="${pctCls(h ? h.roi : null)}">${pctStr(h ? h.roi : null)}</td>
       <td>${live}</td>
       <td>${clv}</td>
     </tr>`;
@@ -1437,6 +1480,7 @@ function renderPerformanceView() {
   // the model's blind ML/totals ROI is ~0 EV and is no longer surfaced as a headline.
   const sbEdges = (scoreboardData && scoreboardData.edges) || [];
   const u8 = sbEdges.find(e => e.tag === 'UNDER_LINE_8_0');
+  const u8h = edgeHistorical('UNDER_LINE_8_0');   // live-recomputed, not a frozen constant
 
   // Three KPIs, not four. The old "2026 Win Rate · in-sample" card put an in-sample number in
   // the most prominent slot on the page; in-sample accuracy belongs in the season table where
@@ -1445,9 +1489,9 @@ function renderPerformanceView() {
     <div class="bt-context-bar">${totalGames.toLocaleString()} games logged since 2021 &nbsp;·&nbsp; closing lines &nbsp;·&nbsp; the only betting ROI shown anywhere on this page is the validated UNDER edge</div>
     <div class="bt-kpi-row">
       <div class="bt-kpi-card">
-        <div class="bt-kpi-val ${roiValCls(u8 ? u8.hist_roi_pct : null)}">${u8 && u8.hist_roi_pct != null ? (u8.hist_roi_pct >= 0 ? '+' : '') + u8.hist_roi_pct.toFixed(1) + '%' : '—'}</div>
+        <div class="bt-kpi-val ${roiValCls(u8h ? u8h.roi : null)}">${u8h && u8h.roi != null ? (u8h.roi >= 0 ? '+' : '') + u8h.roi.toFixed(1) + '%' : '—'}</div>
         <div class="bt-kpi-label">UNDER 8.0 ROI <span class="bt-kpi-tag tag-good">validated · push-corrected</span></div>
-        <div class="bt-kpi-sub">${u8 ? `${u8.hist_n} bets · std-vig · 2021–26${u8.recent_n ? ` · ${u8.recent_roi_pct >= 0 ? '+' : ''}${u8.recent_roi_pct}% live (n=${u8.recent_n})` : ''}` : 'see edge scoreboard'}</div>
+        <div class="bt-kpi-sub">${u8h ? `${u8h.n.toLocaleString()} bets · std-vig · ${u8h.seasonsStr.replace(/^\d+\/\d+ seasons profitable /, '')}` : 'see edge scoreboard'}${u8 && u8.recent_n ? ` · ${u8.recent_roi_pct >= 0 ? '+' : ''}${u8.recent_roi_pct}% live (n=${u8.recent_n})` : ''}</div>
       </div>
       <div class="bt-kpi-card">
         <div class="bt-kpi-val">${pct(stats.win_pct_overall)}</div>
@@ -2106,19 +2150,17 @@ function equityChartHTML(sb) {
 
 // ── Edges tab: plain-language plays + track record ────────────────────────────
 
-function _seasonsRecord(e) {
-  const sr = e.season_roi || {};
-  const yrs = Object.keys(sr);
-  if (yrs.length <= 1) return yrs.length === 1 ? `${yrs[0]} only` : '';
-  const pos = yrs.filter(y => (sr[y] ?? 0) > 0).length;
-  return `${pos}/${yrs.length} seasons profitable`;
-}
-
+// Track-record line for a play, computed live via edgeHistorical (validated = out-of-sample
+// seasons). Falls back to the live scoreboard roi_pct only if backtest hasn't loaded.
 function _recLine(e) {
+  const h = edgeHistorical(e.tag);
+  if (h && h.roi != null) {
+    const roi = `${h.roi >= 0 ? '+' : ''}${h.roi.toFixed(1)}% ROI`;
+    return `${roi} · ${h.seasonsStr}`;
+  }
+  if (e.roi_pct == null) return 'validated under edge';
   const roi = `${e.roi_pct >= 0 ? '+' : ''}${e.roi_pct.toFixed(1)}% ROI`;
-  return (e.confidence === 'emerging' || e.confidence === 'new')
-    ? `${roi} · 2026 only, small sample`
-    : `${roi} · ${_seasonsRecord(e)}`;
+  return `${roi} · validated`;
 }
 
 function _whyLine(g, e) {
@@ -2159,11 +2201,12 @@ function edgePlayCardHTML(g) {
       </div>` : '';
 
   const others = unders.filter(e => e !== top);
+  const topHist = edgeHistorical(top?.tag);
   const details = `
       <details class="ef-play-details">
         <summary>details</summary>
         <div class="ef-play-detail-body">
-          <div>Validated on ${top.n_games.toLocaleString()} games — ${escapeHtml(top.seasons)}</div>
+          ${topHist ? `<div>Validated on ${topHist.n.toLocaleString()} games — ${escapeHtml(topHist.seasonsStr)}</div>` : ''}
           ${seasonRoiStripHTML(top)}
           ${others.length ? `<div>Also flagged: ${others.map(e => escapeHtml(e.label)).join(', ')}</div>` : ''}
         </div>
@@ -2413,21 +2456,9 @@ function edgeAuditSectionHTML() {
     const scope = seasonsCovered.length
       ? `${seasonsCovered[0]}–${seasonsCovered[seasonsCovered.length - 1]}` : '—';
 
-    // The scoreboard's headline figure is a constant baked into edge_detector.py, not a
-    // recomputation. Show both side by side when they disagree: a verification surface that
-    // quietly hid a mismatch with the number above it would be worse than no surface at all.
-    const pub = ((scoreboardData && scoreboardData.edges) || []).find(e => e.tag === band.tag);
-    const pubRoi = pub?.hist_roi_pct, pubN = pub?.hist_n;
-    const drifted = pubRoi != null && data.roi != null &&
-      (Math.abs(pubRoi - data.roi) >= 0.05 || pubN !== data.totalBets);
-    const reconcileHTML = pubRoi == null ? '' : `
-      <div class="ea-audit-reconcile${drifted ? ' ea-audit-drift' : ''}">
-        <div><span class="ea-audit-rk">Published above</span>
-          <span class="ea-audit-rv">${(pubRoi >= 0 ? '+' : '') + pubRoi.toFixed(2)}% · n=${pubN?.toLocaleString() ?? '—'}</span></div>
-        <div><span class="ea-audit-rk">Recomputed here</span>
-          <span class="ea-audit-rv">${(data.roi >= 0 ? '+' : '') + data.roi.toFixed(2)}% · n=${data.totalBets.toLocaleString()}</span></div>
-        ${drifted ? `<div class="ea-audit-rwarn">These disagree. The published figure is a constant stored in the edge definition and covers 2021–26; the recomputed figure is derived live from the ${scope} rows below, the seasons with archived closing lines. Trust the rows — they are the data.</div>` : ''}
-      </div>`;
+    // No published-vs-recomputed reconcile box any more: every figure the app shows is now
+    // recomputed from this same data (edgeHistorical → computeUnderEdge), so there is no frozen
+    // constant left to drift against. The by-season table below is the transparency.
 
     return `
     <div class="ea-audit-band">
@@ -2447,7 +2478,6 @@ function edgeAuditSectionHTML() {
       </div>
       ${EDGE_DEFINITIONS[band.tag] ? `<div class="ea-audit-def">${EDGE_DEFINITIONS[band.tag].long}</div>` : ''}
       <div class="ea-audit-note">${band.note} Pushes are excluded as void, so "graded" is below the raw count of games on this line.</div>
-      ${reconcileHTML}
 
       <div class="ea-audit-subhdr">Today · ${todaysGameDateLabel()}</div>
       ${todayHTML}

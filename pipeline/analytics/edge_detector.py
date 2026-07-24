@@ -10,13 +10,14 @@ half-open range checks below are equivalent to exact-line matches:
 
 The 8.5 line is explicitly NOT an edge: -2.8% blind ROI across 2,171 games.
 
-Vig matters (research_under_8.py, 2021-2026, PUSH-CORRECTED — totals landing exactly on the
-line are voided, not counted as UNDER wins):
-  At the 8.0 line the UNDER is +5.5% / 4-of-6 seasons at STANDARD vig (under_price -106..-110),
-  but only ~0% outside that band — both cheaper-priced unders (the market already leans under)
-  and vig-against unders (-111..-120) underperform, and it's negative when priced worse than -120.
+Vig matters (research_under_8.py, PUSH-CORRECTED — totals landing exactly on the line are
+voided, not counted as UNDER wins):
+  At the 8.0 line the UNDER is solidly positive at STANDARD vig (under_price -106..-110), but
+  only ~0% outside that band — both cheaper-priced unders (the market already leans under) and
+  vig-against unders (-111..-120) underperform, and it's negative when priced worse than -120.
   So detect_edges() gives the boost ONLY in the standard-vig band and suppresses it otherwise.
-  (Earlier metadata claimed +12.6% / 6-of-6; that was inflated entirely by pushes graded as wins.)
+  (The exact ROI is recomputed live from the reconciled backtest data and shown in the app; it
+  is deliberately NOT hardcoded here, so it can never drift from the data.)
 """
 
 from __future__ import annotations
@@ -28,16 +29,16 @@ _VIG_STD_HI   = -106
 # Metadata for each edge — PUSH-CORRECTED ROI/season figures (research_under_8.py + edge_research.py
 # re-run with pushes voided). All ROI is realized at a flat $1 UNDER stake, pushes refunded.
 EDGE_METADATA: dict[str, dict] = {
+    # NOTE: no hardcoded roi_pct / n_games / season_roi here. The frontend computes every
+    # displayed historical figure live from the reconciled backtest data (edgeHistorical →
+    # computeUnderEdge in app.js), so there is no frozen constant to drift from the data. This
+    # dict carries only what the pipeline needs to FIRE and LABEL an edge.
     "UNDER_LINE_8_0": {
         "tag":        "UNDER_LINE_8_0",
         "label":      "Under Edge: Total = 8.0",
         "direction":  "UNDER",
         "bet_type":   "TOTAL",
-        "roi_pct":    5.47,
-        "n_games":    429,
         "confidence": "high",
-        "seasons":    "4/6 seasons profitable (2021–2026) at standard vig, push-corrected",
-        "season_roi": {"2021": -4.5, "2022": 10.1, "2023": -0.2, "2024": 9.4, "2025": 2.4, "2026": 10.1},
         "signal_boost": 0.8,   # std-vig band only; suppressed otherwise in detect_edges()
     },
     "UNDER_LINE_9_0": {
@@ -45,11 +46,7 @@ EDGE_METADATA: dict[str, dict] = {
         "label":      "Under Edge: Total = 9.0",
         "direction":  "UNDER",
         "bet_type":   "TOTAL",
-        "roi_pct":    2.55,
-        "n_games":    1405,
         "confidence": "watch",
-        "seasons":    "barely +2.6% 2021–2025 (push-corrected), then -11.3% in 2026 — watch only",
-        "season_roi": {"2021": 8.6, "2022": -1.3, "2023": 1.8, "2024": 2.9, "2025": 2.4, "2026": -11.3},
         "signal_boost": 0.0,   # do not move live signals: marginal historically, negative live
     },
     "UNDER_MODEL_DEV": {
@@ -57,11 +54,7 @@ EDGE_METADATA: dict[str, dict] = {
         "label":      "Under Edge: Model–Vegas Gap",
         "direction":  "UNDER",
         "bet_type":   "TOTAL",
-        "roi_pct":    32.58,
-        "n_games":    46,
         "confidence": "emerging",
-        "seasons":    "2026-only by construction (predicted_total was Vegas-anchored pre-2026); lines ≤9.0, small n",
-        "season_roi": {"2026": 32.6},
         "signal_boost": 0.3,   # single season, small sample → modest boost
     },
 }

@@ -172,8 +172,8 @@ def build_scoreboard() -> dict:
             "label": meta.get("label", tag),
             "confidence": meta.get("confidence", "?"),
             "actionable": (meta.get("signal_boost") or 0) > 0,
-            "hist_roi_pct": meta.get("roi_pct"),     # validated multi-season (push-corrected)
-            "hist_n": meta.get("n_games"),
+            # No hist_roi_pct/hist_n: the frontend recomputes the validated figure live from
+            # the backtest data (edgeHistorical). A frozen constant here only drifts.
             "n": a["n"],
             "win_pct": round(a["wins"] / a["n"] * 100, 1) if a["n"] else None,
             "units": round(a["units"], 2),
