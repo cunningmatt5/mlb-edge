@@ -234,6 +234,9 @@ function gotoView(v) {
 // Landing block that leads with TODAY'S VALIDATED edge plays (actionable edges only —
 // signal_boost > 0, i.e. the 8.0 UNDERs, not the 9.0 watch). Reuses the edge-confidence
 // map, per-season ROI chips, and the Kelly sizer.
+// Compact pointer to today's edge plays. The Edges tab is the authoritative surface for
+// edges (plays + watch + status + scoreboard + audit); this is a one-line banner so a user
+// on the Games tab knows plays exist and can jump there — not a second full copy of the list.
 function todaysEdgePlaysHTML(games) {
   const isActionable = e => e.direction === 'UNDER' && (e.signal_boost ?? 0) > 0;
   const plays = (games || [])
@@ -243,36 +246,20 @@ function todaysEdgePlaysHTML(games) {
 
   if (!plays.length) {
     return `
-    <div class="edge-plays">
-      <div class="ep-hdr"><span class="ep-title">⚡ Today's Edge Plays</span></div>
-      <div class="ep-empty">No validated edge plays on today's slate — full game list below.
-        <span class="ep-link" onclick="gotoView('edges')">View season performance →</span></div>
+    <div class="edge-plays edge-plays-none" onclick="gotoView('edges')">
+      <span class="ep-title">⚡ No edge plays on today's slate</span>
+      <span class="ep-link">See the season record →</span>
     </div>`;
   }
 
-  const cards = plays.map(g => {
-    const top = [...g.edge_conditions].filter(isActionable)
-      .sort((a, b) => (b.signal_boost ?? 0) - (a.signal_boost ?? 0))[0];
-    const c = edgeConf(top);
-    const kelly = kellyStripHTML(g);   // '' if no bankroll set
-    return `
-    <div class="ep-card" onclick="toggleCard(${g.gamePk})">
-      <div class="ep-row">
-        <span class="ep-match">${escapeHtml(abbrev(g.away_team))} @ ${escapeHtml(abbrev(g.home_team))}</span>
-        <span class="ep-bet ${c.cls}">${c.icon} ${escapeHtml(top.label)}</span>
-        <span class="ep-roi sb-pos">${top.roi_pct >= 0 ? '+' : ''}${top.roi_pct.toFixed(1)}% hist</span>
-      </div>
-      ${kelly}
-    </div>`;
-  }).join('');
-
+  const matchups = plays
+    .map(g => escapeHtml(`${abbrev(g.away_team)} @ ${abbrev(g.home_team)}`))
+    .join(' · ');
   return `
-    <div class="edge-plays">
-      <div class="ep-hdr">
-        <span class="ep-title">⚡ Today's Edge Plays</span>
-        <span class="ep-sub">${plays.length} validated · <span class="ep-link" onclick="gotoView('edges')">scoreboard →</span></span>
-      </div>
-      ${cards}
+    <div class="edge-plays" onclick="gotoView('edges')">
+      <span class="ep-title">⚡ ${plays.length} edge play${plays.length !== 1 ? 's' : ''} today</span>
+      <span class="ep-match">${matchups}</span>
+      <span class="ep-link">View in Edges →</span>
     </div>`;
 }
 
@@ -397,13 +384,6 @@ function gameFav(g) {
 
 function americanToDecimal(odds) {
   return odds >= 0 ? 1 + odds / 100 : 1 - 100 / odds;
-}
-
-function _toAmericanOdds(decOdds) {
-  if (!decOdds || decOdds <= 1) return null;
-  return decOdds >= 2
-    ? Math.round((decOdds - 1) * 100)
-    : Math.round(-100 / (decOdds - 1));
 }
 
 function noVigProb(oddsA, oddsB) {
@@ -1100,14 +1080,6 @@ function predictionHTML(g) {
       : ''}
   </div>
 </div>`;
-}
-
-// ── Odds / unit helpers ───────────────────────────────────────────────────────
-
-function americanToProfit(odds) {
-  // Returns profit per 1-unit stake. Returns null when odds unavailable.
-  if (odds == null || odds === 0) return null;
-  return odds > 0 ? odds / 100 : 100 / Math.abs(odds);
 }
 
 // Totals outcome vs a line: 'over' | 'under' | 'push' (final runs exactly on the line).
