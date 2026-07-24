@@ -18,6 +18,7 @@ import json
 import logging
 import re
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -533,8 +534,76 @@ _SNAPSHOTS = ["T17:00:00Z", "T22:00:00Z"]
 # Two snapshots per date (each costs ~20 quota units on paid plans):
 #   T17:00Z = 1 PM ET  → pre-game for afternoon games (1 PM, 4 PM ET starts)
 #   T22:00Z = 6 PM ET  → pre-game for evening/West Coast games (7-10 PM ET starts)
-# Union of both covers >97% of the schedule.  Prefer the later snapshot when a
-# game appears in both (odds closer to first pitch = sharper closing line).
+# Union of both covers >97% of the schedule.
+#
+# Pick the latest snapshot STRICTLY BEFORE the event's commence_time — NOT the
+# latest snapshot outright. T22:00Z lands hours after first pitch for afternoon
+# games, so "prefer later" silently stored LIVE in-game odds as the closing line:
+# totals re-priced around runs already scored (median error 2.5 runs, max 16) and
+# h2h pulled by the book, which is why those rows also had a null moneyline.
+# Symptom if this regresses: corr(closing_total, actual_runs) jumps from ~0.12 to
+# ~0.40 season-wide, and implausible totals (>12 or <5) appear.
+
+
+def _snapshot_ts(cache_key: str) -> Optional[datetime]:
+    """'2024-03-28_T22:00:00Z' → aware datetime, or None for legacy keys."""
+    if len(cache_key) <= 10 or cache_key[10] != "_":
+        return None
+    try:
+        return datetime.fromisoformat(f"{cache_key[:10]}{cache_key[11:]}".replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def records_from_odds_api_cache(cache: dict, season: int) -> list[dict]:
+    """Collapse an odds_api_cache.json into one closing-line record per event.
+
+    For each event, keeps the latest snapshot strictly before commence_time.
+    Events with no pre-commence snapshot are DROPPED, not downgraded to their
+    live quote — a visible gap can be filled from linemove; a live line silently
+    poisons the backtest. Pure function of the cache, so it re-runs offline.
+    """
+    date_events: dict[str, dict[str, tuple[datetime, dict]]] = {}  # date → {event_id: (snap_ts, event)}
+    seen_ids: set[str] = set()
+
+    for cache_key, events in cache.items():
+        snap_ts = _snapshot_ts(cache_key)
+        if snap_ts is None:
+            continue  # skip legacy single-snapshot keys (date only, no suffix)
+        date = cache_key[:10]  # "YYYY-MM-DD"
+        bucket = date_events.setdefault(date, {})
+        for event in (events or []):
+            eid = event.get("id")
+            if not eid:
+                continue
+            seen_ids.add(eid)
+            try:
+                commence = datetime.fromisoformat(
+                    str(event.get("commence_time", "")).replace("Z", "+00:00")
+                )
+            except ValueError:
+                continue  # no usable start time → cannot prove the quote is pre-game
+            if snap_ts >= commence:
+                continue  # LIVE in-game odds — never a closing line
+            prev = bucket.get(eid)
+            if prev is None or snap_ts > prev[0]:
+                bucket[eid] = (snap_ts, event)
+
+    kept_ids = {eid for bucket in date_events.values() for eid in bucket}
+    n_dropped = len(seen_ids - kept_ids)
+    if n_dropped:
+        log.warning(
+            "Odds API %d: %d events had no pre-commence quote — dropped rather than "
+            "stored as live odds (fill these from linemove)", season, n_dropped,
+        )
+
+    records = []
+    for date, ev_map in date_events.items():
+        for _snap_ts, event in ev_map.values():
+            rec = _parse_odds_api_event(event, date)
+            if rec:
+                records.append(rec)
+    return records
 
 
 def fetch_odds_api_historical_season(
@@ -649,26 +718,7 @@ def fetch_odds_api_historical_season(
         if quota_exhausted:
             break
 
-    # Merge snapshots: for each date, union events by ID preferring later snapshot.
-    # cache_key format: "2023-04-15_T17:00:00Z" — date is always YYYY-MM-DD (10 chars)
-    date_events: dict[str, dict[str, dict]] = {}  # date → {event_id: event}
-    for cache_key, events in cache.items():
-        date = cache_key[:10]  # "YYYY-MM-DD"
-        if len(cache_key) <= 10 or not cache_key[10] == "_":
-            continue  # skip legacy single-snapshot keys (date only, no suffix)
-        if date not in date_events:
-            date_events[date] = {}
-        for event in (events or []):
-            eid = event.get("id")
-            if eid:
-                date_events[date][eid] = event  # later snapshot in sorted order wins
-
-    records = []
-    for date, ev_map in date_events.items():
-        for event in ev_map.values():
-            rec = _parse_odds_api_event(event, date)
-            if rec:
-                records.append(rec)
+    records = records_from_odds_api_cache(cache, season)
 
     if not records:
         log.error("Odds API %d: no records parsed — closing_lines.parquet not saved", season)
