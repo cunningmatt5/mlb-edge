@@ -5250,3 +5250,12 @@ header {
   margin: 6px 0 4px; padding-left: 10px;
   border-left: 2px solid rgba(34,197,94,.30);
 }
+
+/* Per-item status: makes "tracked play" vs "watch only" explicit on the item itself,
+   not just implied by which section it sits in. */
+.ef-play-status {
+  font-size: 11px; line-height: 1.4; margin: 6px 0 2px;
+  padding: 4px 8px; border-radius: 6px;
+}
+.ef-status-tracked { color: var(--green-light); background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.18); }
+.ef-status-watch   { color: #eab308; background: rgba(234,179,8,.07); border: 1px solid rgba(234,179,8,.18); margin-top: 6px; }

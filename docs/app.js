@@ -2176,6 +2176,7 @@ function edgePlayCardHTML(g) {
       <div class="ef-play-bet">Bet the UNDER ${total ?? ''}</div>
       <div class="ef-play-why">${escapeHtml(_whyLine(g, top))}</div>
       ${def ? `<div class="ef-play-def">${escapeHtml(def.short)}</div>` : ''}
+      <div class="ef-play-status ef-status-tracked">✓ Tracked play — graded and counted in this season's results below</div>
       <div class="ef-play-row"><span class="ef-play-k">Track record</span><span class="ef-play-rec">${escapeHtml(_recLine(top))}</span></div>
       ${stakeRow}
       ${details}
@@ -2204,6 +2205,7 @@ function edgeWatchHTML(games) {
           <span class="ef-watch-time">${time}</span>
         </div>
         <div class="ef-watch-line">UNDER ${total ?? '—'}${g.odds?.under_price != null ? ` <span class="ef-watch-px">${g.odds.under_price > 0 ? '+' : ''}${g.odds.under_price}</span>` : ''}</div>
+        <div class="ef-play-status ef-status-watch">◦ Watch only — not a recommended bet, not in this season's headline (it still shows in the ${escapeHtml(name)} line's full record below)</div>
       </div>`;
   }).join('');
   return `
