@@ -1098,18 +1098,44 @@ const EDGE_DEFINITIONS = {
     name: 'Total = 8.0',
     short: 'The line sits exactly on 8.0 at standard vig, and the model also projects under.',
     long: 'Fires when the closing total is exactly 8.0 priced at standard vig (−110 to −106) AND the model independently projects fewer runs than the line. The round 8.0 number is one the market has historically over-priced the OVER on.',
+    // The +EV window is narrow and the edge is thin, so price matters more than for any
+    // other edge. Numbers below are from the reconciled 2022-26 backtest (model-lean slice):
+    // −110..−106 = +4.2%, −111..−115 = −15.6%, −105 or cheaper = −2.1%.
+    price: {
+      lo: -110, hi: -106, window: '−110 to −106', best: '−106',
+      guide: 'Only bet it inside −110 to −106 (−106 is the best number in that window). At −111 or steeper the extra juice has turned this into a loser historically; at −105 or cheaper the market has already moved and the edge is gone. If you check back and the play is gone, the price left this window — take the shown price or better, never a worse one.',
+    },
   },
   UNDER_LINE_9_0: {
     name: 'Total = 9.0',
     short: 'The line sits exactly on 9.0 — flagged on the line alone.',
     long: 'Fires whenever the closing total is exactly 9.0, on the line alone (the model-lean filter measured worse here, so it is deliberately not applied). Historically strong but softer in 2026 — watch, not a core play.',
+    price: {
+      lo: null, hi: null, window: 'any price', best: 'the cheapest under you can find',
+      guide: 'Fires on the line alone, so any price qualifies — a cheaper under price only helps. (Watch edge, not a core play.)',
+    },
   },
   UNDER_MODEL_DEV: {
     name: 'Model–Vegas Gap',
     short: 'The model projects at least 0.75 runs below a total of 9.0 or lower — a wide disagreement with the market.',
     long: 'Fires when the model projects at least 0.75 runs FEWER than the Vegas total, at any line of 9.0 or below. It is the disagreement itself that is the signal: the bigger the gap between our projection and the market, the stronger the lean UNDER. Unlike the 8.0/9.0 edges it is not tied to one line — it catches a mispriced total wherever the model sees one. Emerging: 2026 is the first season the model prediction is anchor-free enough to test this, so the sample is still small.',
+    price: {
+      lo: -120, hi: null, window: 'down to −120', best: 'the cheapest under you can find',
+      guide: 'The disagreement is the signal at any fair price — a cheaper under is better. Skip only heavy juice worse than −120, where the vig starts to eat the gap.',
+    },
   },
 };
+
+// Is a live under-price inside an edge's payable window? lo = steepest acceptable (most
+// negative), hi = cheapest acceptable (least negative); null = unbounded on that side.
+function priceInWindow(def, price) {
+  const p = def && def.price;
+  if (!p || price == null) return null;
+  if (p.lo != null && price < p.lo) return false;   // too steep (e.g. −115 vs −110)
+  if (p.hi != null && price > p.hi) return false;   // too cheap (e.g. −105 vs −106)
+  return true;
+}
+const fmtOdds = v => v == null ? '—' : (v > 0 ? `+${v}` : `${v}`);
 
 // The validated UNDER bands, defined once. Both the Performance tab's ROI figures and the
 // Edges tab's qualifying-game lists read these, so a game shown as qualifying is by
@@ -2230,6 +2256,22 @@ function edgePlayCardHTML(g) {
     stakeRow = `<div class="ef-play-row"><span class="ef-play-k">Suggested bet</span><span class="ef-play-amt">$${st.stake.toLocaleString()}</span><span class="ef-play-frac">${st.frac}</span></div>`;
   }
 
+  // Price window — the actionable instruction. The app tracks the live line and only flags
+  // this while the price is payable, so the number can drift out from under a user who checks
+  // back later. Spell out the window and the current price so they bet at the right number,
+  // not a worse one they chase.
+  const cur = g.odds?.under_price;
+  const inRange = def ? priceInWindow(def, cur) : null;
+  const priceBlock = (def && def.price) ? `
+      <div class="ef-play-price">
+        <div class="ef-play-price-top">
+          <span class="ef-play-price-k">Bet at</span>
+          <span class="ef-play-price-window">${def.price.window}</span>
+          ${cur != null ? `<span class="ef-play-price-now ${inRange === false ? 'price-out' : 'price-in'}">live ${fmtOdds(cur)} ${inRange === false ? '✗ out of window' : '✓'}</span>` : ''}
+        </div>
+        <div class="ef-play-price-guide">${escapeHtml(def.price.guide)}</div>
+      </div>` : '';
+
   const others = unders.filter(e => e !== top);
   const details = `
       <details class="ef-play-details">
@@ -2237,7 +2279,6 @@ function edgePlayCardHTML(g) {
         <div class="ef-play-detail-body">
           <div>Validated on ${top.n_games.toLocaleString()} games — ${escapeHtml(top.seasons)}</div>
           ${seasonRoiStripHTML(top)}
-          ${g.odds?.under_price != null ? `<div>Bet price: UNDER ${total} at ${g.odds.under_price}</div>` : ''}
           ${others.length ? `<div>Also flagged: ${others.map(e => escapeHtml(e.label)).join(', ')}</div>` : ''}
         </div>
       </details>`;
@@ -2252,6 +2293,7 @@ function edgePlayCardHTML(g) {
       <div class="ef-play-bet">Bet the UNDER ${total ?? ''}</div>
       <div class="ef-play-why">${escapeHtml(_whyLine(g, top))}</div>
       ${def ? `<div class="ef-play-def">${escapeHtml(def.short)}</div>` : ''}
+      ${priceBlock}
       <div class="ef-play-status ef-status-tracked">✓ Tracked play — graded and counted in this season's results below</div>
       <div class="ef-play-row"><span class="ef-play-k">Track record</span><span class="ef-play-rec">${escapeHtml(_recLine(top))}</span></div>
       ${stakeRow}
@@ -2309,8 +2351,10 @@ function edgesHowToHTML() {
             <div class="ef-gloss-item">
               <div class="ef-gloss-name">${escapeHtml(d.name)}</div>
               <div class="ef-gloss-def">${escapeHtml(d.long)}</div>
+              ${d.price ? `<div class="ef-gloss-price"><b>Price to bet:</b> ${escapeHtml(d.price.window)}. ${escapeHtml(d.price.guide)}</div>` : ''}
             </div>`).join('')}
         </div>
+        <p class="ef-howto-pricenote"><b>Why a play can vanish:</b> the app reads the live line and only flags a bet while its price is in the payable window. If a play showed at −110 and the line drifts to −115, it drops off — the edge is gone at that number. Bet the price shown (or better within the window); never chase a worse one.</p>
       </div>
     </details>`;
 }
