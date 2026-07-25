@@ -59,20 +59,6 @@ EDGE_METADATA: dict[str, dict] = {
 }
 
 
-def _vig_adjusted_boost(base_boost: float, under_price: float | None) -> float | None:
-    """Boost the 8.0 UNDER edge ONLY in the standard-vig band; suppress otherwise.
-
-    Push-corrected, the edge lives only at standard vig (-110..-106, +5.5%). Cheaper-priced
-    unders (~0%, the market already leans under) and vig-against unders (-111..-120, ~0%/neg)
-    don't clear the bar, so they get no boost. under_price None → base boost (can't assess vig).
-    """
-    if under_price is None:
-        return base_boost
-    if _VIG_STD_LO <= under_price <= _VIG_STD_HI:   # standard-vig band: the only validated zone
-        return base_boost
-    return None                              # outside the std band → suppress
-
-
 def detect_edges(
     closing_total: float | None,
     predicted_total: float | None,
@@ -80,41 +66,48 @@ def detect_edges(
 ) -> list[dict]:
     """Return matched edge conditions for a game.
 
-    Line-based edges (8.0) require the Vegas total at a profitable line AND the
-    model leaning UNDER — a structural line edge without model agreement is
-    context, not a signal. The 8.0 boost is then tiered by vig (see module docs).
-
-    The 9.0 line is attached as a WATCH tag only (zero boost): historically strong
-    but the live 2026 season reversed, so it must not move live signals.
+    Both edges fire on the LINE alone — 8.0 (validated) and 9.0 (watch). The old 8.0
+    model-lean requirement was dropped: it halved the play volume for no ROI gain (blind
+    std-vig +6.2%/n=545 vs +model-lean +6.6%/n=243, identical win rate) and made the live
+    picks a different bet than the displayed record. 8.0 is surfaced at ALL prices with a
+    `price_status`, so the app informs rather than hides — a user can shop their books for the
+    payable window instead of the game vanishing because one book's price is off.
 
     Args:
         closing_total:   Vegas total line (from odds feed)
-        predicted_total: Model's predicted run total
-        under_price:     American odds on the UNDER (optional; gates 8.0 vig tiering)
+        predicted_total: Model's predicted run total (retained for callers; no longer gates 8.0)
+        under_price:     American odds on the UNDER (sets 8.0 price_status / boost)
 
-    Returns list of matched EDGE_METADATA dicts (copies, with vig-adjusted boost).
+    Returns list of matched EDGE_METADATA dicts (copies).
     """
     if closing_total is None:
         return []
 
-    model_leans_under = predicted_total is not None and predicted_total < closing_total
-
     matched: list[dict] = []
 
-    # Total = 8.0 — strong edge, vig-tiered (+12.6% at standard vig, 6/6 seasons).
-    # Half-open range == exact line since totals come in 0.5 steps.
-    if 8.0 <= closing_total < 8.5 and model_leans_under:
-        boost = _vig_adjusted_boost(EDGE_METADATA["UNDER_LINE_8_0"]["signal_boost"], under_price)
-        if boost is not None:   # None → heavy vig against UNDER, suppress
-            e = dict(EDGE_METADATA["UNDER_LINE_8_0"])
-            e["signal_boost"] = boost
-            e["under_price"] = under_price
-            matched.append(e)
+    # Total = 8.0 — validated UNDER edge, fires on the line alone. price_status buckets the
+    # current price so the UI can say "playable now" vs "shop for the number":
+    #   playable = std-vig window [-110,-106], the only +EV zone (full boost 0.8)
+    #   shop     = steeper than -110 — the edge is real, this book's price isn't (boost 0)
+    #   weaker   = cheaper than -106 — market has already moved, edge is thinner (boost 0)
+    if 8.0 <= closing_total < 8.5:
+        e = dict(EDGE_METADATA["UNDER_LINE_8_0"])
+        e["under_price"] = under_price
+        if under_price is None or _VIG_STD_LO <= under_price <= _VIG_STD_HI:
+            e["signal_boost"] = EDGE_METADATA["UNDER_LINE_8_0"]["signal_boost"]  # 0.8
+            e["price_status"] = "playable"
+        elif under_price < _VIG_STD_LO:                # steeper (more negative) than -110
+            e["signal_boost"] = 0.0
+            e["price_status"] = "shop"
+        else:                                          # cheaper than -106
+            e["signal_boost"] = 0.0
+            e["price_status"] = "weaker"
+        matched.append(e)
 
     # Total = 8.5 — explicitly excluded: -2.8% blind ROI across 2,171 games
 
-    # Total = 9.0 — WATCH only. Fires on the line alone (the model filter HURTS here),
-    # but with zero boost so it informs the UI without moving the live signal.
+    # Total = 9.0 — WATCH only. Fires on the line alone, zero boost so it informs without
+    # moving the live signal.
     if 9.0 <= closing_total < 9.5:
         e = dict(EDGE_METADATA["UNDER_LINE_9_0"])
         e["under_price"] = under_price

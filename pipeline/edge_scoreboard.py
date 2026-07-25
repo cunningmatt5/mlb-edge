@@ -140,6 +140,10 @@ def build_scoreboard() -> dict:
         clv = _clv(r)   # None for legacy records with no closing snapshot
 
         for e in under_edges:
+            # Off-price 8.0 (shop/weaker) is surfaced live so a user can shop for the number,
+            # but it is NOT a graded bet — the record tracks only the playable std-vig price.
+            if e.get("price_status") in ("shop", "weaker"):
+                continue
             a = per_edge.setdefault(e["tag"], _blank())
             a["n"] += 1
             a["wins"] += 1 if won else 0

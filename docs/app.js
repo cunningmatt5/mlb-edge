@@ -660,9 +660,8 @@ const EDGE_CONF = {
   new:      { label: 'Emerging', cls: 'new',    efCls: 'ef-conf-new',    icon: '★' },
 };
 const edgeConf = e => EDGE_CONF[e.confidence] || EDGE_CONF.high;
-// Edge strength for ranking = the actual (vig-adjusted) signal boost; ROI breaks ties.
+// Edge strength for ranking = the actual (vig-adjusted) signal boost.
 const edgeStrength = g => Math.max(0, ...(g.edge_conditions || []).map(e => e.signal_boost ?? 0));
-const edgeTopRoi   = g => Math.max(...(g.edge_conditions || []).map(e => e.roi_pct ?? 0));
 
 // Compact per-season ROI chips (green/red by sign), computed live from the reconciled data
 // via edgeHistorical — not the pipeline's frozen season_roi. Empty until backtest loads.
@@ -988,14 +987,13 @@ function totalsOutcome(actualTotal, line) {
 const EDGE_DEFINITIONS = {
   UNDER_LINE_8_0: {
     name: 'Total = 8.0',
-    short: 'The line sits exactly on 8.0 at standard vig, and the model also projects under.',
-    long: 'Fires when the closing total is exactly 8.0 priced at standard vig (−110 to −106) AND the model independently projects fewer runs than the line. The round 8.0 number is one the market has historically over-priced the OVER on.',
-    // The +EV window is narrow and the edge is thin, so price matters more than for any
-    // other edge. Numbers below are from the reconciled 2022-26 backtest (model-lean slice):
-    // −110..−106 = +4.2%, −111..−115 = −15.6%, −105 or cheaper = −2.1%.
+    short: 'The total sits exactly on 8.0 — a round number the market has historically over-priced the OVER on. Bet the UNDER at standard vig.',
+    long: 'Fires whenever the closing total is exactly 8.0 — on the line alone (the old model-lean requirement was dropped; it halved the plays for no ROI gain). Push-corrected, a blind UNDER at standard vig (−110 to −106) is the app’s one durably profitable spot across seasons. The price is what matters, not the model: at −105 or cheaper the market has already moved (edge thinner), and at −111 or steeper the vig eats it.',
+    // The +EV window is narrow, so price matters more than for any other edge. Reconciled
+    // 2021-26 blind slice: −110..−106 = +6.2%, cheaper than −106 = +1.6%, steeper = negative.
     price: {
       lo: -110, hi: -106, window: '−110 to −106', best: '−106',
-      guide: 'Only bet it inside −110 to −106 (−106 is the best number in that window). At −111 or steeper the extra juice has turned this into a loser historically; at −105 or cheaper the market has already moved and the edge is gone. If you check back and the play is gone, the price left this window — take the shown price or better, never a worse one.',
+      guide: 'Playable at −110 to −106 (−106 is the best number in that window). At −111 or steeper the extra juice has made it a loser historically — don’t take it there, but the edge is real, so shop your other books for the number. At −105 or cheaper the market has already leaned under, so the edge is thinner. Take the shown price or better within the window, never worse.',
     },
   },
   UNDER_LINE_9_0: {
@@ -1037,10 +1035,10 @@ const EDGE_BANDS = [
   {
     key: 'u80', label: 'UNDER · Total = 8.0', tag: 'UNDER_LINE_8_0',
     qualifies: r => r.line >= 8.0 && r.line < 8.5 && inStdVig(r.under_price),
-    note: 'Standard-vig band only (−110 to −106). Cheaper or vig-against prices do not qualify.',
-    flagLabel: '+ model lean · what the app flags',
-    flagNote: 'The app flags 8.0 only when the model also sits below the line, so the second build is the one behind the recommendation.',
-    flags: r => r.leansUnder === true,
+    note: 'The record is the standard-vig window (−110 to −106) — the only +EV price zone. The app surfaces off-price 8.0 games live too (to shop), but only std-vig bets count here.',
+    flagLabel: 'what the app flags · line alone',
+    flagNote: 'The app flags 8.0 on the std-vig line alone — the old model-lean filter was dropped (it halved volume for no ROI gain), so the two builds are identical now.',
+    flags: () => true,
   },
   {
     key: 'u85', label: 'UNDER · Total = 8.5', tag: null, contrast: true,
@@ -2140,35 +2138,46 @@ function _whyLine(g, e) {
   return `Our model projects ${pred.toFixed(1)} runs — under the ${total} line.`;
 }
 
+// One card per 8.0 game, in one of three price states so we surface the opportunity rather
+// than hide it when a book's live price is off. playable = bet now; shop = the edge is real,
+// go find −110 to −106 at another book; weaker = cheaper than −106, market has moved.
 function edgePlayCardHTML(g) {
   const unders = (g.edge_conditions || [])
     .filter(e => e.direction === 'UNDER')
     .sort((a, b) => (b.signal_boost ?? 0) - (a.signal_boost ?? 0));
   const top = unders.find(e => (e.signal_boost ?? 0) > 0) || unders[0];
-  const c = edgeConf(top);
   const total = g.odds?.total;
+  const cur = g.odds?.under_price;
   const time = g.game_time_et ? ` · ${escapeHtml(g.game_time_et)}` : '';
   const def = EDGE_DEFINITIONS[top?.tag];
   const edgeName = def?.name || top?.label || 'UNDER edge';
+  const status = top?.price_status || 'playable';   // playable | shop | weaker
+  const topHist = edgeHistorical(top?.tag);
 
-  // Price window — the actionable instruction. The app tracks the live line and only flags
-  // this while the price is payable, so the number can drift out from under a user who checks
-  // back later. Spell out the window and the current price so they bet at the right number,
-  // not a worse one they chase.
-  const cur = g.odds?.under_price;
+  const badge = status === 'shop'   ? { t: '🔍 Shop for the price', cls: 'ef-conf-shop' }
+              : status === 'weaker' ? { t: '◦ Off-price', cls: 'ef-conf-weaker' }
+              :                       { t: '⚡ Playable now', cls: 'ef-conf-high' };
+  const betLine = status === 'shop'   ? `UNDER ${total ?? ''} — find −110 to −106`
+                : status === 'weaker' ? `UNDER ${total ?? ''} — better priced at −110 to −106`
+                :                       `Bet the UNDER ${total ?? ''}`;
+  const statusRow = status === 'shop'
+      ? `<div class="ef-play-status ef-status-shop">This book has ${fmtOdds(cur)}, steeper than the payable window. The edge is real at −110 to −106 — shop your other books for that number. Don't take it at this price; it only counts toward the record at −110 to −106.</div>`
+      : status === 'weaker'
+      ? `<div class="ef-play-status ef-status-weaker">This book has ${fmtOdds(cur)}, cheaper than −106 — the market has already leaned under, so the edge is thinner here. It's strongest at −110 to −106.</div>`
+      : `<div class="ef-play-status ef-status-tracked">✓ Playable at the current price — this is the validated bet, counted in the season results below.</div>`;
+
   const inRange = def ? priceInWindow(def, cur) : null;
   const priceBlock = (def && def.price) ? `
       <div class="ef-play-price">
         <div class="ef-play-price-top">
-          <span class="ef-play-price-k">Bet at</span>
+          <span class="ef-play-price-k">${status === 'playable' ? 'Bet at' : 'Target'}</span>
           <span class="ef-play-price-window">${def.price.window}</span>
-          ${cur != null ? `<span class="ef-play-price-now ${inRange === false ? 'price-out' : 'price-in'}">live ${fmtOdds(cur)} ${inRange === false ? '✗ out of window' : '✓'}</span>` : ''}
+          ${cur != null ? `<span class="ef-play-price-now ${inRange === false ? 'price-out' : 'price-in'}">this book ${fmtOdds(cur)} ${inRange === false ? '✗' : '✓'}</span>` : ''}
         </div>
         <div class="ef-play-price-guide">${escapeHtml(def.price.guide)}</div>
       </div>` : '';
 
   const others = unders.filter(e => e !== top);
-  const topHist = edgeHistorical(top?.tag);
   const details = `
       <details class="ef-play-details">
         <summary>details</summary>
@@ -2180,17 +2189,16 @@ function edgePlayCardHTML(g) {
       </details>`;
 
   return `
-    <div class="ef-play">
+    <div class="ef-play ef-play-${status}">
       <div class="ef-play-top">
-        <span class="ef-conf-badge ${c.efCls}">${c.icon} ${escapeHtml(c.label)}</span>
+        <span class="ef-conf-badge ${badge.cls}">${badge.t}</span>
         <span class="ef-edge-name" title="${def ? escapeHtml(def.short) : ''}">${escapeHtml(edgeName)}</span>
         <span class="ef-play-match">${escapeHtml(g.away_team)} @ ${escapeHtml(g.home_team)}${time}</span>
       </div>
-      <div class="ef-play-bet">Bet the UNDER ${total ?? ''}</div>
-      <div class="ef-play-why">${escapeHtml(_whyLine(g, top))}</div>
-      ${def ? `<div class="ef-play-def">${escapeHtml(def.short)}</div>` : ''}
+      <div class="ef-play-bet">${betLine}</div>
+      <div class="ef-play-why">${def ? escapeHtml(def.short) : escapeHtml(_whyLine(g, top))}</div>
       ${priceBlock}
-      <div class="ef-play-status ef-status-tracked">✓ Tracked play — graded and counted in this season's results below</div>
+      ${statusRow}
       <div class="ef-play-row"><span class="ef-play-k">Track record</span><span class="ef-play-rec">${escapeHtml(_recLine(top))}</span></div>
       ${details}
     </div>`;
@@ -2517,29 +2525,34 @@ function renderEdgesView() {
   const el = document.getElementById('edges-view');
   const allGames = gamesData?.games || [];
   const preview = allGames.filter(g => g.edge_conditions?.length && (g.game_status || 'preview') === 'preview');
-  const isActionable = e => e.direction === 'UNDER' && (e.signal_boost ?? 0) > 0;
+  // 8.0 games are surfaced at ALL prices (playable / shop / weaker); 9.0 goes to the watch list.
+  const has8 = g => (g.edge_conditions || []).some(e => e.tag === 'UNDER_LINE_8_0');
+  const ps8 = g => ((g.edge_conditions || []).find(e => e.tag === 'UNDER_LINE_8_0') || {}).price_status || 'playable';
+  const psRank = { playable: 0, shop: 1, weaker: 2 };
+  const eights = preview.filter(has8).sort((a, b) =>
+    (psRank[ps8(a)] - psRank[ps8(b)]) || String(a.game_time_utc || '').localeCompare(String(b.game_time_utc || '')));
+  const watch = preview.filter(g => !has8(g));   // 9.0-line games
 
-  const plays = preview
-    .filter(g => (g.edge_conditions || []).some(isActionable))
-    .sort((a, b) => (edgeStrength(b) - edgeStrength(a)) || (edgeTopRoi(b) - edgeTopRoi(a)));
-  const watch = preview.filter(g => !(g.edge_conditions || []).some(isActionable));
-
-  const playsHTML = plays.length
-    ? plays.map(edgePlayCardHTML).join('')
-    : `<div class="ef-empty">No actionable plays today — no game landed on a validated edge line. The track record below still applies.</div>`;
+  const playable = eights.filter(g => ps8(g) === 'playable').length;
+  const eightsHTML = eights.length
+    ? eights.map(edgePlayCardHTML).join('')
+    : `<div class="ef-empty">No game is on the 8.0 line today. The track record below still applies — check back, or set an alert.</div>`;
+  const countLabel = eights.length
+    ? `${eights.length} game${eights.length !== 1 ? 's' : ''} · ${playable} playable now`
+    : '0 games';
 
   el.innerHTML = `
     <div class="view-header">
       <h1>Edges</h1>
-      <span class="sub-label">Where our model and the market disagree — validated on 9,400+ games since 2021.</span>
+      <span class="sub-label">The validated UNDER 8.0 spot — surfaced whenever a game lands on it, so you can shop for the price.</span>
     </div>
     ${edgesHowToHTML()}
     <section class="ef-section">
       <div class="ef-section-hdr">
-        <h2 class="ef-section-title">Today's Plays</h2>
-        <span class="ef-section-count">${plays.length} play${plays.length !== 1 ? 's' : ''}</span>
+        <h2 class="ef-section-title">Today's UNDER 8.0</h2>
+        <span class="ef-section-count">${countLabel}</span>
       </div>
-      ${playsHTML}
+      ${eightsHTML}
     </section>
     ${edgeWatchHTML(watch)}
     <section class="ef-section">

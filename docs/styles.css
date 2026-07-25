@@ -1658,6 +1658,8 @@ header {
   letter-spacing: 0.4px;
 }
 .ef-conf-high   { background: rgba(34,197,94,.14);  color: #6ee7b7; border: 1px solid rgba(34,197,94,.28); }
+.ef-conf-shop   { background: rgba(96,165,250,.12); color: #93c5fd; border: 1px solid rgba(96,165,250,.26); }
+.ef-conf-weaker { background: rgba(148,163,184,.10);color: #cbd5e1; border: 1px solid rgba(148,163,184,.22); }
 .ef-conf-medium { background: rgba(251,191,36,.10); color: #fcd34d; border: 1px solid rgba(251,191,36,.22); }
 .ef-conf-new    { background: rgba(167,139,250,.12);color: #c4b5fd; border: 1px solid rgba(167,139,250,.24); }
 .ef-conf-watch  { background: rgba(248,113,113,.10);color: #fca5a5; border: 1px solid rgba(248,113,113,.24); }
@@ -2214,7 +2216,13 @@ header {
   padding: 4px 8px; border-radius: 6px;
 }
 .ef-status-tracked { color: var(--green-light); background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.18); }
+.ef-status-shop    { color: #93c5fd; background: rgba(96,165,250,.07); border: 1px solid rgba(96,165,250,.20); }
+.ef-status-weaker  { color: #cbd5e1; background: rgba(148,163,184,.06); border: 1px solid rgba(148,163,184,.18); }
 .ef-status-watch   { color: #eab308; background: rgba(234,179,8,.07); border: 1px solid rgba(234,179,8,.18); margin-top: 6px; }
+/* Left-accent the card by price state so the list scans playable → shop → off-price. */
+.ef-play-playable { border-left: 3px solid rgba(34,197,94,.45); }
+.ef-play-shop     { border-left: 3px solid rgba(96,165,250,.45); }
+.ef-play-weaker   { border-left: 3px solid rgba(148,163,184,.35); }
 /* ── Closing Line Value education section ──────────────────────────────────── */
 .ef-sb-clvptr { color: #6ee7b7; cursor: pointer; }
 .ef-sb-clvptr:hover { text-decoration: underline; }
