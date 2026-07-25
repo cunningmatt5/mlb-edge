@@ -1130,10 +1130,13 @@ function computeUnderEdge(band, allGames) {
     const oc = totalsOutcome(g.actual_total, ct);
     if (oc == null || oc === 'push') continue;
     const yr = g.season || parseInt(g.date);
-    // 2021 stays out: its backtest rows are lookahead-flagged (no 2020 prior cache). That
-    // matters for model-conditioned signals, arguably not for a blind line bet — revisit
-    // deliberately, since including it moves every published edge ROI.
-    if (!yr || yr < 2022) continue;
+    // 2021 IS in the record. The edges are blind line+vig bets (no model input in `qualifies`)
+    // and 2021's closing lines are complete (rebuilt from SBR), so it's legitimate data — and
+    // including a down year is the more honest longer-window figure. The ONLY lookahead-flagged
+    // part is 2021's lineups (neutral-0.5, no 2020 prior cache), which makes its predicted_total
+    // carry no real model view; the per-row leansUnder below is nulled for 2021 so it never
+    // counts as a model signal in the "+model lean" build.
+    if (!yr || yr < 2021) continue;
     if (!bySeason[yr]) bySeason[yr] = { bets: 0, wins: 0, units: 0 };
     const s = bySeason[yr];
     const won = oc === 'under'; // betting UNDER wins when total stays under
@@ -1151,8 +1154,10 @@ function computeUnderEdge(band, allGames) {
       cum: totalUnits,                       // running units through this bet
       lineSource: g.lineSource || 'closing',
       predicted: g.predicted_total ?? null,
-      // Separates "the line qualified" from "the app would have flagged it".
-      leansUnder: g.predicted_total != null ? g.predicted_total < ct : null,
+      // Separates "the line qualified" from "the app would have flagged it". 2021 lineups are
+      // neutral-0.5 (no real model view), so its lean is unknown — excluded from the model-lean
+      // build, shown as "?", never a fake signal.
+      leansUnder: (yr >= 2022 && g.predicted_total != null) ? g.predicted_total < ct : null,
     });
   }
   const roi = totalBets ? (totalUnits / totalBets * 100) : null;
@@ -2490,12 +2495,13 @@ function edgeAuditSectionHTML() {
       <span class="ef-section-count">source data</span>
     </div>
     <p class="ea-audit-intro">
-      Every game counted in each edge's record — 2022 through the live 2026 season — with the
+      Every game counted in each edge's record — 2021 through the live 2026 season — with the
       running unit total so you can see the ROI build rather than take it on faith. Today's
-      qualifiers are checked against the same rule as the historical rows. 2021 is excluded:
-      its pitcher caches carry lookahead bias. Seasons through 2025 are graded on archived
-      <b>closing</b> lines; 2026 is graded on the <b>bet-time</b> line it was actually picked
-      at, which is how the live scoreboard grades it too.
+      qualifiers are checked against the same rule as the historical rows. Seasons through 2025
+      are graded on archived <b>closing</b> lines; 2026 is graded on the <b>bet-time</b> line it
+      was actually picked at, which is how the live scoreboard grades it too. 2021's lineups are
+      neutral (no 2020 prior cache), so its lines count in the record but its model-lean is shown
+      as "?" — the edges are blind line bets, so this doesn't affect the headline figure.
     </p>
     ${blocks}
   </section>`;
