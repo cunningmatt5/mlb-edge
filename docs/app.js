@@ -359,14 +359,17 @@ function edgeAuditUniverse() {
   for (const r of (historyData || [])) {
     const yr = parseInt((r.date || '').slice(0, 4));
     if (!yr || yr < 2026) continue;
-    if (r.vegas_total == null || r.under_price == null || r.actual_total == null) continue;
+    // 2026 is graded on the CLOSING line + closing odds, identical to the 2021-25 backtest
+    // (closing_lines.parquet). The frozen bet-time line (vegas_total) drifts from the close, so
+    // it is never used to grade. Games without a closing snapshot yet are excluded until backfilled.
+    if (r.closing_total == null || r.closing_under_price == null || r.actual_total == null) continue;
     out.push({
       date: r.date, season: yr, gamePk: r.gamePk,
       away_team: r.away_team, home_team: r.home_team,
-      line: r.vegas_total, under_price: r.under_price,
+      line: r.closing_total, under_price: r.closing_under_price,
       away_score: r.away_score, home_score: r.home_score,
-      actual_total: r.actual_total, lineSource: 'bet-time',
-      closingLine: r.closing_total ?? null,     // present on ~41% of 2026 rows (CLV capture)
+      actual_total: r.actual_total, lineSource: 'closing',
+      betTimeLine: r.vegas_total ?? null,       // informational: the line the app flagged at
       predicted_total: r.predicted_total,
     });
   }

@@ -42,7 +42,7 @@ ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 MLB_API = "https://statsapi.mlb.com/api/v1"
 TIMEOUT = 45
 BUCKET_MIN = 15          # dedupe snapshot requests into 15-minute buckets
-CREDITS_PER_CALL = 20    # historical h2h,totals × us region (10× multiplier) — for the estimate
+CREDITS_PER_CALL = 10    # historical totals × us region (1 market × 10× multiplier) — for the estimate
 
 log = logging.getLogger(__name__)
 
@@ -80,7 +80,7 @@ def _fetch_at(api_key: str, iso_ts: str) -> tuple[list, str]:
     """Fetch the Odds API historical snapshot nearest iso_ts. Returns (events, quota)."""
     resp = requests.get(
         f"{ODDS_API_BASE}/sports/baseball_mlb/odds-history/",
-        params={"apiKey": api_key, "regions": "us", "markets": "h2h,totals",
+        params={"apiKey": api_key, "regions": "us", "markets": "totals",
                 "oddsFormat": "american", "date": iso_ts},
         timeout=TIMEOUT,
     )
@@ -97,28 +97,37 @@ def _fetch_at(api_key: str, iso_ts: str) -> tuple[list, str]:
     return (events if isinstance(events, list) else []), quota
 
 
-def _candidates(history: list[dict]) -> list[dict]:
-    """Resolved 2026 UNDER-edge records still missing a closing snapshot."""
+def _candidates(history: list[dict], edges_only: bool = False) -> list[dict]:
+    """Resolved 2026 records still missing a closing snapshot.
+
+    Default (edges_only=False) targets EVERY resolved 2026 game — the record grades on the
+    CLOSING line, and a game can open far from 8.0/9.0 yet close on it (e.g. 9.5 -> 8.0), so we
+    can't pre-filter by the frozen open line without dropping real plays. edges_only=True keeps
+    the old narrow behaviour (only games that fired an UNDER edge on the open) for a cheap top-up.
+    """
     out = []
     for r in history:
         if r.get("date", "") < "2026-01-01":
             continue
         if r.get("actual_winner") not in ("home", "away"):
             continue
-        if r.get("total_went_over") is None or r.get("vegas_total") is None or r.get("under_price") is None:
-            continue
         if r.get("closing_total") is not None:        # idempotent — already backfilled/captured
             continue
-        edges = detect_edges(r["vegas_total"], r.get("predicted_total"), r["under_price"])
-        if any(e["direction"] == "UNDER" for e in edges):
-            out.append(r)
+        if edges_only:
+            if r.get("vegas_total") is None or r.get("under_price") is None:
+                continue
+            edges = detect_edges(r["vegas_total"], r.get("predicted_total"), r["under_price"])
+            if not any(e["direction"] == "UNDER" for e in edges):
+                continue
+        out.append(r)
     return out
 
 
-def backfill_clv(api_key: str, dry_run: bool = False) -> None:
+def backfill_clv(api_key: str, dry_run: bool = False, edges_only: bool = False) -> None:
     history = json.loads(HISTORY_PATH.read_text(encoding="utf-8"))
-    cands = _candidates(history)
-    log.info("CLV backfill candidates (resolved 2026 UNDER-edge, no closing yet): %d", len(cands))
+    cands = _candidates(history, edges_only=edges_only)
+    log.info("Closing-line backfill candidates (resolved 2026, no closing yet, %s): %d",
+             "UNDER-edge only" if edges_only else "ALL games", len(cands))
     if not cands:
         log.info("Nothing to backfill.")
         return
@@ -189,5 +198,8 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Backfill 2026 closing lines for CLV")
     p.add_argument("--api-key", default=os.environ.get("ODDS_API_KEY", ""), help="The Odds API key")
     p.add_argument("--dry-run", action="store_true", help="Plan + credit estimate; no API calls, no write")
+    p.add_argument("--edges-only", action="store_true",
+                   help="Only games that fired an UNDER edge on the open line (cheap top-up); "
+                        "default fetches ALL 2026 games so the closing-line record is complete")
     args = p.parse_args()
-    backfill_clv(args.api_key, dry_run=args.dry_run)
+    backfill_clv(args.api_key, dry_run=args.dry_run, edges_only=args.edges_only)

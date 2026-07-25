@@ -41,19 +41,26 @@ def _blank() -> dict:
             "results": []}   # chronological win/loss flags for the "Last 10" strip
 
 
-def _grade_under(rec: dict) -> tuple[bool, float, bool]:
-    """Return (won, units, is_push) for a $1 UNDER bet on this resolved record.
+def _grade_under(rec: dict) -> tuple[bool, float, bool] | None:
+    """Return (won, units, is_push) for a $1 UNDER graded on the CLOSING line + closing odds.
 
-    A total landing exactly on the line is a PUSH (stake refunded) — void, not a win.
-    `total_went_over` is just over/not-over so it can't see pushes; we detect them from
-    actual_total vs the line. Callers must skip pushes (don't count them as bets).
+    The 8.0/9.0 edge is a CLOSING-line phenomenon — that's how the 2021-25 backtest grades it
+    (closing_lines.parquet) — so the live 2026 record must match. We grade at closing_total /
+    closing_under_price, NEVER the frozen bet-time line (vegas_total drifts from the close: a
+    game that opens 8.5 and closes 8.0 is an 8.0 play, and vice versa). A total landing exactly
+    on the closing line is a PUSH (refunded). Returns None when the game has no closing snapshot
+    yet — it cannot be graded on the close until backfilled, so callers skip it (never fall back
+    to the open line).
     """
-    line = rec.get("vegas_total")
+    line = rec.get("closing_total")
+    price = rec.get("closing_under_price")
     at = rec.get("actual_total")
-    if at is not None and line is not None and abs(at - line) < 1e-9:
-        return False, 0.0, True
-    won = not bool(rec["total_went_over"])
-    units = (_dec(rec["under_price"]) - 1) if won else -1.0
+    if line is None or price is None or at is None:
+        return None
+    if abs(at - line) < 1e-9:
+        return False, 0.0, True          # push — stake refunded
+    won = at < line
+    units = (_dec(price) - 1) if won else -1.0
     return won, units, False
 
 
@@ -106,14 +113,15 @@ def build_scoreboard() -> dict:
     raw = json.loads(HISTORY.read_text(encoding="utf-8")) if HISTORY.exists() else []
     recs = raw if isinstance(raw, list) else raw.get("games", [])
 
-    # NOTE: predicted_total is deliberately NOT required. The 8.0/9.0 edges fire on the line +
-    # price alone (detect_edges ignores predicted_total), so gating on it wrongly dropped resolved
-    # std-vig plays on days the model didn't run (e.g. the May 24-26 2026 cluster).
+    # Grade on the CLOSING line + closing odds ONLY (matches the 2021-25 backtest's definition of
+    # the edge). A record is gradeable once it has closing_total + closing_under_price + a final
+    # score; games still missing a closing snapshot are excluded until backfilled — never graded
+    # on the frozen bet-time line. predicted_total is NOT required (the edge fires on line+price).
     usable = [
         r for r in recs
-        if r.get("total_went_over") is not None
-        and r.get("vegas_total") is not None
-        and r.get("under_price") is not None
+        if r.get("closing_total") is not None
+        and r.get("closing_under_price") is not None
+        and r.get("actual_total") is not None
     ]
     cutoff = None
     if usable:
@@ -132,11 +140,14 @@ def build_scoreboard() -> dict:
 
     # Chronological so each accumulator's results[] (and thus Last-10) reads oldest→newest.
     for r in sorted(usable, key=lambda r: (r.get("date", ""), r.get("gamePk", 0))):
-        edges = detect_edges(r["vegas_total"], r.get("predicted_total"), r["under_price"])
+        edges = detect_edges(r["closing_total"], r.get("predicted_total"), r["closing_under_price"])
         under_edges = [e for e in edges if e["direction"] == "UNDER"]
         if not under_edges:
             continue
-        won, units, push = _grade_under(r)
+        graded = _grade_under(r)
+        if graded is None:
+            continue                       # no closing snapshot yet — not gradeable on the close
+        won, units, push = graded
         if push:
             continue                       # void — a push is neither a win nor a loss
         recent = cutoff is not None and r.get("date", "") >= cutoff
