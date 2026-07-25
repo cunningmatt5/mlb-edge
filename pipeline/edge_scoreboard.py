@@ -125,6 +125,7 @@ def build_scoreboard() -> dict:
 
     per_edge: dict[str, dict] = {}
     total = _blank()          # deduped over actionable edges (one UNDER bet per game)
+    juice = _blank()          # emerging: 8.0 plays tagged reversion "juice" (forward-tracking)
     equity_raw: list[tuple[str, float]] = []   # (date, cumulative units) for the equity curve
 
     # Chronological so each accumulator's results[] (and thus Last-10) reads oldest→newest.
@@ -168,6 +169,15 @@ def build_scoreboard() -> dict:
             total["results"].append(bool(won))
             equity_raw.append((r.get("date", ""), round(total["units"], 2)))
 
+            # Emerging: forward-track the reversion-"juice" 8.0 subset out-of-sample.
+            if r.get("reversion_tier") == "juice":
+                juice["n"] += 1
+                juice["wins"] += 1 if won else 0
+                juice["units"] += units
+                if clv:
+                    _add_clv(juice, clv)
+                juice["results"].append(bool(won))
+
     edges_out = []
     for tag, a in per_edge.items():
         meta = EDGE_METADATA.get(tag, {})
@@ -207,6 +217,15 @@ def build_scoreboard() -> dict:
             "recent_roi_pct": round(total["runits"] / total["rn"] * 100, 1) if total["rn"] else None,
             "last10": total["results"][-10:],
             **_clv_out(total),
+        },
+        # Emerging reversion-"juice" 8.0 subset — accumulates out-of-sample from pick time
+        # (empty until juice-tagged plays resolve). Displayed as forward-tracking, not proven.
+        "reversion_juice": {
+            "n": juice["n"],
+            "win_pct": round(juice["wins"] / juice["n"] * 100, 1) if juice["n"] else None,
+            "units": round(juice["units"], 2),
+            "roi_pct": _roi(juice),
+            "last10": juice["results"][-10:],
         },
         "equity": equity,
         "edges": edges_out,

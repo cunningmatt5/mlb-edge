@@ -127,6 +127,16 @@ def main(dry_run: bool = False) -> None:
     if comps_db:
         log.info("Comps database: %d historical games loaded", len(comps_db))
 
+    # Team-reversion signals (emerging overlay on the 8.0 edge; one gameLog call per team).
+    # Non-fatal — the 8.0 edge stands on its own; this only tags a "reversion juice" sub-tier.
+    rev_signals: dict = {}
+    try:
+        from pipeline.team_reversion import build_signals as _build_rev
+        rev_signals = _build_rev(today.year)
+        log.info("Team-reversion signals: %d teams", len(rev_signals))
+    except Exception as _exc:
+        log.warning("Team-reversion signals failed (non-fatal): %s", _exc)
+
     game_objects: list[dict] = []
     for game in games:
         home = game.get("homeTeam", "")
@@ -172,6 +182,15 @@ def main(dry_run: bool = False) -> None:
             _predicted_total  = (game_obj.get("prediction") or {}).get("predicted_total")
             game_obj["edge_conditions"] = detect_edges(
                 _closing_total, _predicted_total, _odds.get("under_price"))
+            # Attach the emerging team-reversion overlay to the 8.0 play only (forward-tracked).
+            if rev_signals and status == "preview":
+                from pipeline.team_reversion import game_reversion
+                _rev = game_reversion(game_obj.get("home_team", ""),
+                                      game_obj.get("away_team", ""), rev_signals)
+                if _rev:
+                    for _e in game_obj["edge_conditions"]:
+                        if _e.get("tag") == "UNDER_LINE_8_0":
+                            _e["reversion"] = _rev
         except Exception as exc:
             log.warning("Edge detection failed for %s @ %s (non-fatal): %s",
                         away, home, exc, exc_info=True)

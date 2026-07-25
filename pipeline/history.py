@@ -154,6 +154,13 @@ def append_today(history: list[dict], games: list[dict], today_str: str) -> list
             "home_ml":                 home_ml,
             "away_ml":                 away_ml,
             "model_edge_ml":           model_edge_ml,
+            # Team-reversion tier on the 8.0 play (emerging overlay) — frozen at pick time so
+            # juice-vs-non-juice 8.0 performance can be forward-tracked out-of-sample.
+            "reversion_tier":          next(
+                (e.get("reversion", {}).get("tier")
+                 for e in (g.get("edge_conditions") or [])
+                 if e.get("tag") == "UNDER_LINE_8_0" and e.get("reversion")),
+                None),
             # Closing-line snapshot (for CLV); updated each preview run, frozen at game start.
             "closing_total":           None,
             "closing_under_price":     None,

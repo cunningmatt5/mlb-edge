@@ -1943,6 +1943,24 @@ function edgeScoreboardHTML() {
       ${equityChartHTML(sb)}
       <div class="ef-sb-rowhdr">By edge <span class="ef-sb-rowhdr-note">(record per category · watch shown for context, not in the curve)</span></div>
       ${rows}
+      ${reversionJuiceRowHTML(sb)}
+    </div>`;
+}
+
+// Emerging "reversion juice" 8.0 subset — forward-tracked out-of-sample from pick time.
+// Hidden until juice-tagged plays actually resolve (n>0), so an empty tracker never reads
+// as a broken 0-0 record. This is the live confirmation of the backtest-only overlay.
+function reversionJuiceRowHTML(sb) {
+  const j = sb.reversion_juice;
+  if (!j || !j.n) return '';
+  const sgn = v => (v >= 0 ? '+' : '');
+  const cls = v => (v == null ? '' : (v >= 0 ? 'sb-pos' : 'sb-neg'));
+  return `
+    <div class="ef-sb-row ef-sb-juice">
+      <span class="ef-sb-label">🔥 Reversion juice <span class="ef-sb-tag">emerging</span></span>
+      <span class="ef-sb-roi ${cls(j.roi_pct)}">${sgn(j.roi_pct)}${j.roi_pct}%</span>
+      <span class="ef-sb-n">${j.win_pct}% · ${j.n}</span>
+      <span class="ef-sb-juice-note">both offenses hot · forward-tracking, not proven</span>
     </div>`;
 }
 
@@ -2188,8 +2206,20 @@ function edgePlayCardHTML(g) {
         </div>
       </details>`;
 
+  // Emerging team-reversion overlay: both offenses running hot vs their own norm → historically
+  // a stronger UNDER at 8.0 (top-20% +12.1% vs +4.5% base). Underpowered, so framed as emerging
+  // and forward-tracked, not a promise. Only present on 8.0 games (pipeline attaches it there).
+  const rev = top?.reversion;
+  const revBlock = (rev && rev.tier) ? `
+      <div class="ef-play-rev ef-rev-${rev.tier}">
+        <span class="ef-rev-badge">${rev.tier === 'juice' ? '🔥 Reversion juice' : '↗ Offenses hot'}</span>
+        Both offenses are hot vs their season norm${rev.tier === 'juice'
+          ? ' — historically a stronger UNDER here. Emerging (small sample, forward-tracking), not a guarantee.'
+          : ' — a mild extra lean.'}
+      </div>` : '';
+
   return `
-    <div class="ef-play ef-play-${status}">
+    <div class="ef-play ef-play-${status}${rev && rev.tier === 'juice' ? ' ef-play-juiced' : ''}">
       <div class="ef-play-top">
         <span class="ef-conf-badge ${badge.cls}">${badge.t}</span>
         <span class="ef-edge-name" title="${def ? escapeHtml(def.short) : ''}">${escapeHtml(edgeName)}</span>
@@ -2198,6 +2228,7 @@ function edgePlayCardHTML(g) {
       <div class="ef-play-bet">${betLine}</div>
       <div class="ef-play-why">${def ? escapeHtml(def.short) : escapeHtml(_whyLine(g, top))}</div>
       ${priceBlock}
+      ${revBlock}
       ${statusRow}
       <div class="ef-play-row"><span class="ef-play-k">Track record</span><span class="ef-play-rec">${escapeHtml(_recLine(top))}</span></div>
       ${details}
@@ -2527,10 +2558,13 @@ function renderEdgesView() {
   const preview = allGames.filter(g => g.edge_conditions?.length && (g.game_status || 'preview') === 'preview');
   // 8.0 games are surfaced at ALL prices (playable / shop / weaker); 9.0 goes to the watch list.
   const has8 = g => (g.edge_conditions || []).some(e => e.tag === 'UNDER_LINE_8_0');
-  const ps8 = g => ((g.edge_conditions || []).find(e => e.tag === 'UNDER_LINE_8_0') || {}).price_status || 'playable';
+  const e8 = g => (g.edge_conditions || []).find(e => e.tag === 'UNDER_LINE_8_0') || {};
+  const ps8 = g => e8(g).price_status || 'playable';
+  const juice8 = g => (e8(g).reversion?.tier === 'juice') ? 0 : 1;   // juiced surfaces first
   const psRank = { playable: 0, shop: 1, weaker: 2 };
   const eights = preview.filter(has8).sort((a, b) =>
-    (psRank[ps8(a)] - psRank[ps8(b)]) || String(a.game_time_utc || '').localeCompare(String(b.game_time_utc || '')));
+    (psRank[ps8(a)] - psRank[ps8(b)]) || (juice8(a) - juice8(b)) ||
+    String(a.game_time_utc || '').localeCompare(String(b.game_time_utc || '')));
   const watch = preview.filter(g => !has8(g));   // 9.0-line games
 
   const playable = eights.filter(g => ps8(g) === 'playable').length;
