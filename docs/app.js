@@ -62,28 +62,26 @@ let gamesData    = null;
 let historyData   = [];
 let backtestData  = null;
 let scoreboardData = null;
-let expandedPk   = null;
-let currentView  = 'games';
+let currentView  = 'edges';
 let lastCheckedAt = null;
 
-// player MLBAM id → full team name; rebuilt whenever gamesData loads
-let _playerTeamMap = new Map();
-
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
+// Edges is the landing view. gamesData is still loaded — the Edges tab uses today's
+// slate for its qualifiers and reversion tags — there's just no standalone Games tab.
 document.addEventListener('DOMContentLoaded', async () => {
   setupNav();
-  await Promise.all([loadGames(), loadHistory()]);
+  await Promise.all([loadGames(), loadHistory(), loadEdgeScoreboard()]);
   lastCheckedAt = Date.now();
-  renderGamesView();
+  renderEdgesView();
+  loadBacktest().then(renderEdgesView);   // heavy file fills in the season audit after
   startAutoRefresh();
 });
 
 // ── Navigation ────────────────────────────────────────────────────────────────
-// Four top-level views: games, edges, performance, support. Each is a single flat
-// page — Performance used to split into record|backtest sub-views, which duplicated
-// the confidence table, the season-accuracy table and the game log across both, with
-// nothing marking which was authoritative. One page, each stat stated once.
-const _PARENT_VIEWS = ['games', 'edges', 'performance', 'support'];
+// Three top-level views: edges, performance, support. The Games tab (scores, lineups,
+// per-game model) was cut — users come here for the data-driven UNDER + reversion edges,
+// not box scores available anywhere. Each view is a single flat page.
+const _PARENT_VIEWS = ['edges', 'performance', 'support'];
 
 function setupNav() {
   document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -94,7 +92,6 @@ function setupNav() {
       for (const v of _PARENT_VIEWS) {
         document.getElementById(v + '-view').hidden = currentView !== v;
       }
-      if (currentView === 'games')     renderGamesView();
       // backtest.json is large; render as soon as the light files land, then re-render when
       // the game-level record arrives so the qualifying-games audit fills in.
       if (currentView === 'edges') {
@@ -116,17 +113,6 @@ async function loadGames() {
     gamesData = await r.json();
   } catch {
     gamesData = { games: [], date: new Date().toISOString().slice(0, 10), game_count: 0 };
-  }
-  _buildPlayerTeamMap();
-}
-
-function _buildPlayerTeamMap() {
-  _playerTeamMap = new Map();
-  for (const g of (gamesData?.games || [])) {
-    if (g.home_sp_id) _playerTeamMap.set(g.home_sp_id, g.home_team);
-    if (g.away_sp_id) _playerTeamMap.set(g.away_sp_id, g.away_team);
-    for (const lp of (g.home_lineup || [])) { if (lp.mlbam_id) _playerTeamMap.set(lp.mlbam_id, g.home_team); }
-    for (const lp of (g.away_lineup || [])) { if (lp.mlbam_id) _playerTeamMap.set(lp.mlbam_id, g.away_team); }
   }
 }
 
@@ -175,8 +161,8 @@ async function _doRefresh() {
   await loadGames();
   lastCheckedAt = Date.now();
   if (gamesData?.generated_at !== prev) {
-    expandedPk = null;
-    renderGamesView();
+    if (currentView === 'edges') renderEdgesView();
+    else updateFooter();
   } else {
     updateFooter();
   }
@@ -200,8 +186,8 @@ async function manualRefresh() {
   lastCheckedAt = Date.now();
   setTimeout(() => { if (btn) btn.classList.remove('spinning'); }, 550);
   if (gamesData?.generated_at !== prev) {
-    expandedPk = null;
-    renderGamesView();
+    if (currentView === 'edges') renderEdgesView();
+    else updateFooter();
   } else {
     updateFooter();
   }
@@ -224,430 +210,6 @@ function timeAgo(ts) {
   if (sec < 90) return 'just now';
   const min = Math.floor(sec / 60);
   return `${min} min ago`;
-}
-
-function gotoView(v) {
-  const b = document.querySelector(`.nav-btn[data-view="${v}"]`);
-  if (b) b.click();
-}
-
-// Compact pointer to today's edge plays. The Edges tab is the authoritative surface for
-// edges (plays + watch + status + scoreboard + audit); this is a one-line banner so a user
-// on the Games tab knows plays exist and can jump there — not a second full copy of the list.
-function todaysEdgePlaysHTML(games) {
-  const isActionable = e => e.direction === 'UNDER' && (e.signal_boost ?? 0) > 0;
-  const plays = (games || [])
-    .filter(g => (g.game_status || 'preview') === 'preview'
-                 && (g.edge_conditions || []).some(isActionable))
-    .sort((a, b) => edgeStrength(b) - edgeStrength(a));
-
-  if (!plays.length) {
-    return `
-    <div class="edge-plays edge-plays-none" onclick="gotoView('edges')">
-      <span class="ep-title">⚡ No edge plays on today's slate</span>
-      <span class="ep-link">See the season record →</span>
-    </div>`;
-  }
-
-  const matchups = plays
-    .map(g => escapeHtml(`${abbrev(g.away_team)} @ ${abbrev(g.home_team)}`))
-    .join(' · ');
-  return `
-    <div class="edge-plays" onclick="gotoView('edges')">
-      <span class="ep-title">⚡ ${plays.length} edge play${plays.length !== 1 ? 's' : ''} today</span>
-      <span class="ep-match">${matchups}</span>
-      <span class="ep-link">View in Edges →</span>
-    </div>`;
-}
-
-function renderGamesView() {
-  const view = document.getElementById('games-view');
-  if (!gamesData || !gamesData.games.length) {
-    view.innerHTML = `<div class="empty-state">No games scheduled today.</div>`;
-    return;
-  }
-
-  const label     = formatDateLabel(gamesData.date);
-
-  view.innerHTML = `
-    <div class="view-header">
-      <h1>Today's Games</h1>
-      <span class="sub-label">${label} &nbsp;·&nbsp; ${gamesData.game_count} games</span>
-    </div>
-    ${todaysEdgePlaysHTML(gamesData.games)}
-    ${localStorage.getItem('mlbedge_legend_hidden') ? '' : `
-    <div class="games-legend" id="games-legend">
-      <span class="gl-item"><b>Win %</b> our model's chance to win (lineups + Statcast)</span>
-      <span class="gl-item"><b class="gl-i">⌁ pp vs market</b> gap from the de-vigged Vegas line</span>
-      <span class="gl-item"><b>Est. runs</b> expected combined total</span>
-      <button class="games-legend-x" title="Dismiss" onclick="this.parentElement.style.display='none';localStorage.setItem('mlbedge_legend_hidden','1')">×</button>
-    </div>`}
-    <div class="game-list" id="game-list">
-      ${gamesData.games.map(g => gameCardHTML(g)).join('')}
-    </div>
-    <div class="data-footer">
-      <span id="data-footer-text">${dataFooterText()}</span>
-      <button class="refresh-btn" id="refresh-btn" onclick="manualRefresh()" title="Refresh data">↻</button>
-    </div>
-  `;
-
-  view.querySelectorAll('.game-card-header').forEach(h => {
-    h.addEventListener('click', () => {
-      const card = h.closest('.game-card');
-      const pk   = +card.dataset.pk;
-      toggleCard(pk);
-    });
-  });
-}
-
-function toggleCard(pk) {
-  const prevPk = expandedPk;
-
-  // Collapse all
-  document.querySelectorAll('.game-card').forEach(c => {
-    c.classList.remove('expanded');
-    const body = c.querySelector('.game-card-body');
-    if (body) body.hidden = true;
-  });
-
-  if (prevPk !== pk) {
-    expandedPk = pk;
-    const card = document.querySelector(`.game-card[data-pk="${pk}"]`);
-    if (!card) return;
-    card.classList.add('expanded');
-    card.querySelector('.game-card-body').hidden = false;
-    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  } else {
-    expandedPk = null;
-  }
-}
-
-// ── Game card HTML ─────────────────────────────────────────────────────────────
-
-// Determine which side is "favored" for card coloring.
-// Uses predicted run scores when available so colors always match the displayed
-// score numbers. Falls back to win probability (home-field-adjusted) when run
-// scores are missing or tied.
-function gameFav(g) {
-  // Match the displayed win-prob leader (our model) so card coloring never contradicts the bar.
-  return winProbDisplay(g).mw >= 0.5 ? 'home' : 'away';
-}
-
-function americanToDecimal(odds) {
-  return odds >= 0 ? 1 + odds / 100 : 1 - 100 / odds;
-}
-
-function noVigProb(oddsA, oddsB) {
-  const rawA = 1 / americanToDecimal(oddsA);
-  const rawB = 1 / americanToDecimal(oddsB);
-  const total = rawA + rawB;
-  return [rawA / total, rawB / total];
-}
-
-function vsVegasHTML(g) {
-  const odds = g.odds;
-  const pred = g.prediction || {};
-  if (!odds) return '';
-
-  const sections = [];
-
-  // ── Totals edge ────────────────────────────────────────────────────────────
-  if (odds.total != null && pred.predicted_total != null
-      && odds.over_price != null && odds.under_price != null) {
-    const modelTotal = pred.predicted_total;
-    const vegasLine  = odds.total;
-    const diff       = +(modelTotal - vegasLine).toFixed(1);
-    const direction  = diff > 0 ? 'OVER' : diff < 0 ? 'UNDER' : 'PUSH';
-    const [vegasOverPct, vegasUnderPct] = noVigProb(odds.over_price, odds.under_price);
-    const absDiff  = Math.abs(diff);
-    const diffCls  = absDiff >= 0.5 ? 'vv-edge-strong' : absDiff >= 0.2 ? 'vv-edge-mild' : 'vv-edge-flat';
-    const dirCls   = direction === 'OVER' ? 'dir-over' : direction === 'UNDER' ? 'dir-under' : '';
-
-    sections.push(`
-<div class="vv-section">
-  <div class="vv-title">Totals Edge</div>
-  <div class="vv-totals-grid">
-    <div class="vv-totals-cell">
-      <span class="vv-totals-label">Model Total</span>
-      <span class="vv-totals-val">${modelTotal.toFixed(1)}</span>
-    </div>
-    <div class="vv-totals-sep">vs</div>
-    <div class="vv-totals-cell">
-      <span class="vv-totals-label">Vegas Line</span>
-      <span class="vv-totals-val">O/U ${vegasLine}</span>
-    </div>
-  </div>
-  <div class="vv-edge-row ${diffCls}">
-    <span class="vv-lbl">Direction</span>
-    <span class="pick-dir ${dirCls}">${direction}</span>
-    <span class="vv-diff">${diff >= 0 ? '+' : ''}${diff.toFixed(1)} runs</span>
-  </div>
-  <div class="vv-row vv-row-small">
-    <span class="vv-lbl">Vegas implied</span>
-    <span>OVER ${(vegasOverPct*100).toFixed(1)}%</span>
-    <span>UNDER ${(vegasUnderPct*100).toFixed(1)}%</span>
-  </div>
-</div>`);
-  }
-
-  if (!sections.length) return '';
-  return `<div class="vs-vegas-block">${sections.join('')}</div>`;
-}
-
-function keySignalsHTML(g) {
-  const sig = g.prediction?.model_signals || {};
-  const chips = [];
-
-  // SP mismatch: show away xERA first when away is better, home first otherwise
-  const hXera = g.home_sp?.season?.xera;
-  const aXera = g.away_sp?.season?.xera;
-  if (hXera != null && aXera != null && Math.abs(hXera - aXera) > 0.7) {
-    const awayBetter = aXera < hXera;
-    const label = awayBetter
-      ? `${abbrev(g.away_team)} ${aXera.toFixed(2)} vs ${abbrev(g.home_team)} ${hXera.toFixed(2)} xERA`
-      : `${abbrev(g.home_team)} ${hXera.toFixed(2)} vs ${abbrev(g.away_team)} ${aXera.toFixed(2)} xERA`;
-    chips.push(`<span class="key-sig-chip sp" title="Starting-pitcher expected ERA — lower is better. The pitcher with the edge is shown first.">${label}</span>`);
-  }
-
-  // Weather: only when modifier is meaningful (captures wind and cold)
-  const wm = sig.weather_modifier;
-  if (wm != null && Math.abs(wm) >= 0.5) {
-    const sign = wm > 0 ? '+' : '';
-    const dir  = wm > 0 ? 'out' : 'in';
-    chips.push(`<span class="key-sig-chip weather">Wind ${dir} ${sign}${wm.toFixed(1)}</span>`);
-  }
-
-  // Rest edge: one team ≥5 days rest and gap ≥2 days
-  const hr = sig.home_rest_days, ar = sig.away_rest_days;
-  if (hr != null && ar != null) {
-    const gap = hr - ar;
-    if (Math.abs(gap) >= 2 && (hr >= 5 || ar >= 5)) {
-      const who = gap > 0 ? g.home_team : g.away_team;
-      chips.push(`<span class="key-sig-chip rest">Rest: ${abbrev(who)} +${Math.abs(gap)}d</span>`);
-    }
-  }
-
-  if (!chips.length) return '';
-  return `<div class="key-sig-row">${chips.join('')}</div>`;
-}
-
-// One side of the matchup: logo in a team-color ring + name + record · SP.
-function gc2TeamHTML(g, side) {
-  const name   = side === 'away' ? g.away_team : g.home_team;
-  const rec    = side === 'away' ? g.away_record : g.home_record;
-  const sp     = side === 'away' ? g.away_sp : g.home_sp;
-  const color  = teamColor(name);
-  const recStr = rec ? `${rec.wins}-${rec.losses}` : '';
-  const spStr  = sp?.name ? shortName(sp.name) : 'TBD';
-  const sub    = [recStr, spStr].filter(Boolean).join(' · ');
-  return `
-  <div class="gc2-team gc2-${side}" style="--team:${color}">
-    <div class="gc2-logo">${teamLogoHTML(name)}</div>
-    <div class="gc2-team-text">
-      <span class="gc2-name">${teamNick(name)}</span>
-      <span class="gc2-sub">${sub}</span>
-    </div>
-  </div>`;
-}
-
-// Scoreboard region: win-probability hero (preview) or live/final score.
-function gc2ScoreboardHTML(g) {
-  const status = g.game_status || 'preview';
-  const aSc = g.away_score ?? '–', hSc = g.home_score ?? '–';
-
-  if (status === 'live') {
-    const outs = g.outs != null ? ` · ${g.outs} OUT${g.outs !== 1 ? 'S' : ''}` : '';
-    return `<div class="gc2-score-row">
-      <span class="gc2-live"><span class="live-dot"></span>${g.inning_state || 'Live'}${outs}</span>
-      <span class="gc2-bigscore">${abbrev(g.away_team)} ${aSc} – ${hSc} ${abbrev(g.home_team)}</span>
-      <span class="gc2-chev">▾</span></div>`;
-  }
-  if (status === 'final') {
-    return `<div class="gc2-score-row">
-      <span class="final-badge">FINAL</span>
-      <span class="gc2-bigscore">${abbrev(g.away_team)} ${aSc} – ${hSc} ${abbrev(g.home_team)}</span>
-      <span class="gc2-chev">▾</span></div>`;
-  }
-
-  // Preview — OUR MODEL's win probability is the hero
-  const d = winProbDisplay(g);
-  return `
-  <div class="gc2-winprob">
-    <div class="gc2-wp-head">
-      <span class="gc2-wp-label">Win Probability${d.isModel ? ' <span class="gc2-wp-src">our model</span>' : ''}</span>
-      <span class="gc2-info" title="Our model's win probability from lineups + Statcast (out-of-sample AUC 0.60). The ⌁ line below shows how far it sits from the vig-adjusted market.">ⓘ</span>
-    </div>
-    <div class="gc2-wp-bar">
-      <div class="gc2-wp-seg gc2-wp-away" style="width:${d.awayPct}%"></div>
-      <div class="gc2-wp-seg gc2-wp-home" style="width:${d.homePct}%"></div>
-    </div>
-    <div class="gc2-wp-pcts">
-      <span>${abbrev(g.away_team)} <strong>${d.awayPct}%</strong></span>
-      <span><strong>${d.homePct}%</strong> ${abbrev(g.home_team)}</span>
-    </div>
-  </div>
-  ${gc2ModelRowHTML(g, d)}
-  <div class="gc2-chev-center">▾ <span>tap for pitchers · lineups · edges</span></div>`;
-}
-
-// Unified win-prob for display: OUR MODEL (fallback to headline only if model missing),
-// plus the percentage-point variance vs the no-vig (vig-adjusted) market for the leaned side.
-// One number everywhere — the bar, the reference line, the tier all use this.
-function winProbDisplay(g) {
-  const pred = g.prediction || {};
-  const mwRaw = pred.model_home_win_pct;
-  const mw = mwRaw != null ? mwRaw : (pred.home_win_pct != null ? pred.home_win_pct : 0.5);
-  const homePct = Math.round(mw * 100);
-  const leanHome = mw >= 0.5;
-  let varPp = null, marketSidePct = null;
-  if (g.odds && g.odds.home_ml != null && g.odds.away_ml != null) {
-    const mh = noVigProb(g.odds.home_ml, g.odds.away_ml)[0];
-    const modelSide = leanHome ? mw : 1 - mw;
-    const marketSide = leanHome ? mh : 1 - mh;
-    varPp = (modelSide - marketSide) * 100;
-    marketSidePct = Math.round(marketSide * 100);
-  }
-  return {
-    mw, homePct, awayPct: 100 - homePct, isModel: mwRaw != null,
-    leanHome, leanTeamName: leanHome ? g.home_team : g.away_team,
-    leanPct: Math.round((leanHome ? mw : 1 - mw) * 100), varPp, marketSidePct,
-  };
-}
-
-// Reference row under the win bar: pp variance vs the no-vig market + est. total.
-// (The bar itself is now our model's number, so this no longer repeats the model %.)
-function gc2ModelRowHTML(g, d) {
-  d = d || winProbDisplay(g);
-  const pred = g.prediction || {};
-  const parts = [];
-  if (d.isModel && d.varPp != null) {
-    const sign = d.varPp >= 0 ? '+' : '−';
-    parts.push(`<span class="gc2-model"><span class="gc2-model-i">⌁</span> <strong>${sign}${Math.abs(d.varPp).toFixed(1)}pp</strong> vs market</span><span class="gc2-var" title="Our model ${d.leanPct}% vs the vig-adjusted (no-vig) moneyline ${d.marketSidePct}% ${abbrev(d.leanTeamName)} — transparency, not a bet signal.">de-vigged ${d.marketSidePct}% ${abbrev(d.leanTeamName)}</span>`);
-  } else if (d.isModel) {
-    parts.push(`<span class="gc2-model"><span class="gc2-model-i">⌁</span> our model · no market line</span>`);
-  }
-  if (pred.predicted_total != null) {
-    parts.push(`<span class="gc2-total" title="Expected combined runs, anchored to the market total — a run-environment estimate, not a margin prediction.">Est. ${pred.predicted_total} runs</span>`);
-  }
-  if (!parts.length) return '';
-  return `<div class="gc2-model-row">${parts.join('')}</div>`;
-}
-
-// Compact Vegas betting lines for the collapsed card: away ML · O/U total · home ML.
-function gc2OddsHTML(g) {
-  const o = g.odds;
-  if (!o || (o.away_ml == null && o.home_ml == null && o.total == null)) return '';
-  const ml = v => v == null ? '—' : (v > 0 ? `+${v}` : `${v}`);
-  return `
-  <div class="gc2-odds" title="Vegas betting lines — moneyline for each team and the Over/Under total.">
-    <span class="gc2-ml">${o.away_ml != null ? `${abbrev(g.away_team)} ${ml(o.away_ml)}` : ''}</span>
-    <span class="gc2-ou">${o.total != null ? `O/U ${o.total}` : ''}</span>
-    <span class="gc2-ml gc2-ml-r">${o.home_ml != null ? `${ml(o.home_ml)} ${abbrev(g.home_team)}` : ''}</span>
-  </div>`;
-}
-
-function gameCardHTML(g) {
-  const status = g.game_status || 'preview';
-  const fav    = gameFav(g);
-  const pred   = g.prediction || {};
-  const timeStr = g.game_time_et || formatTimeET(g.game_time_utc);
-  const spChanged = g.sp_changed
-    ? `<span class="gc2-spchg" title="Starting pitcher changed — stats updating on next rebuild">⚠ SP change</span>`
-    : '';
-  const tier = status === 'preview' ? gameTier(winProbDisplay(g).mw) : null;
-  const tierBadge = tier ? `<span class="gc2-tier tier-${tier}">${tier.toUpperCase()}</span>` : '';
-  const cAway = teamColor(g.away_team), cHome = teamColor(g.home_team);
-
-  return `
-<div class="game-card gc2" data-pk="${g.gamePk}" data-status="${status}" data-fav="${fav}" data-pick-tier="${pred.pick_tier || ''}" style="--c-away:${cAway};--c-home:${cHome}">
-  <div class="game-card-header">
-    <div class="gc2-meta">
-      <span class="gc2-time">${timeStr}</span>
-      <span class="gc2-venue">${g.venue || ''}</span>
-      ${spChanged}
-      ${tierBadge}
-    </div>
-    <div class="gc2-matchup">
-      ${gc2TeamHTML(g, 'away')}
-      <span class="gc2-at">@</span>
-      ${gc2TeamHTML(g, 'home')}
-    </div>
-    ${gc2OddsHTML(g)}
-    ${gc2ScoreboardHTML(g)}
-  </div>
-  <div class="game-card-body" hidden>
-    ${expandedBodyHTML(g)}
-  </div>
-</div>`;
-}
-
-function gameTier(homeWinPct) {
-  const conf = Math.max(homeWinPct || 0.5, 1 - (homeWinPct || 0.5));
-  if (conf >= 0.70) return 'elite';
-  if (conf >= 0.65) return 'great';
-  if (conf >= 0.60) return 'good';
-  return null;
-}
-
-// Returns a small "good/moderate/heavy-fav" badge for the away team odds.
-// Shown alongside the informational "model leans away" flag (price context only).
-// (Removed dead helpers buildPickReasoning / statusStrip / spEra — orphaned by the gc2 redesign.)
-
-// ── Game edge banner — prominent top-of-card callout for actionable picks ─────
-function gameEdgeBannerHTML(g) {
-  const conds  = g.edge_conditions || [];
-  const status = g.game_status || 'preview';
-  if (status !== 'preview') return '';
-
-  const parts = [];
-
-  const pk = g.gamePk;
-
-  for (const e of conds) {
-    const icon = e.direction === 'UNDER' ? '⚡' : '★';
-    const h = edgeHistorical(e.tag);   // null on Games tab until backtest loads
-    const detail = h && h.roi != null
-      ? `<span class="geb-detail">${h.roi >= 0 ? '+' : ''}${h.roi.toFixed(1)}% historical</span>`
-      : `<span class="geb-detail">validated edge</span>`;
-    const sub = h ? h.seasonsStr : 'see the Edges tab for the record';
-    parts.push(`
-<div class="game-edge-banner banner-edge-under" onclick="gotoView('edges')">
-  <span class="geb-icon">${icon}</span>
-  <div class="geb-body">
-    <span class="geb-label">${e.label}</span>
-    <span class="geb-sep"></span>
-    ${detail}
-  </div>
-  <span class="geb-sub">${sub}</span>
-</div>`);
-  }
-
-  return parts.join('');
-}
-
-// ── Vegas edge strip (collapsed card) — surfaces ML and total model edge ──────
-function vegasEdgeStripHTML(g) {
-  const odds = g.odds;
-  const pred = g.prediction || {};
-  const status = g.game_status || 'preview';
-  if (!odds || status !== 'preview') return '';
-
-  const pills = [];
-
-  // Total lean
-  if (odds.total != null && pred.predicted_total != null) {
-    const diff = +(pred.predicted_total - odds.total).toFixed(1);
-    if (Math.abs(diff) >= 0.2) {
-      const dir = diff > 0 ? 'OVER' : 'UNDER';
-      const dirCls = diff > 0 ? 'dir-over' : 'dir-under';
-      const strCls = Math.abs(diff) >= 0.5 ? 'strong' : 'mild';
-      const tip = `The model predicts ${pred.predicted_total.toFixed(1)} total runs vs the Vegas line of ${odds.total} — a ${Math.abs(diff).toFixed(1)}-run ${dir} lean. Only a validated UNDER line (see the Edges tab) is an actionable edge.`;
-      pills.push(`<span class="edge-pill ${strCls} ${dirCls}" title="${tip}">${dir} ${pred.predicted_total.toFixed(1)} vs ${odds.total}</span>`);
-    }
-  }
-
-  if (!pills.length) return '';
-  return `<div class="edge-strip">${pills.join('')}</div>`;
 }
 
 // ── Edge condition badge (game card) ──────────────────────────────────────────
@@ -677,302 +239,6 @@ function seasonRoiStripHTML(e) {
   }).join('');
   return chips ? `<div class="ef-season-strip" title="ROI by season (recomputed from data)">${chips}</div>` : '';
 }
-
-// ── Lineup status (collapsed card) — batter highlights moved to expanded lineup section ──
-function lineupStatusHTML(g) {
-  const status = g.lineup_status;
-  let chip;
-  if (status === 'official') {
-    chip = `<span class="lineup-chip official">✓ Official</span>`;
-  } else if (status === 'proxy') {
-    chip = `<span class="lineup-chip proxy">~ Recent history</span>`;
-  } else {
-    chip = `<span class="lineup-chip tbd">Lineups TBD</span>`;
-  }
-  return `<div class="lineup-status-row"><div class="ls-center">${chip}</div></div>`;
-}
-
-function getNotableBatters(lineup, maxShow = 3) {
-  if (!lineup?.length) return [];
-  const notable = [];
-  for (const b of lineup) {
-    let type = null, label = null, mag = 0;
-
-    if (b.trend_flags?.length) {
-      const flag = b.trend_flags[0];
-      const isHot = flag.startsWith('Hot');
-      if (isHot || flag.startsWith('Cold')) {
-        const m = flag.match(/(\d+)H in last (\d+)/);
-        type  = isHot ? 'hot' : 'cold';
-        label = m ? `${m[1]}H/${m[2]}G` : (isHot ? 'streak' : '0H streak');
-        mag   = 3;
-      }
-    }
-
-    if (type === null && b.woba != null && b.xwoba != null) {
-      const gap = b.woba - b.xwoba;
-      if (Math.abs(gap) >= 0.025) {
-        type  = gap > 0 ? 'over' : 'under';
-        label = `w${fmtWoba(b.woba)} xw${fmtWoba(b.xwoba)}`;
-        mag   = Math.abs(gap);
-      }
-    }
-
-    if (type) notable.push({ ...b, _type: type, _label: label, _mag: mag });
-  }
-  notable.sort((a, b) => b._mag - a._mag);
-  return notable.slice(0, maxShow);
-}
-
-// ── Expanded card body ────────────────────────────────────────────────────────
-function expandedBodyHTML(g) {
-  // Betting + signals (relocated from the collapsed card to keep it clean)
-  const edgeBits = [vegasEdgeStripHTML(g), keySignalsHTML(g)].filter(Boolean).join('');
-  const edgeBlock = (gameEdgeBannerHTML(g) || edgeBits)
-    ? `<div class="expanded-section">
-         <div class="section-heading">Edges &amp; Betting</div>
-         ${gameEdgeBannerHTML(g)}
-         ${edgeBits}
-       </div>`
-    : '';
-
-  return `
-<div class="expanded-inner">
-  <div class="expanded-section">
-    <div class="section-heading">${(g.game_status && g.game_status !== 'preview') ? 'Pre-game Prediction' : 'Prediction'}</div>
-    ${predictionHTML(g)}
-  </div>
-  <div class="expanded-section">
-    <div class="section-heading">Pitchers</div>
-    ${pitcherTableHTML(g)}
-  </div>
-  <div class="expanded-section">
-    <div class="section-heading">Lineups ${lineupStatusHTML(g)}</div>
-    ${lineupsHTML(g)}
-  </div>
-  ${edgeBlock}
-</div>`;
-}
-
-// ── Pitcher table ─────────────────────────────────────────────────────────────
-function pitcherTableHTML(g) {
-  const hsp = g.home_sp || {};
-  const asp = g.away_sp || {};
-  const hs  = hsp.season || {};
-  const as_ = asp.season || {};
-  const hr  = hsp.recent || {};
-  const ar  = asp.recent || {};
-
-  // [label, awayVal, homeVal, lowerIsBetter, recentAway, recentHome]
-  const rows = [
-    ['xERA',        as_.xera,      hs.xera,      true,  ar.xera,      hr.xera],
-    ['xBA Against', as_.xba,       hs.xba,       true,  null,         null],
-    ['Whiff%',      as_.whiff_pct, hs.whiff_pct, false, ar.whiff_pct, hr.whiff_pct],
-    ['Chase%',      as_.chase_pct, hs.chase_pct, false, ar.chase_pct, hr.chase_pct],
-    ['K%',          as_.k_pct,     hs.k_pct,     false, ar.k_pct,     hr.k_pct],
-    ['BB%',         as_.bb_pct,    hs.bb_pct,    true,  ar.bb_pct,    hr.bb_pct],
-    ['RV/100',      as_.rv100,     hs.rv100,     false, null,         null],
-  ];
-
-  let tbody = '';
-  for (const [label, av, hv, lowerBetter, ar_v, hr_v] of rows) {
-    const awayBetter = av != null && hv != null && (lowerBetter ? av < hv : av > hv);
-    const homeBetter = av != null && hv != null && (lowerBetter ? hv < av : hv > av);
-    tbody += `
-    <tr>
-      <td class="stat-lbl">${label}</td>
-      <td class="stat-val away-val${awayBetter ? ' better' : homeBetter ? ' worse' : ''}">
-        ${fmtStatVal(av, label)}${ar_v != null ? ` <span class="rcnt">(${fmtStatVal(ar_v, label)})</span>` : ''}
-      </td>
-      <td class="stat-val home-val${homeBetter ? ' better' : awayBetter ? ' worse' : ''}">
-        ${fmtStatVal(hv, label)}${hr_v != null ? ` <span class="rcnt">(${fmtStatVal(hr_v, label)})</span>` : ''}
-      </td>
-    </tr>`;
-  }
-
-  const awayFlags = asp.trend_flags || [];
-  const homeFlags = hsp.trend_flags || [];
-  const allFlags  = [
-    ...awayFlags.map(f => `<span class="trend-pill away-pill">${asp.name || g.away_team}: ${f}</span>`),
-    ...homeFlags.map(f => `<span class="trend-pill home-pill">${hsp.name || g.home_team}: ${f}</span>`),
-  ];
-
-  // Last-start deviation badges (data from MLB game log)
-  const lastStartPills = [];
-  for (const [sp, label] of [[asp, asp.name || g.away_team], [hsp, hsp.name || g.home_team]]) {
-    const dev = sp.last_start?.deviation;
-    if (dev == null) continue;
-    if (dev <= -1.5) {
-      lastStartPills.push(`<span class="trend-pill trend-pill-hot">↑ ${label}: last start ${dev.toFixed(1)} vs xERA</span>`);
-    } else if (dev >= 1.5) {
-      lastStartPills.push(`<span class="trend-pill trend-pill-cold">↓ ${label}: last start +${dev.toFixed(1)} vs xERA</span>`);
-    }
-  }
-
-  const flagPills = [...allFlags, ...lastStartPills];
-
-  return `
-<table class="pitcher-table">
-  <thead>
-    <tr>
-      <th></th>
-      <th class="away-th">${asp.name || g.away_team}</th>
-      <th class="home-th">${hsp.name || g.home_team}</th>
-    </tr>
-  </thead>
-  <tbody>${tbody}</tbody>
-</table>
-${flagPills.length ? `<div class="flag-row">${flagPills.join('')}</div>` : ''}`;
-}
-
-// ── Lineups ───────────────────────────────────────────────────────────────────
-function lineupsHTML(g) {
-  if (g.lineup_status === 'tbd') {
-    return `<div class="lineup-tbd">
-      Lineups not yet posted — check back closer to game time.
-    </div>`;
-  }
-
-  const chip = b =>
-    `<span class="bh-chip ${b._type}">${shortName(b.name)} · ${b._label}</span>`;
-
-  const awayNotable = getNotableBatters(g.away_lineup);
-  const homeNotable = getNotableBatters(g.home_lineup);
-  const allNotable  = [...awayNotable, ...homeNotable];
-  const insightsRow = allNotable.length
-    ? `<div class="lineup-insights-row">${allNotable.map(chip).join('')}</div>` : '';
-
-  return `
-${insightsRow}
-<div class="lineup-pair">
-  <div class="lineup-half">
-    <div class="lineup-team-label">${g.away_team} <span class="side-tag">Away</span></div>
-    ${lineupTableHTML(g.away_lineup || [])}
-  </div>
-  <div class="lineup-half">
-    <div class="lineup-team-label">${g.home_team} <span class="side-tag">Home</span></div>
-    ${lineupTableHTML(g.home_lineup || [])}
-  </div>
-</div>`;
-}
-
-function lineupTableHTML(lineup) {
-  if (!lineup || !lineup.length) {
-    return `<div class="lineup-empty">Lineup not available</div>`;
-  }
-
-  const rows = lineup.map(b => {
-    const streakPill = (() => {
-      if (!b.trend_flags?.length) return '';
-      const isHot = b.trend_flags[0].startsWith('Hot');
-      return ` <span class="streak-pill ${isHot ? 'hot' : 'cold'}">${isHot ? 'HOT' : 'COLD'}</span>`;
-    })();
-    const wobaCls = wobaClass(b);
-    return `
-  <tr>
-    <td class="bo">${b.batting_order}</td>
-    <td class="bname">${shortName(b.name)}${streakPill}</td>
-    <td>${b.xwoba != null ? fmtWoba(b.xwoba) : dash()}</td>
-    <td class="${wobaCls}">${b.woba != null ? fmtWoba(b.woba) : dash()}</td>
-    <td>${b.avg_ev != null ? b.avg_ev.toFixed(1) : dash()}</td>
-    <td>${b.hard_hit_pct != null ? fmtPct(b.hard_hit_pct) : dash()}</td>
-    <td>${b.k_pct != null ? fmtPct(b.k_pct) : dash()}</td>
-    <td>${b.bb_pct != null ? fmtPct(b.bb_pct) : dash()}</td>
-  </tr>`;
-  }).join('');
-
-  return `
-<table class="lineup-table">
-  <thead>
-    <tr><th>#</th><th>Name</th><th>xwOBA</th><th>wOBA</th><th>EV</th><th>HH%</th><th>K%</th><th>BB%</th></tr>
-  </thead>
-  <tbody>${rows}</tbody>
-</table>`;
-}
-
-// ── Prediction section ────────────────────────────────────────────────────────
-function predictionHTML(g) {
-  const pred    = g.prediction || {};
-  const signals = pred.model_signals || {};
-  const _wp     = winProbDisplay(g);          // OUR MODEL (one number, same as the card)
-  const homePct = _wp.homePct;
-  const awayPct = _wp.awayPct;
-  const pHome   = signals.pitcher_score_home;
-  const pAway   = signals.pitcher_score_away;
-  const lHome   = signals.lineup_score_home;
-  const lAway   = signals.lineup_score_away;
-
-  const pitchEdge  = pHome != null && pAway != null ? pHome - pAway : null;
-  const lineupEdge = lHome != null && lAway != null ? lHome - lAway : null;
-
-  const awayFav = awayPct > homePct;
-
-  function edgeBadge(val, homeLabel, awayLabel) {
-    if (val == null) return '';
-    const abs = Math.abs(val);
-    if (abs < 0.03) return `<span class="sig-badge neutral">Even</span>`;
-    const homeEdge = val > 0;
-    const label = homeEdge
-      ? `${homeLabel} +${(abs * 100).toFixed(0)}`
-      : `${awayLabel} +${(abs * 100).toFixed(0)}`;
-    // Green when the edge aligns with the predicted winner; red when it works against
-    const confirmsWinner = (homeEdge && !awayFav) || (!homeEdge && awayFav);
-    const cls = confirmsWinner ? 'edge-winner' : 'edge-loser';
-    return `<span class="sig-badge ${cls}">${label}</span>`;
-  }
-  return `
-<div class="prediction-block">
-  <div class="prob-bar-wrap">
-    <span class="prob-label ${awayFav ? 'win-label' : 'lose-label'}">${g.away_team} ${awayPct}%</span>
-    <div class="prob-bar">
-      <div class="prob-fill ${awayFav ? 'win-fill' : 'lose-fill'}" style="width:${awayPct}%"></div>
-      <div class="prob-fill ${awayFav ? 'lose-fill' : 'win-fill'}" style="width:${homePct}%"></div>
-    </div>
-    <span class="prob-label ${awayFav ? 'lose-label' : 'win-label'}">${g.home_team} ${homePct}%</span>
-  </div>
-
-  ${(() => {
-    if (!_wp.isModel) return '';
-    const tip = "The bar above is OUR MODEL's win probability (lineups + Statcast, out-of-sample AUC 0.60). "
-      + "Below shows how far it sits from the vig-adjusted (no-vig) market — transparency, NOT a betting signal (the market is sharper, AUC 0.64).";
-    if (_wp.varPp == null) {
-      return `<div class="model-read" title="${tip}"><span class="mr-icon">⌁</span><span class="mr-main">Bar above is <strong>our model</strong> — no market line to compare</span></div>`;
-    }
-    const sign = _wp.varPp >= 0 ? '+' : '−';
-    const varCls = Math.abs(_wp.varPp) >= 5 ? 'mr-var-hi' : 'mr-var-lo';
-    return `
-  <div class="model-read" title="${tip}">
-    <span class="mr-icon">⌁</span>
-    <span class="mr-main">Bar above is <strong>our model</strong></span>
-    <span class="mr-var ${varCls}">${sign}${Math.abs(_wp.varPp).toFixed(1)}pp vs market</span>
-    <span class="mr-note">de-vigged ${_wp.marketSidePct}% ${abbrev(_wp.leanTeamName)}</span>
-    <span class="mr-info">ⓘ</span>
-  </div>`;
-  })()}
-
-  ${pred.predicted_home_runs != null ? `
-  <div class="score-est">
-    <span>${g.away_team} <strong>${pred.predicted_away_runs}</strong></span>
-    <span class="score-dash">–</span>
-    <span><strong>${pred.predicted_home_runs}</strong> ${g.home_team}</span>
-    ${pred.predicted_total != null ? `<span class="total-label">Total: ${pred.predicted_total}</span>` : ''}
-  </div>` : ''}
-
-  ${vsVegasHTML(g)}
-
-  ${pred.narrative ? `<p class="narrative">${pred.narrative}</p>` : ''}
-
-  <div class="signals-row">
-    <span class="sig-label">Signals:</span>
-    ${edgeBadge(pitchEdge,  'Home pitching', 'Away pitching')}
-    ${edgeBadge(lineupEdge, 'Home lineup',   'Away lineup')}
-    ${signals.comps_home_win_rate != null
-      ? `<span class="sig-badge neutral">Comps: ${Math.round(signals.comps_home_win_rate * 100)}% home (n=${signals.comps_count})</span>`
-      : ''}
-  </div>
-</div>`;
-}
-
 // Totals outcome vs a line: 'over' | 'under' | 'push' (final runs exactly on the line).
 // Pushes are void — never scored as a win or loss. null when inputs are missing.
 function totalsOutcome(actualTotal, line) {
@@ -2618,7 +1884,11 @@ function renderEdgesView() {
       ${edgeScoreboardHTML()}
     </section>
     ${clvSectionHTML(scoreboardData)}
-    ${edgeAuditSectionHTML()}`;
+    ${edgeAuditSectionHTML()}
+    <div class="data-footer">
+      <span id="data-footer-text">${dataFooterText()}</span>
+      <button class="refresh-btn" id="refresh-btn" onclick="manualRefresh()" title="Refresh data">↻</button>
+    </div>`;
 }
 
 // ── Reversion tool: good hitters slumping on bad luck (informational) ──────────
