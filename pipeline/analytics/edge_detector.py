@@ -46,8 +46,8 @@ EDGE_METADATA: dict[str, dict] = {
         "label":      "Under Edge: Total = 9.0",
         "direction":  "UNDER",
         "bet_type":   "TOTAL",
-        "confidence": "watch",
-        "signal_boost": 0.0,   # do not move live signals: marginal historically, negative live
+        "confidence": "high",
+        "signal_boost": 0.8,   # std-vig band only (like 8.0); multi-season +6.8%, 2026 running soft
     },
     # UNDER_MODEL_DEV (Model–Vegas Gap) was DEMOTED and removed after un-anchoring the model
     # prediction (predicted_total_raw) and testing it historically: at its 0.75-run threshold it
@@ -106,11 +106,21 @@ def detect_edges(
 
     # Total = 8.5 — explicitly excluded: -2.8% blind ROI across 2,171 games
 
-    # Total = 9.0 — WATCH only. Fires on the line alone, zero boost so it informs without
-    # moving the live signal.
+    # Total = 9.0 — validated UNDER edge at STANDARD VIG, same structure as 8.0 (std-vig
+    # multi-season +6.8%, 2021-25). price_status buckets the current price so the UI can say
+    # "playable now" vs "shop for the number", and the boost only fires in the +EV std-vig band.
     if 9.0 <= closing_total < 9.5:
         e = dict(EDGE_METADATA["UNDER_LINE_9_0"])
         e["under_price"] = under_price
+        if under_price is None or _VIG_STD_LO <= under_price <= _VIG_STD_HI:
+            e["signal_boost"] = EDGE_METADATA["UNDER_LINE_9_0"]["signal_boost"]  # 0.8
+            e["price_status"] = "playable"
+        elif under_price < _VIG_STD_LO:                # steeper (more negative) than -110
+            e["signal_boost"] = 0.0
+            e["price_status"] = "shop"
+        else:                                          # cheaper than -106
+            e["signal_boost"] = 0.0
+            e["price_status"] = "weaker"
         matched.append(e)
 
     # (No Model–Vegas Gap edge — demoted; see EDGE_METADATA note above.)

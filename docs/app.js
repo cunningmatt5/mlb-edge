@@ -264,11 +264,11 @@ const EDGE_DEFINITIONS = {
   },
   UNDER_LINE_9_0: {
     name: 'Total = 9.0',
-    short: 'The line sits exactly on 9.0 — flagged on the line alone.',
-    long: 'Fires whenever the closing total is exactly 9.0, on the line alone (the model-lean filter measured worse here, so it is deliberately not applied). Historically strong but softer in 2026 — watch, not a core play.',
+    short: 'The total sits exactly on 9.0 — bet the UNDER at standard vig, same play as 8.0.',
+    long: 'Fires whenever the closing total is exactly 9.0. Push-corrected, a blind UNDER at standard vig (−110 to −106) is +6.8% across 2021–25 — comparable to 8.0 — and the price matters the same way (cheaper than −106 the market has already leaned under; steeper than −110 the vig eats it). Two honest caveats: 2026 is running below the historical rate, and the team-reversion overlay is deliberately NOT applied here — we backtested it on 9.0 and the hot-offense signal underperformed the base, so that overlay is specific to 8.0.',
     price: {
-      lo: null, hi: null, window: 'any price', best: 'the cheapest under you can find',
-      guide: 'Fires on the line alone, so any price qualifies — a cheaper under price only helps. (Watch edge, not a core play.)',
+      lo: -110, hi: -106, window: '−110 to −106', best: '−106',
+      guide: 'Playable at −110 to −106 (−106 is the best number in that window). At −111 or steeper, shop your other books for the number rather than taking the extra juice. At −105 or cheaper the market has already leaned under, so the edge is thinner. Take the shown price or better within the window, never worse.',
     },
   },
   // UNDER_MODEL_DEV (Model–Vegas Gap) removed — demoted after un-anchoring the prediction and
@@ -301,29 +301,21 @@ const EDGE_BANDS = [
   {
     key: 'u80', label: 'UNDER · Total = 8.0', tag: 'UNDER_LINE_8_0',
     qualifies: r => r.line >= 8.0 && r.line < 8.5 && inStdVig(r.under_price),
-    note: 'The record is the standard-vig window (−110 to −106) — the only +EV price zone. The app surfaces off-price 8.0 games live too (to shop), but only std-vig bets count here.',
-    flagLabel: 'what the app flags · line alone',
-    flagNote: 'The app flags 8.0 on the std-vig line alone — the old model-lean filter was dropped (it halved volume for no ROI gain), so the two builds are identical now.',
-    flags: () => true,
-  },
-  {
-    key: 'u85', label: 'UNDER · Total = 8.5', tag: null, contrast: true,
-    qualifies: r => r.line >= 8.5 && r.line < 9.0,
-    note: 'Shown for contrast — this line is explicitly excluded from the edges. The audit is here so the exclusion can be checked rather than trusted.',
-    flagLabel: 'no trigger — never flagged',
-    flagNote: 'The app never flags 8.5. Both builds are identical because there is no filter to apply.',
-    flags: () => true,
+    note: 'The record is the standard-vig window (−110 to −106) — the only +EV price zone. Off-price 8.0 games are surfaced live to shop, but only std-vig bets count here.',
   },
   {
     key: 'u90', label: 'UNDER · Total = 9.0', tag: 'UNDER_LINE_9_0',
-    qualifies: r => r.line >= 9.0 && r.line < 9.5,
-    note: 'All prices qualify at this line.',
-    flagLabel: 'what the app flags · line alone',
-    flagNote: 'The app flags 9.0 on the line alone — the model-lean filter measured worse here, so it is deliberately not applied. The two builds are therefore identical; the per-row model-lean mark is reference only.',
-    flags: () => true,
+    qualifies: r => r.line >= 9.0 && r.line < 9.5 && inStdVig(r.under_price),
+    note: 'Same basis as 8.0 — the standard-vig window (−110 to −106). Off-price 9.0 games are surfaced live to shop, but only std-vig bets count here.',
   },
-  // Model–Vegas Gap band removed — the edge was demoted after un-anchoring the prediction and
-  // testing it historically (−4.7% at threshold; the one positive cut was a single season).
+  {
+    // The 8.5 dead zone — no `tag`, so it is NOT shown as an edge or in the Edges audit; kept only
+    // as an all-prices contrast in the Performance tab (proves the nearby line is not an edge).
+    key: 'u85', label: 'UNDER · Total = 8.5', tag: null,
+    qualifies: r => r.line >= 8.5 && r.line < 9.0,
+    note: 'The 8.5 line — shown for contrast only; explicitly not an edge.',
+  },
+  // Model–Vegas Gap band removed — demoted after testing (the one positive cut was a single season).
 ];
 
 // Std-vig band for the 8.0 edge: [-110, -106].
@@ -1015,16 +1007,16 @@ function renderPerformanceView() {
         </div>
       </div>
 
-      <div class="bt-edge-card2 ${ec9Conf === 'medium' ? 'bt-ec2-watch' : ''}">
-        <div class="bt-ec2-stat-col ${ec9Conf === 'medium' ? 'ec2-watch-col' : ''}">
-          <div class="bt-ec2-roi-num ${ec9Conf === 'medium' ? 'ecr-gold' : 'ecr-green'}">${ec9RoiStr}</div>
+      <div class="bt-edge-card2">
+        <div class="bt-ec2-stat-col">
+          <div class="bt-ec2-roi-num ecr-green">${ec9RoiStr}</div>
           <div class="bt-ec2-roi-lbl">avg ROI</div>
           <div class="bt-ec2-n-stat">${edge9to95.totalBets.toLocaleString()} games</div>
-          <span class="edge-cond-badge medium">~ Watch</span>
+          <span class="edge-cond-badge strong">⚡ Strong</span>
         </div>
         <div class="bt-ec2-body">
           <div class="bt-ec2-band-label">UNDER · Total = 9.0</div>
-          <p class="bt-ec2-desc">Profitable in ${profitableOf(edge9to95)} of ${seasonsOf(edge9to95).length} seasons at ${ec9RoiStr} overall, but thinner than 8.0 and it has swung hard between seasons — treat as watch-only rather than a play. ${liveStr(edge9to95)}.</p>
+          <p class="bt-ec2-desc">A validated edge on par with 8.0 — push-corrected ${ec9RoiStr} at standard vig, profitable in ${profitableOf(edge9to95)} of ${seasonsOf(edge9to95).length} seasons, graded the same way (closing line, std-vig band only). It swings harder between seasons than 8.0 and is running below its rate in 2026, but the multi-season edge is comparable. ${liveStr(edge9to95)}.</p>
           <div class="bt-table-wrap">
             <table class="seg-table">
               <thead><tr><th>Season</th><th>Games</th><th>Win%</th><th>ROI</th></tr></thead>
@@ -1157,23 +1149,6 @@ function edgeScoreboardHTML() {
   const t = sb.actionable_total || {};
   const sgn = v => (v >= 0 ? '+' : '');
   const cls = v => (v == null ? '' : (v >= 0 ? 'sb-pos' : 'sb-neg'));
-  const CLV_MIN = 5;   // need a few graded closes before CLV is worth showing
-  const CLV_TIP = 'Closing-line value: how often this edge’s bet-time line beat the closing line, plus the average run-line gained. Beating the close confirms an edge faster and with less variance than ROI.';
-  // 50% beat = coin-flip vs the close. A ±3pt dead band means an edge that profits for
-  // other reasons (e.g. the static 8.0 mispricing) but gains no line value reads as
-  // neutral, not a red "fail". The arrow doubles the colour for accessibility.
-  const clvKind = p => (p >= 53) ? { c: 'sb-pos', a: '↑' }
-                     : (p <= 47) ? { c: 'sb-neg', a: '↓' }
-                     :             { c: 'sb-neutral', a: '→' };
-  // CLV inline column: "CLV 64% ↑ +0.2" — rounded beat-rate, arrow, avg run-line value.
-  const clvCell = e => {
-    if (!(e.clv_n >= CLV_MIN && e.clv_beat_pct != null))
-      return `<span class="ef-sb-clv ef-sb-clv-pending" title="${CLV_TIP} Accrues as games resolve with a captured closing line.">CLV –</span>`;
-    const k = clvKind(e.clv_beat_pct);
-    const avg = e.avg_clv_line != null ? ` <span class="ef-sb-clv-avg">${sgn(e.avg_clv_line)}${e.avg_clv_line.toFixed(1)}</span>` : '';
-    const tip = `${CLV_TIP}${e.avg_clv_line != null ? ` Avg ${sgn(e.avg_clv_line)}${e.avg_clv_line} runs of line value over ${e.clv_n} graded closes.` : ''}`;
-    return `<span class="ef-sb-clv ${k.c}" title="${tip}">CLV ${Math.round(e.clv_beat_pct)}% ${k.a}${avg}</span>`;
-  };
   // Last-10 recent-form strip (oldest → newest): green pip = under cashed, red = lost.
   const last10 = e => {
     if (!Array.isArray(e.last10) || !e.last10.length) return '';
@@ -1185,32 +1160,28 @@ function edgeScoreboardHTML() {
     const c = edgeConf({ confidence: e.confidence });
     const recent = (e.recent_n >= 5 && e.recent_roi_pct != null)
       ? `<span class="ef-sb-recent ${cls(e.recent_roi_pct)}">30d ${sgn(e.recent_roi_pct)}${e.recent_roi_pct}%</span>` : '';
-    const tag = e.actionable ? '' : ' <span class="ef-sb-tag">watch</span>';
     return `
-      <div class="ef-sb-row${e.actionable ? '' : ' ef-sb-muted'}">
-        <span class="ef-sb-label">${c.icon} ${escapeHtml(e.label)}${tag}</span>
+      <div class="ef-sb-row">
+        <span class="ef-sb-label">${c.icon} ${escapeHtml(e.label)}</span>
         <span class="ef-sb-roi ${cls(e.roi_pct)}">${sgn(e.roi_pct)}${e.roi_pct}%</span>
         <span class="ef-sb-n">${e.win_pct}% · ${e.n}</span>
-        ${clvCell(e)}
         ${last10(e)}
         ${recent}
       </div>`;
   }).join('');
   const headline = (t.roi_pct != null)
     ? `<span class="ef-sb-headline ${cls(t.roi_pct)}">${sgn(t.roi_pct)}${t.roi_pct}% · ${t.n} bets</span>` : '';
-  const headClv = (t.clv_n >= CLV_MIN && t.clv_beat_pct != null)
-    ? `<span class="ef-sb-headclv ${clvKind(t.clv_beat_pct).c}" title="${CLV_TIP}">CLV ${Math.round(t.clv_beat_pct)}%</span>` : '';
   const recentHead = (t.recent_n >= 5 && t.recent_roi_pct != null)
     ? ` · 30d ${sgn(t.recent_roi_pct)}${t.recent_roi_pct}%` : '';
   return `
     <div class="ef-scoreboard">
       <div class="ef-sb-hdr">
         <span class="ef-sb-title">This season's results · ${sb.season}</span>
-        <span class="ef-sb-head-metrics">${headline}${headClv}</span>
+        <span class="ef-sb-head-metrics">${headline}</span>
       </div>
-      <div class="ef-sb-sub">ROI = realized return, flat $1/bet${recentHead}. CLV = how often we beat the closing line — <span class="ef-sb-clvptr" onclick="document.getElementById('clv-section')?.scrollIntoView({behavior:'smooth'})">explained below ↓</span></div>
+      <div class="ef-sb-sub">Realized ROI, flat $1/bet, on the closing-line std-vig plays${recentHead}. Each edge's full multi-season track record is on its play card and in the audit below.</div>
       ${equityChartHTML(sb)}
-      <div class="ef-sb-rowhdr">By edge <span class="ef-sb-rowhdr-note">(record per category · watch shown for context, not in the curve)</span></div>
+      <div class="ef-sb-rowhdr">By edge</div>
       ${rows}
       ${reversionJuiceRowHTML(sb)}
     </div>`;
@@ -1231,126 +1202,6 @@ function reversionJuiceRowHTML(sb) {
       <span class="ef-sb-n">${j.win_pct}% · ${j.n}</span>
       <span class="ef-sb-juice-note">both offenses hot · forward-tracking, not proven</span>
     </div>`;
-}
-
-// ── Closing Line Value: the education section ─────────────────────────────────
-// CLV was previously a cryptic "CLV 32% ↓ -0.1" chip explained only in hover tooltips
-// (invisible on mobile, undiscoverable). This teaches the concept once, then gives every
-// edge a plain-language verdict a bettor can act on — especially the ROI-vs-CLV divergence,
-// which is the single most important-but-hidden signal on the page.
-const CLV_MIN_GRADED = 5;
-
-// Extract the line number from a line-based edge label ("UNDER · Total = 8.0" -> "8.0").
-function _clvLineNum(e) {
-  if (e.tag !== 'UNDER_LINE_8_0' && e.tag !== 'UNDER_LINE_9_0') return null;
-  const m = String(e.label || '').match(/(\d+(?:\.\d+)?)/);
-  return m ? m[1] : null;
-}
-
-// Verdict bucket for a beat-rate. 50% = coin-flip vs the close; a ±3pt dead band keeps an
-// edge that profits for other reasons from reading as an outright failure.
-function clvVerdict(beat) {
-  if (beat >= 53) return { word: 'Beating the close', cls: 'clv-good', icon: '✓' };
-  if (beat >= 47) return { word: 'Coin-flip on the close', cls: 'clv-neutral', icon: '≈' };
-  return { word: 'Not beating the close', cls: 'clv-bad', icon: '✗' };
-}
-
-// Plain-language, data-driven interpretation for one edge. Generic (no hardcoded numbers)
-// so it stays correct as the daily scoreboard updates.
-function clvInterp(e) {
-  const beat = e.clv_beat_pct, roi = e.roi_pct, n = e.clv_n, avg = e.avg_clv_line;
-  const sgn = v => (v >= 0 ? '+' : '');
-  const avgTxt = avg != null ? `${sgn(avg)}${avg.toFixed(2)} runs a bet` : '';
-  const line = _clvLineNum(e);
-  const roiStrong = roi != null && roi >= 8;
-  if (beat >= 53) {
-    return `We're consistently getting a better number than the market's final line${avgTxt ? ` (${avgTxt} of value)` : ''}. This is the most trustworthy signal here — a real edge beats the close before it shows up in the win column.`;
-  }
-  if (beat >= 47) {
-    if (roiStrong) {
-      return `The ${sgn(roi)}${roi}% return is running well ahead of the close, which sits at a coin-flip (${Math.round(beat)}%). Across ${n} bets that gap usually means variance, not a repeatable edge — treat the ROI as unconfirmed and don't size up until CLV clears 50%.`;
-    }
-    return `Right at a coin-flip versus the close — neither confirmed nor refuted. Needs more graded games before it means anything.`;
-  }
-  // beat < 47
-  if (roiStrong) {
-    return `Despite the ${sgn(roi)}${roi}% return, we're not beating the market — on average we take a slightly worse number than the close${avgTxt ? ` (${avgTxt})` : ''}. This edge profits from a fixed mispricing${line ? ` at the round ${line} line` : ''}, not from line value. The money is real, but it's built on a static quirk: expect it to hold, not to compound, and don't size up on it.`;
-  }
-  return `We're losing line value${avgTxt ? ` (${avgTxt})` : ''} — the market isn't confirming this edge. Be cautious.`;
-}
-
-function clvSectionHTML(sb) {
-  if (!sb || !sb.edges || !sb.edges.length) return '';
-  const sgn = v => (v >= 0 ? '+' : '');
-  const graded = sb.edges.filter(e => e.clv_n >= CLV_MIN_GRADED && e.clv_beat_pct != null);
-
-  const cards = sb.edges.map(e => {
-    const label = escapeHtml(e.label || e.tag);
-    if (!(e.clv_n >= CLV_MIN_GRADED && e.clv_beat_pct != null)) {
-      return `
-        <div class="clv-card clv-pending">
-          <div class="clv-card-hdr"><span class="clv-card-name">${label}</span>
-            <span class="clv-card-verdict">Gathering</span></div>
-          <div class="clv-card-body">Not enough resolved games with a captured closing line yet (${e.clv_n || 0} so far). CLV needs a handful of graded closes before it means anything.</div>
-        </div>`;
-    }
-    const beat = Math.round(e.clv_beat_pct);
-    const v = clvVerdict(e.clv_beat_pct);
-    // Bar: 0–100%, with the 50% coin-flip reference marked.
-    const fill = Math.max(0, Math.min(100, e.clv_beat_pct));
-    return `
-      <div class="clv-card">
-        <div class="clv-card-hdr">
-          <span class="clv-card-name">${label}</span>
-          <span class="clv-card-verdict ${v.cls}">${v.icon} ${v.word}</span>
-        </div>
-        <div class="clv-bar" title="50% = coin-flip vs the close">
-          <div class="clv-bar-fill ${v.cls}" style="width:${fill}%"></div>
-          <div class="clv-bar-mid" style="left:50%"></div>
-        </div>
-        <div class="clv-bar-scale"><span>0%</span><span class="clv-bar-mid-lbl">50% coin-flip</span><span>100%</span></div>
-        <div class="clv-card-stats">
-          <span class="clv-stat"><b class="${v.cls}">${beat}%</b> beat the close</span>
-          <span class="clv-stat">${e.avg_clv_line != null ? `<b>${sgn(e.avg_clv_line)}${e.avg_clv_line.toFixed(2)}</b> runs of line value/bet` : ''}</span>
-          <span class="clv-stat clv-stat-n">${e.clv_n} graded closes</span>
-        </div>
-        <div class="clv-card-body">${clvInterp(e)}</div>
-      </div>`;
-  }).join('');
-
-  return `
-    <section class="ef-section" id="clv-section">
-      <div class="ef-section-hdr">
-        <h2 class="ef-section-title">Closing Line Value</h2>
-        <span class="ef-section-count">why sharps trust it over ROI</span>
-      </div>
-
-      <div class="clv-explain">
-        <p><b>The idea.</b> When you bet UNDER 8.5 at −105 and the line later <i>closes</i> at
-          8.0 / −110, you <b>beat the close</b> — you locked a better number than the market's
-          final, sharpest price. Do that consistently and you're ahead of the market itself.</p>
-        <p><b>Why it beats ROI as a signal.</b> The closing line is the sharpest the market
-          ever gets — it's had all day and all the money to correct. Beating it is the earliest,
-          most reliable proof you're on the right side, and it stabilises far faster than win/loss.
-          100 bets of ROI is mostly noise; 100 bets of CLV is signal. That's why professionals
-          track it first.</p>
-        <p class="clv-key"><b>Reading it:</b> <span class="clv-good">above 50%</span> = you're
-          beating the market's close (durable). <span class="clv-neutral">~50%</span> = a coin-flip,
-          unconfirmed. <span class="clv-bad">below 50%</span> = the market is closing sharper than
-          your number — a warning, even if the ROI looks good.</p>
-      </div>
-
-      <div class="clv-cards">${cards}</div>
-
-      <div class="clv-howto">
-        <div class="clv-howto-hdr">How to use this</div>
-        <ul>
-          <li><b>Trust CLV above ROI.</b> A smaller return with a positive CLV is more bankable than a big return on a coin-flip CLV.</li>
-          <li><b>High ROI + weak CLV is a warning.</b> The profit is likely variance or a one-off mispricing, not a repeatable skill — don't size up on it.</li>
-          <li><b>Give CLV time.</b> A handful of games says little; the read gets trustworthy over dozens of graded closes.</li>
-        </ul>
-      </div>
-    </section>`;
 }
 
 // Season equity curve — cumulative units (flat 1u/bet) over the actionable plays.
@@ -1529,50 +1380,15 @@ function edgePlayCardHTML(g) {
     </div>`;
 }
 
-// Watch list: games that landed on a validated edge line but whose edge is watch-only
-// (boost 0) — historically positive, not currently bet. Rendered as a visible section, not
-// a collapsed accordion, so a day with no actionable plays still shows what's being tracked
-// rather than reading as empty. Each row names the edge and states plainly it isn't a bet.
-function edgeWatchHTML(games) {
-  if (!games.length) return '';
-  const rows = games.map(g => {
-    // Name the specific watch-only edge that fired (there may be several; take the first
-    // UNDER condition, which is what the game qualified on).
-    const cond = (g.edge_conditions || []).find(e => e.direction === 'UNDER') || {};
-    const def  = EDGE_DEFINITIONS[cond.tag];
-    const name = def?.name || cond.label || 'UNDER edge';
-    const total = g.odds?.total;
-    const time = g.game_time_et ? escapeHtml(g.game_time_et) : '';
-    return `
-      <div class="ef-watch-row">
-        <div class="ef-watch-row-top">
-          <span class="ef-watch-edge" title="${def ? escapeHtml(def.short) : ''}">${escapeHtml(name)}</span>
-          <span class="ef-watch-match">${escapeHtml(g.away_team)} @ ${escapeHtml(g.home_team)}</span>
-          <span class="ef-watch-time">${time}</span>
-        </div>
-        <div class="ef-watch-line">UNDER ${total ?? '—'}${g.odds?.under_price != null ? ` <span class="ef-watch-px">${g.odds.under_price > 0 ? '+' : ''}${g.odds.under_price}</span>` : ''}</div>
-        <div class="ef-play-status ef-status-watch">◦ Watch only — not a recommended bet, not in this season's headline (it still shows in the ${escapeHtml(name)} line's full record below)</div>
-      </div>`;
-  }).join('');
-  return `
-    <section class="ef-section">
-      <div class="ef-section-hdr">
-        <h2 class="ef-section-title">On the watch line</h2>
-        <span class="ef-section-count">${games.length} game${games.length !== 1 ? 's' : ''} · not bet</span>
-      </div>
-      <p class="ef-watch-intro">These landed on a validated edge line but on an edge we're <b>watching, not betting</b> — historically positive, but not clearing the bar this season (the 9.0 line reversed in 2026). Shown so you can see them, and track whether they'd have hit.</p>
-      <div class="ef-watch-rows">${rows}</div>
-    </section>`;
-}
-
 function edgesHowToHTML() {
   return `
     <details class="ef-howto">
       <summary>How to read this</summary>
       <div class="ef-howto-body">
-        <p>Each play is an UNDER bet that our model and several seasons of data agree the market has mispriced. We only surface bets that beat real closing odds across multiple seasons.</p>
-        <p><b>Confidence:</b> ⚡ Strong = positive multi-season ROI (push-corrected) · ★ Emerging = promising but 2026 only · ⚠ Watch = historically positive but down this season (not bet).</p>
-        <p><b>Track record</b> on each play is its validated multi-season ROI. <b>This season's results</b> below show how the edges have actually done in 2026 — including CLV, whether our bet-time line beat the closing line.</p>
+        <p>Each play is an UNDER bet that several seasons of closing-line data agree the market has mispriced. We only surface bets that beat real closing odds across multiple seasons.</p>
+        <p><b>The two edges:</b> both the <b>8.0</b> and <b>9.0</b> lines are validated UNDER spots — a blind UNDER at standard vig (−110 to −106) is positive across 2021–25 on each. Everything is graded on the closing line, so bet the price shown or better within that window.</p>
+        <p><b>Track record</b> on each play is its validated multi-season ROI. <b>This season's results</b> below show how the edges have actually done live in 2026 — which can run above or below the long-run rate (9.0 is running soft this year, 8.0 hot).</p>
+        <p><b>The reversion overlay (🔥) is 8.0-only, on purpose.</b> When both offenses are running hot vs their own norm, the 8.0 UNDER has historically hit at a higher rate — but we backtested the same signal on 9.0 and it <i>underperformed</i> the base, so it's applied to 8.0 alone.</p>
         <div class="ef-glossary">
           <div class="ef-glossary-hdr">The edge categories</div>
           ${Object.values(EDGE_DEFINITIONS).map(d => `
@@ -1611,12 +1427,11 @@ function todaysBandQualifiers(band) {
 }
 
 function edgeAuditCsv(band, rows) {
-  const head = 'date,season,gamePk,away,home,line,line_source,under_price,away_score,home_score,actual_total,result,units,running_units,model_leans_under';
+  const head = 'date,season,gamePk,away,home,closing_line,closing_under_price,away_score,home_score,actual_total,result,units,running_units';
   const body = rows.map(r => [
     r.date, r.season, r.gamePk, `"${r.away}"`, `"${r.home}"`,
-    r.line, r.lineSource, r.underPrice, r.awayScore, r.homeScore, r.actual,
+    r.line, r.underPrice, r.awayScore, r.homeScore, r.actual,
     r.won ? 'WIN' : 'LOSS', r.units.toFixed(4), r.cum.toFixed(4),
-    r.leansUnder == null ? '' : (r.leansUnder ? 'yes' : 'no'),
   ].join(',')).join('\n');
   return head + '\n' + body;
 }
@@ -1652,7 +1467,7 @@ function edgeAuditSectionHTML() {
 
   const universe = edgeAuditUniverse();
 
-  const blocks = EDGE_BANDS.map(band => {
+  const blocks = EDGE_BANDS.filter(b => b.tag).map(band => {   // only real edges (8.0, 9.0)
     const data = computeUnderEdge(band, universe);
     // Most recent first — verification starts from the latest games, and it puts the final
     // running total on the top row, where it should equal the headline units exactly.
@@ -1705,35 +1520,20 @@ function edgeAuditSectionHTML() {
         </table>`
       : `<div class="ea-audit-none">No game today lands on this line.</div>`;
 
-    // Two builds per season: every game on the line, and the subset the app actually flags
-    // under this band's own trigger (see EDGE_BANDS.flags — the bands differ).
-    const bySeasonLean = {};
-    for (const r of data.rows) {
-      if (!band.flags(r)) continue;
-      const s = bySeasonLean[r.season] || (bySeasonLean[r.season] = { bets: 0, wins: 0, units: 0 });
-      s.bets++; if (r.won) s.wins++; s.units += r.units;
-    }
-    const leanRows = data.rows.filter(r => band.flags(r));
-    const leanUnits = leanRows.reduce((a, r) => a + r.units, 0);
-    const leanRoi = leanRows.length ? leanUnits / leanRows.length * 100 : null;
-
-    let runningCum = 0, runningLean = 0;
+    let runningCum = 0;
     const seasonRows = Object.keys(data.bySeason).sort().map(yr => {
       const s = data.bySeason[yr];
-      const l = bySeasonLean[yr] || { bets: 0, wins: 0, units: 0 };
       const roi = s.bets ? s.units / s.bets * 100 : null;
-      const lroi = l.bets ? l.units / l.bets * 100 : null;
-      runningCum += s.units; runningLean += l.units;
+      const wr = s.bets ? s.wins / s.bets * 100 : null;
+      runningCum += s.units;
       const isLive = parseInt(yr) >= 2026;
       const cls = v => v == null ? '' : v >= 0 ? 'seg-pos' : 'seg-neg';
       return `<tr${isLive ? ' class="ea-audit-liverow"' : ''}>
         <td><strong>${yr}</strong>${isLive ? ' <span class="ea-audit-livetag">live</span>' : ''}</td>
         <td>${s.bets.toLocaleString()}</td>
+        <td>${wr == null ? '—' : wr.toFixed(1) + '%'}</td>
         <td class="${cls(roi)}">${roi == null ? '—' : (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%'}</td>
         <td class="${cls(runningCum)}">${(runningCum >= 0 ? '+' : '') + runningCum.toFixed(2)}u</td>
-        <td class="ea-audit-sep">${l.bets.toLocaleString()}</td>
-        <td class="${cls(lroi)}">${lroi == null ? '—' : (lroi >= 0 ? '+' : '') + lroi.toFixed(1) + '%'}</td>
-        <td class="${cls(runningLean)}">${(runningLean >= 0 ? '+' : '') + runningLean.toFixed(2)}u</td>
       </tr>`;
     }).join('');
 
@@ -1747,18 +1547,9 @@ function edgeAuditSectionHTML() {
       <td class="${r.won ? 'seg-pos' : 'seg-neg'}">${r.won ? 'WIN' : 'LOSS'}</td>
       <td class="${r.units >= 0 ? 'seg-pos' : 'seg-neg'}">${(r.units >= 0 ? '+' : '') + r.units.toFixed(2)}</td>
       <td class="ea-audit-cum ${r.cum >= 0 ? 'seg-pos' : 'seg-neg'}">${(r.cum >= 0 ? '+' : '') + r.cum.toFixed(2)}</td>
-      <td class="ea-audit-flag">${r.leansUnder ? '<span class="ea-audit-yes" title="Model also below the line — the app would have flagged this">✓</span>' : (r.leansUnder === null ? '<span class="ea-audit-src">?</span>' : '')}</td>
-      <td class="ea-audit-src">${r.lineSource === 'bet-time' ? 'bet-time' : 'closing'}</td>
     </tr>`).join('');
 
     const roiStr = data.roi == null ? '—' : (data.roi >= 0 ? '+' : '') + data.roi.toFixed(1) + '%';
-    const seasonsCovered = Object.keys(data.bySeason).sort();
-    const scope = seasonsCovered.length
-      ? `${seasonsCovered[0]}–${seasonsCovered[seasonsCovered.length - 1]}` : '—';
-
-    // No published-vs-recomputed reconcile box any more: every figure the app shows is now
-    // recomputed from this same data (edgeHistorical → computeUnderEdge), so there is no frozen
-    // constant left to drift against. The by-season table below is the transparency.
 
     return `
     <div class="ea-audit-band">
@@ -1769,15 +1560,10 @@ function edgeAuditSectionHTML() {
           <span class="${data.roi >= 0 ? 'seg-pos' : 'seg-neg'}">${roiStr}</span>
           · ${data.totalBets.toLocaleString()} graded
           · ${(data.totalUnits >= 0 ? '+' : '') + data.totalUnits.toFixed(2)}u
-          <span class="ea-audit-scope">line only</span>
-          &nbsp;|&nbsp;
-          <span class="${leanRoi == null ? '' : leanRoi >= 0 ? 'seg-pos' : 'seg-neg'}">${leanRoi == null ? '—' : (leanRoi >= 0 ? '+' : '') + leanRoi.toFixed(1) + '%'}</span>
-          · ${leanRows.length.toLocaleString()} flagged
-          <span class="ea-audit-scope">app trigger · ${scope}</span>
         </span>
       </div>
       ${EDGE_DEFINITIONS[band.tag] ? `<div class="ea-audit-def">${EDGE_DEFINITIONS[band.tag].long}</div>` : ''}
-      <div class="ea-audit-note">${band.note} Pushes are excluded as void, so "graded" is below the raw count of games on this line.</div>
+      <div class="ea-audit-note">${band.note} All seasons are graded on the closing line + closing odds; pushes are voided, so "graded" is below the raw count of games on this line.</div>
 
       <div class="ea-audit-subhdr">Today · ${todaysGameDateLabel()}</div>
       ${todayHTML}
@@ -1785,23 +1571,12 @@ function edgeAuditSectionHTML() {
       <div class="ea-audit-subhdr">Last 5 qualifying games${lastFiveLive ? ' · 2026' : ''}</div>
       ${lastFiveHTML}
 
-      <div class="ea-audit-subhdr">The build, by season</div>
+      <div class="ea-audit-subhdr">By season</div>
       <div class="bt-table-wrap">
         <table class="ea-audit-table">
-          <thead>
-            <tr>
-              <th></th>
-              <th colspan="3" class="ea-audit-grp">Line only (blind)</th>
-              <th colspan="3" class="ea-audit-grp ea-audit-sep">${band.flagLabel}</th>
-            </tr>
-            <tr><th>Season</th><th>n</th><th>ROI</th><th>Running</th><th class="ea-audit-sep">n</th><th>ROI</th><th>Running</th></tr>
-          </thead>
+          <thead><tr><th>Season</th><th>n</th><th>Win%</th><th>ROI</th><th>Running</th></tr></thead>
           <tbody>${seasonRows}</tbody>
         </table>
-      </div>
-      <div class="ea-audit-note">
-        <b>Line only</b> bets every game on this line. The second build applies this band's own
-        trigger from <code>detect_edges()</code> — the two bands do not share one. ${band.flagNote}
       </div>
 
       <div class="ea-audit-subhdr">
@@ -1810,11 +1585,11 @@ function edgeAuditSectionHTML() {
       </div>
       <div class="bt-table-wrap">
         <table class="ea-audit-table">
-          <thead><tr><th>Date</th><th>Matchup</th><th>Line</th><th>Under</th><th>Score</th><th>Total</th><th>Result</th><th>Units</th><th>Running</th><th title="Model also leaned under — the app would have flagged this">Flag</th><th>Line src</th></tr></thead>
+          <thead><tr><th>Date</th><th>Matchup</th><th>Line</th><th>Under</th><th>Score</th><th>Total</th><th>Result</th><th>Units</th><th>Running</th></tr></thead>
           <tbody>${gameRows}</tbody>
         </table>
       </div>
-      <div class="ea-audit-note">Newest first, so the top row's <b>Running</b> figure is the line-only band total — it should equal the units in the header. <b>Flag</b> ✓ = the model also leaned under, so the app would have surfaced it. <b>Line src</b>: <i>closing</i> = archived closing line (2022–25); <i>bet-time</i> = the line the pick was made at (2026, matching how the live scoreboard grades).</div>
+      <div class="ea-audit-note">Newest first, so the top row's <b>Running</b> figure is the band total — it equals the units in the header.</div>
       ${rows.length > EDGE_AUDIT_PAGE ? `
         <button class="ea-audit-more" onclick="toggleEdgeAudit('${band.key}')">
           ${showAll ? `Show only the most recent ${EDGE_AUDIT_PAGE}` : `Show all ${rows.length.toLocaleString()} games`}
@@ -1829,12 +1604,10 @@ function edgeAuditSectionHTML() {
     </div>
     <p class="ea-audit-intro">
       Every game counted in each edge's record — 2021 through the live 2026 season — with the
-      running unit total so you can see the ROI build rather than take it on faith. Today's
-      qualifiers are checked against the same rule as the historical rows. Seasons through 2025
-      are graded on archived <b>closing</b> lines; 2026 is graded on the <b>bet-time</b> line it
-      was actually picked at, which is how the live scoreboard grades it too. 2021's lineups are
-      neutral (no 2020 prior cache), so its lines count in the record but its model-lean is shown
-      as "?" — the edges are blind line bets, so this doesn't affect the headline figure.
+      running unit total, so you can see the ROI build rather than take it on faith. Every season
+      is graded on the <b>closing line + closing odds</b> (2021–25 from archived closing lines,
+      2026 from the captured close), and today's qualifiers use the same standard-vig rule as the
+      historical rows.
     </p>
     ${blocks}
   </section>`;
@@ -1850,43 +1623,46 @@ function renderEdgesView() {
   const el = document.getElementById('edges-view');
   const allGames = gamesData?.games || [];
   const preview = allGames.filter(g => g.edge_conditions?.length && (g.game_status || 'preview') === 'preview');
-  // 8.0 games are surfaced at ALL prices (playable / shop / weaker); 9.0 goes to the watch list.
-  const has8 = g => (g.edge_conditions || []).some(e => e.tag === 'UNDER_LINE_8_0');
-  const e8 = g => (g.edge_conditions || []).find(e => e.tag === 'UNDER_LINE_8_0') || {};
-  const ps8 = g => e8(g).price_status || 'playable';
-  const juice8 = g => (e8(g).reversion?.tier === 'juice') ? 0 : 1;   // juiced surfaces first
   const psRank = { playable: 0, shop: 1, weaker: 2 };
-  const eights = preview.filter(has8).sort((a, b) =>
-    (psRank[ps8(a)] - psRank[ps8(b)]) || (juice8(a) - juice8(b)) ||
-    String(a.game_time_utc || '').localeCompare(String(b.game_time_utc || '')));
-  const watch = preview.filter(g => !has8(g));   // 9.0-line games
+  const condOf = (g, tag) => (g.edge_conditions || []).find(e => e.tag === tag);
+  const psOf = (g, tag) => condOf(g, tag)?.price_status || 'playable';
+  // Juiced 8.0 plays surface first within the playable group (reversion overlay is 8.0-only).
+  const juice8 = g => (condOf(g, 'UNDER_LINE_8_0')?.reversion?.tier === 'juice') ? 0 : 1;
 
-  const playable = eights.filter(g => ps8(g) === 'playable').length;
-  const eightsHTML = eights.length
-    ? eights.map(edgePlayCardHTML).join('')
-    : `<div class="ef-empty">No game is on the 8.0 line today. The track record below still applies — check back, or set an alert.</div>`;
-  const countLabel = eights.length
-    ? `${eights.length} game${eights.length !== 1 ? 's' : ''} · ${playable} playable now`
-    : '0 games';
+  // One "Today's plays" section per edge line (8.0, then 9.0), each sorted playable-first.
+  const playsSection = (tag, lineLabel, tiebreak) => {
+    const games = preview.filter(g => condOf(g, tag)).sort((a, b) =>
+      (psRank[psOf(a, tag)] - psRank[psOf(b, tag)]) ||
+      (tiebreak ? tiebreak(a, b) : 0) ||
+      String(a.game_time_utc || '').localeCompare(String(b.game_time_utc || '')));
+    const playable = games.filter(g => psOf(g, tag) === 'playable').length;
+    const count = games.length
+      ? `${games.length} game${games.length !== 1 ? 's' : ''} · ${playable} playable now`
+      : '0 games';
+    const body = games.length
+      ? games.map(edgePlayCardHTML).join('')
+      : `<div class="ef-empty">No game is on the ${lineLabel} line today. The track record below still applies — check back, or set an alert.</div>`;
+    return `
+      <section class="ef-section">
+        <div class="ef-section-hdr">
+          <h2 class="ef-section-title">Today's UNDER ${lineLabel}</h2>
+          <span class="ef-section-count">${count}</span>
+        </div>
+        ${body}
+      </section>`;
+  };
 
   el.innerHTML = `
     <div class="view-header">
       <h1>Edges</h1>
-      <span class="sub-label">The validated UNDER 8.0 spot — surfaced whenever a game lands on it, so you can shop for the price.</span>
+      <span class="sub-label">Validated UNDER spots — surfaced whenever a game lands on the line, so you can shop for the price.</span>
     </div>
     ${edgesHowToHTML()}
-    <section class="ef-section">
-      <div class="ef-section-hdr">
-        <h2 class="ef-section-title">Today's UNDER 8.0</h2>
-        <span class="ef-section-count">${countLabel}</span>
-      </div>
-      ${eightsHTML}
-    </section>
-    ${edgeWatchHTML(watch)}
+    ${playsSection('UNDER_LINE_8_0', '8.0', (a, b) => juice8(a) - juice8(b))}
+    ${playsSection('UNDER_LINE_9_0', '9.0')}
     <section class="ef-section">
       ${edgeScoreboardHTML()}
     </section>
-    ${clvSectionHTML(scoreboardData)}
     ${edgeAuditSectionHTML()}
     <div class="data-footer">
       <span id="data-footer-text">${dataFooterText()}</span>
@@ -1924,9 +1700,9 @@ function renderSupportView() {
           recent data. Most betting angles fail that bar. We've run season-by-season ROI
           backtests (2021–2026) on every bet type and model signal the app produces; the table
           below summarizes what we found and why most are shown as informational context rather
-          than recommended picks. The main angle that clears the bar is the UNDER on
-          specific low total lines — notably 8.0 at standard vig — which is push-corrected +5.5%
-          and profitable in 4 of 6 seasons, and forms the basis of the recommended edges.
+          than recommended picks. The angles that clear the bar are the UNDER on specific low
+          total lines at standard vig — 8.0 (+6.0%) and 9.0 (+6.8%) across 2021–25, push-corrected
+          and graded on the closing line — which form the basis of the recommended edges.
           Everything else either failed validation, was driven by a single lucky season, or proved
           statistically indistinguishable from random noise. (All ROI voids pushes — totals landing
           exactly on the line — which we found had previously been miscounted as wins.)
@@ -1934,8 +1710,9 @@ function renderSupportView() {
         <table class="val-table">
           <thead><tr><th>Bet / Angle</th><th>What the data showed</th><th>Status</th></tr></thead>
           <tbody>
-            <tr><td>UNDER total = 8.0 (standard vig)</td><td>Solidly positive across seasons, push-corrected — live figure on the Edges tab</td><td><span class="val-tag val-yes">Active edge</span></td></tr>
-            <tr><td>UNDER total = 9.0</td><td>Marginal historically and down in 2026 — see the Edges tab</td><td><span class="val-tag val-watch">Watch only</span></td></tr>
+            <tr><td>UNDER total = 8.0 (standard vig)</td><td>+6.0% across 2021–25, push-corrected, 5 of 6 seasons positive — live figure on the Edges tab</td><td><span class="val-tag val-yes">Active edge</span></td></tr>
+            <tr><td>UNDER total = 9.0 (standard vig)</td><td>+6.8% across 2021–25, comparable to 8.0 — graded the same way; 2026 is running below its historical rate</td><td><span class="val-tag val-yes">Active edge</span></td></tr>
+            <tr><td>Team-reversion overlay on 9.0</td><td>The 8.0 "both offenses hot" signal was re-tested on 9.0 and the hot bucket underperformed the base — kept 8.0-only</td><td><span class="val-tag val-no">Not applied</span></td></tr>
             <tr><td>Model–Vegas total gap (UNDER)</td><td>Looked strong in 2026, but un-anchoring the model and testing 2022–25 showed −4.7% (worse than a blind under); the one positive threshold was a single season</td><td><span class="val-tag val-no">Not used</span></td></tr>
             <tr><td>Moneyline — "Elite Away"</td><td>Overfit: ~+14% in-sample vs ~−12% out-of-sample</td><td><span class="val-tag val-no">Not used</span></td></tr>
             <tr><td>Moneyline — "High Confidence"</td><td>64% win rate but −2% ROI (favorites don't pay)</td><td><span class="val-tag val-no">Not used</span></td></tr>
