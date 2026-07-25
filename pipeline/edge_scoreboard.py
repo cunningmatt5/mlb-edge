@@ -106,11 +106,13 @@ def build_scoreboard() -> dict:
     raw = json.loads(HISTORY.read_text(encoding="utf-8")) if HISTORY.exists() else []
     recs = raw if isinstance(raw, list) else raw.get("games", [])
 
+    # NOTE: predicted_total is deliberately NOT required. The 8.0/9.0 edges fire on the line +
+    # price alone (detect_edges ignores predicted_total), so gating on it wrongly dropped resolved
+    # std-vig plays on days the model didn't run (e.g. the May 24-26 2026 cluster).
     usable = [
         r for r in recs
         if r.get("total_went_over") is not None
         and r.get("vegas_total") is not None
-        and r.get("predicted_total") is not None
         and r.get("under_price") is not None
     ]
     cutoff = None
@@ -130,7 +132,7 @@ def build_scoreboard() -> dict:
 
     # Chronological so each accumulator's results[] (and thus Last-10) reads oldest→newest.
     for r in sorted(usable, key=lambda r: (r.get("date", ""), r.get("gamePk", 0))):
-        edges = detect_edges(r["vegas_total"], r["predicted_total"], r["under_price"])
+        edges = detect_edges(r["vegas_total"], r.get("predicted_total"), r["under_price"])
         under_edges = [e for e in edges if e["direction"] == "UNDER"]
         if not under_edges:
             continue
