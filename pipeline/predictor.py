@@ -827,6 +827,17 @@ def build_game(
         park_run_factor, weather_mod,
         vegas_total=vegas_total,
     )
+    # Anchor-free run estimate — the model's OWN view, ignoring the Vegas line. Used only by
+    # the Model–Vegas Gap edge, where the whole point is a genuine model-vs-market disagreement:
+    # the anchored predicted_total above hugs the line and can't disagree by much. Display and
+    # win-prob keep using the anchored number (better calibrated, AUC 0.64 vs 0.60).
+    raw_home, raw_away = _predicted_runs(
+        home_lineup_score, away_lineup_score,
+        home_pitcher_score, away_pitcher_score,
+        park_run_factor, weather_mod,
+        vegas_total=None,
+    )
+    predicted_total_raw = round(raw_home + raw_away, 1)
 
     # Umpire run-tendency correction: add career tendency above/below league avg.
     # Applied after anchoring so it represents residual signal beyond what Vegas priced.
@@ -898,6 +909,7 @@ def build_game(
             "predicted_home_runs": pred_home,
             "predicted_away_runs": pred_away,
             "predicted_total":    round(pred_home + pred_away, 1),
+            "predicted_total_raw": predicted_total_raw,
             "narrative":          narrative,
             "model_home_win_pct": model_home_win_pct,
             "model_away_win_pct": model_away_win_pct,

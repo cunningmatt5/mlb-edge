@@ -49,14 +49,13 @@ EDGE_METADATA: dict[str, dict] = {
         "confidence": "watch",
         "signal_boost": 0.0,   # do not move live signals: marginal historically, negative live
     },
-    "UNDER_MODEL_DEV": {
-        "tag":        "UNDER_MODEL_DEV",
-        "label":      "Under Edge: Model–Vegas Gap",
-        "direction":  "UNDER",
-        "bet_type":   "TOTAL",
-        "confidence": "emerging",
-        "signal_boost": 0.3,   # single season, small sample → modest boost
-    },
+    # UNDER_MODEL_DEV (Model–Vegas Gap) was DEMOTED and removed after un-anchoring the model
+    # prediction (predicted_total_raw) and testing it historically: at its 0.75-run threshold it
+    # was -4.7% over 2022-2025 (worse than a blind under), and the only positive threshold (>=1.5)
+    # was 75% one season (2023) and flipped negative on any nearby cut. The 2026 "+35.8%" that
+    # made it look emerging used the Vegas-anchored total, which structurally can't disagree by
+    # much and never fired pre-2026 — a small-sample artifact. The market prices totals
+    # efficiently (see score_prediction). Kept as disclosure in the app's "what we tested" table.
 }
 
 
@@ -121,15 +120,5 @@ def detect_edges(
         e["under_price"] = under_price
         matched.append(e)
 
-    # Model–Vegas gap — emerging, 2026-only, concentrated at lines ≤9.0. Fills the gap at
-    # the 8.5/9.0 lines where the 8.0 edge doesn't fire.
-    if (
-        predicted_total is not None
-        and closing_total <= 9.0
-        and (predicted_total - closing_total) <= -0.75
-    ):
-        e = dict(EDGE_METADATA["UNDER_MODEL_DEV"])
-        e["under_price"] = under_price
-        matched.append(e)
-
+    # (No Model–Vegas Gap edge — demoted; see EDGE_METADATA note above.)
     return matched

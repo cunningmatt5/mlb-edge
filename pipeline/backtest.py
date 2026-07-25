@@ -310,6 +310,17 @@ def score_game(
         park_run_factor, 0.0,
         vegas_total=bt_vegas_total,
     )
+    # Anchor-free estimate (ignores the Vegas line) — lets the Model–Vegas Gap edge be measured
+    # on a GENUINE model-vs-market disagreement historically, not the anchored total that hugs
+    # the line. Only meaningful where real lineups were scored (2022+); neutral-0.5 games give a
+    # league-average raw total, which is fine (they simply won't clear the ±0.75 gap by skill).
+    raw_home, raw_away = _predicted_runs(
+        home_lineup_score, away_lineup_score,
+        home_pitcher_score, away_pitcher_score,
+        park_run_factor, 0.0,
+        vegas_total=None,
+    )
+    predicted_total_raw = round(raw_home + raw_away, 1)
 
     actual_home = game["home_score"]
     actual_away = game["away_score"]
@@ -334,6 +345,7 @@ def score_game(
         "home_score":        actual_home,
         "away_score":        actual_away,
         "predicted_total":   round(pred_home + pred_away, 1),
+        "predicted_total_raw": predicted_total_raw,
         "actual_total":      actual_home + actual_away,
         "pitcher_score_home": round(home_pitcher_score, 3),
         "pitcher_score_away": round(away_pitcher_score, 3),

@@ -1007,15 +1007,9 @@ const EDGE_DEFINITIONS = {
       guide: 'Fires on the line alone, so any price qualifies — a cheaper under price only helps. (Watch edge, not a core play.)',
     },
   },
-  UNDER_MODEL_DEV: {
-    name: 'Model–Vegas Gap',
-    short: 'The model projects at least 0.75 runs below a total of 9.0 or lower — a wide disagreement with the market.',
-    long: 'Fires when the model projects at least 0.75 runs FEWER than the Vegas total, at any line of 9.0 or below. It is the disagreement itself that is the signal: the bigger the gap between our projection and the market, the stronger the lean UNDER. Unlike the 8.0/9.0 edges it is not tied to one line — it catches a mispriced total wherever the model sees one. Emerging: 2026 is the first season the model prediction is anchor-free enough to test this, so the sample is still small.',
-    price: {
-      lo: -120, hi: null, window: 'down to −120', best: 'the cheapest under you can find',
-      guide: 'The disagreement is the signal at any fair price — a cheaper under is better. Skip only heavy juice worse than −120, where the vig starts to eat the gap.',
-    },
-  },
+  // UNDER_MODEL_DEV (Model–Vegas Gap) removed — demoted after un-anchoring the prediction and
+  // testing it historically (−4.7% at its threshold; the one positive cut was a single season).
+  // See the "what we tested" table in Support for the disclosure.
 };
 
 // Is a live under-price inside an edge's payable window? lo = steepest acceptable (most
@@ -1036,9 +1030,9 @@ const fmtOdds = v => v == null ? '—' : (v > 0 ? `+${v}` : `${v}`);
 // belongs to its record. `qualifies` defines the universe the ROI is built from; `flags`
 // mirrors detect_edges() in pipeline/analytics/edge_detector.py — what the app would
 // actually have surfaced. The edges do NOT share a trigger: 8.0 additionally requires the
-// model below the line, 9.0 deliberately fires on the line alone (the model filter measured
-// worse there), and the model-gap edge is not a line band at all. Keep these in step with
-// edge_detector.py — if they drift, the audit misstates what the app does.
+// model below the line, while 9.0 deliberately fires on the line alone (the model filter
+// measured worse there). Keep these in step with edge_detector.py — if they drift, the audit
+// misstates what the app does. (The Model–Vegas Gap edge was demoted; see the note below.)
 const EDGE_BANDS = [
   {
     key: 'u80', label: 'UNDER · Total = 8.0', tag: 'UNDER_LINE_8_0',
@@ -1064,14 +1058,8 @@ const EDGE_BANDS = [
     flagNote: 'The app flags 9.0 on the line alone — the model-lean filter measured worse here, so it is deliberately not applied. The two builds are therefore identical; the per-row model-lean mark is reference only.',
     flags: () => true,
   },
-  {
-    key: 'udev', label: 'UNDER · Model–Vegas gap', tag: 'UNDER_MODEL_DEV',
-    qualifies: r => r.line <= 9.0 && r.predicted_total != null && (r.predicted_total - r.line) <= -0.75,
-    note: 'Not a line band: fires wherever the model sits ≥0.75 runs below a total of 9.0 or lower. Emerging — 2026 is the only season the model prediction is anchor-free enough to test.',
-    flagLabel: 'what the app flags',
-    flagNote: 'The gap condition is itself the trigger, so both builds are identical.',
-    flags: () => true,
-  },
+  // Model–Vegas Gap band removed — the edge was demoted after un-anchoring the prediction and
+  // testing it historically (−4.7% at threshold; the one positive cut was a single season).
 ];
 
 // Std-vig band for the 8.0 edge: [-110, -106].
@@ -2144,10 +2132,6 @@ function _recLine(e) {
 function _whyLine(g, e) {
   const total = g.odds?.total, pred = g.prediction?.predicted_total;
   if (total == null || pred == null) return 'A validated under edge on this total line.';
-  if (e.tag === 'UNDER_MODEL_DEV') {
-    const gap = (total - pred).toFixed(1);
-    return `Our model projects ${pred.toFixed(1)} runs — ${gap} below the ${total} line.`;
-  }
   return `Our model projects ${pred.toFixed(1)} runs — under the ${total} line.`;
 }
 
@@ -2601,7 +2585,7 @@ function renderSupportView() {
           <tbody>
             <tr><td>UNDER total = 8.0 (standard vig)</td><td>Solidly positive across seasons, push-corrected — live figure on the Edges tab</td><td><span class="val-tag val-yes">Active edge</span></td></tr>
             <tr><td>UNDER total = 9.0</td><td>Marginal historically and down in 2026 — see the Edges tab</td><td><span class="val-tag val-watch">Watch only</span></td></tr>
-            <tr><td>Model–Vegas total gap (UNDER)</td><td>Strong in 2026 but only one season of data</td><td><span class="val-tag val-watch">Emerging</span></td></tr>
+            <tr><td>Model–Vegas total gap (UNDER)</td><td>Looked strong in 2026, but un-anchoring the model and testing 2022–25 showed −4.7% (worse than a blind under); the one positive threshold was a single season</td><td><span class="val-tag val-no">Not used</span></td></tr>
             <tr><td>Moneyline — "Elite Away"</td><td>Overfit: ~+14% in-sample vs ~−12% out-of-sample</td><td><span class="val-tag val-no">Not used</span></td></tr>
             <tr><td>Moneyline — "High Confidence"</td><td>64% win rate but −2% ROI (favorites don't pay)</td><td><span class="val-tag val-no">Not used</span></td></tr>
             <tr><td>Monte Carlo divergence</td><td>No predictive edge; mildly anti-predictive on the moneyline</td><td><span class="val-tag val-no">Not used</span></td></tr>
