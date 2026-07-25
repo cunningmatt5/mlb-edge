@@ -956,30 +956,8 @@ function predictionHTML(g) {
     <span>${g.away_team} <strong>${pred.predicted_away_runs}</strong></span>
     <span class="score-dash">–</span>
     <span><strong>${pred.predicted_home_runs}</strong> ${g.home_team}</span>
-    ${(() => {
-      const mc = g.mc_simulation;
-      const modelTotal = pred.predicted_total;
-      if (mc && mc.mc_total != null && modelTotal != null) {
-        const diff = Math.abs(mc.mc_total - modelTotal);
-        const diffCls = diff >= 1.5 ? 'mc-total-hi' : 'mc-total-lo';
-        return `<span class="total-label">Model <strong>${modelTotal}</strong> · <span class="mc-total-lbl ${diffCls}">Sim ${mc.mc_total}</span></span>`;
-      }
-      return `<span class="total-label">Total: ${modelTotal}</span>`;
-    })()}
+    ${pred.predicted_total != null ? `<span class="total-label">Total: ${pred.predicted_total}</span>` : ''}
   </div>` : ''}
-
-  ${(() => {
-    const mc = g.mc_simulation;
-    const status = g.game_status || 'preview';
-    if (!mc || status !== 'preview') return '';
-    const modelHome = _wp.mw;   // our model — consistent with the bar above
-    if (mc.mc_win_pct == null) return '';
-    const gapPp = Math.round(Math.abs(mc.mc_win_pct - modelHome) * 100);
-    if (gapPp < 8) return '';
-    // Exploratory only — a 2024-25 backtest found MC divergence does NOT predict
-    // outcomes, so this is shown as neutral info, not a betting signal.
-    return `<div class="mc-diverge mc-div-info" title="Statcast-pure sim vs the model — exploratory only; divergence is NOT a validated betting signal">◇ Sim ${Math.round(mc.mc_win_pct * 100)}% vs model ${Math.round(modelHome * 100)}% home <span class="mc-div-gap">${gapPp}pp</span></div>`;
-  })()}
 
   ${vsVegasHTML(g)}
 
@@ -2621,12 +2599,12 @@ function renderSupportView() {
         <table class="val-table">
           <thead><tr><th>Bet / Angle</th><th>What the data showed</th><th>Status</th></tr></thead>
           <tbody>
-            <tr><td>UNDER total = 8.0 (standard vig)</td><td>+5.5% ROI, profitable 4 of 6 seasons (2021–26), push-corrected</td><td><span class="val-tag val-yes">Active edge</span></td></tr>
-            <tr><td>UNDER total = 9.0</td><td>Only +2.6% 2021–25 (push-corrected), then −11.3% in 2026</td><td><span class="val-tag val-watch">Watch only</span></td></tr>
-            <tr><td>Model–Vegas total gap (UNDER)</td><td>+36% in 2026 but only one season of data</td><td><span class="val-tag val-watch">Emerging</span></td></tr>
+            <tr><td>UNDER total = 8.0 (standard vig)</td><td>Solidly positive across seasons, push-corrected — live figure on the Edges tab</td><td><span class="val-tag val-yes">Active edge</span></td></tr>
+            <tr><td>UNDER total = 9.0</td><td>Marginal historically and down in 2026 — see the Edges tab</td><td><span class="val-tag val-watch">Watch only</span></td></tr>
+            <tr><td>Model–Vegas total gap (UNDER)</td><td>Strong in 2026 but only one season of data</td><td><span class="val-tag val-watch">Emerging</span></td></tr>
             <tr><td>Moneyline — "Elite Away"</td><td>Overfit: ~+14% in-sample vs ~−12% out-of-sample</td><td><span class="val-tag val-no">Not used</span></td></tr>
             <tr><td>Moneyline — "High Confidence"</td><td>64% win rate but −2% ROI (favorites don't pay)</td><td><span class="val-tag val-no">Not used</span></td></tr>
-            <tr><td>Monte Carlo divergence</td><td>No predictive edge; mildly anti-predictive on the moneyline</td><td><span class="val-tag val-no">Informational</span></td></tr>
+            <tr><td>Monte Carlo divergence</td><td>No predictive edge; mildly anti-predictive on the moneyline</td><td><span class="val-tag val-no">Not used</span></td></tr>
             <tr><td>Player props (HR / Hit / K)</td><td>−EV on hit rate; real-odds validation now in progress</td><td><span class="val-tag val-watch">Testing</span></td></tr>
             <tr><td>Pitcher moneyline "consistent edge"</td><td>Zero persistence (r ≈ 0) — small-sample noise</td><td><span class="val-tag val-no">Removed</span></td></tr>
             <tr><td>Team totals</td><td>No skill vs a fair line (+0.4 pp over a blind bet)</td><td><span class="val-tag val-no">Not pursued</span></td></tr>
@@ -2634,24 +2612,6 @@ function renderSupportView() {
         </table>
       </div>
 
-      <div class="support-section">
-        <h2 class="support-section-title">Monte Carlo Simulations</h2>
-        <p class="support-body">
-          The Monte Carlo simulation plays out your selected game 100,000 times from scratch,
-          stepping through every single at-bat using real Statcast data for each batter and
-          pitcher in the lineup. On each plate appearance, the model calculates the probability
-          of a strikeout, walk, or ball in play for that specific matchup — blending the batter's
-          tendencies, the pitcher's tendencies, and a league baseline using a formula called Log5.
-          If the ball is put in play, the model rolls for a home run based on the batter's barrel
-          rate and park factor, or otherwise determines whether it becomes a hit or an out using
-          real batting-average-on-balls-in-play rates, then advances baserunners around the
-          diamond accordingly. After 9 innings, one simulated score is recorded; after 100,000
-          games, the model counts how often each team won, tallies the full run-scoring
-          distribution, and compares total runs to the Vegas line to compute an over/under
-          probability. The percentages you see are empirical frequencies from a very large sample
-          of statistically rigorous plate appearances — not gut feelings or adjusted team ratings.
-        </p>
-      </div>
 
     </div>`;
 }
