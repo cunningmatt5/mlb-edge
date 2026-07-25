@@ -2210,13 +2210,38 @@ function edgePlayCardHTML(g) {
   // a stronger UNDER at 8.0 (top-20% +12.1% vs +4.5% base). Underpowered, so framed as emerging
   // and forward-tracked, not a promise. Only present on 8.0 games (pipeline attaches it there).
   const rev = top?.reversion;
-  const revBlock = (rev && rev.tier) ? `
+  let revBlock = '';
+  if (rev && rev.tier) {
+    const o3 = x => x.toFixed(3).replace(/^0/, '');                       // .750 (baseball style)
+    const sOps = x => (x >= 0 ? '+' : '-') + Math.abs(x).toFixed(3).replace(/^0/, '');
+    const sRuns = x => (x >= 0 ? '+' : '-') + Math.abs(x).toFixed(1);
+    const isJuice = rev.tier === 'juice';
+    // Per-team drivers: show which offense is hot, on which metric, by how much. Deltas are
+    // computed from the displayed rounded components so they always visually add up.
+    const teamRows = (rev.teams || []).map(t => {
+      const dOps = t.ops_l5 - t.ops_l20, dRuns = t.runs_l10 - t.runs_std;
+      const kOps = dOps > 0 ? 'rev-up' : (dOps < 0 ? 'rev-dn' : '');
+      const kRuns = dRuns > 0 ? 'rev-up' : (dRuns < 0 ? 'rev-dn' : '');
+      return `
+        <div class="ef-rev-team">
+          <span class="ef-rev-tname">${escapeHtml(t.name)}</span>
+          <span class="ef-rev-metric">OPS ${o3(t.ops_l5)}<span class="ef-rev-sub">L5</span> vs ${o3(t.ops_l20)}<span class="ef-rev-sub">L20</span> <b class="${kOps}">${sOps(dOps)}</b></span>
+          <span class="ef-rev-metric">${t.runs_l10.toFixed(1)}<span class="ef-rev-sub">R/g L10</span> vs ${t.runs_std.toFixed(1)}<span class="ef-rev-sub">season</span> <b class="${kRuns}">${sRuns(dRuns)}</b></span>
+        </div>`;
+    }).join('');
+    revBlock = `
       <div class="ef-play-rev ef-rev-${rev.tier}">
-        <span class="ef-rev-badge">${rev.tier === 'juice' ? '🔥 Reversion juice' : '↗ Offenses hot'}</span>
-        Both offenses are hot vs their season norm${rev.tier === 'juice'
-          ? ' — historically a stronger UNDER here. Emerging (small sample, forward-tracking), not a guarantee.'
-          : ' — a mild extra lean.'}
-      </div>` : '';
+        <div class="ef-rev-hdr">
+          <span class="ef-rev-badge">${isJuice ? '🔥 Reversion juice' : '↗ Offenses leaning hot'}</span>
+          <span class="ef-rev-score" title="Combined z-score of both offenses' recent scoring vs their own baseline, standardized on the 2021-25 sample. ${isJuice ? '≥1.37 = top ~20% of games.' : '≥0.69 = top ~33%.'}">rev ${rev.rev_score >= 0 ? '+' : ''}${rev.rev_score} · ${isJuice ? 'top-20%' : 'top-33%'}</span>
+        </div>
+        <div class="ef-rev-why">Both offenses are running above their <b>own</b> recent baseline — the model expects them to cool toward norm, favoring the UNDER. Drivers:</div>
+        <div class="ef-rev-teams">${teamRows}</div>
+        <div class="ef-rev-caveat">${isJuice
+          ? 'Backtest: the top-20% reversion 8.0s cashed UNDER at ~+12% ROI (2021-25) — but small (n≈82) and not yet confirmed live. An overlay on the 8.0 edge, forward-tracked. Not a guarantee.'
+          : 'Softer lean (top-33%, ~+8% backtest). Same caveats — emerging, underpowered, forward-tracked.'}</div>
+      </div>`;
+  }
 
   return `
     <div class="ef-play ef-play-${status}${rev && rev.tier === 'juice' ? ' ef-play-juiced' : ''}">

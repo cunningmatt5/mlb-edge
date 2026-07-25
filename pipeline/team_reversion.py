@@ -79,7 +79,9 @@ def _team_signal(games: list[tuple[str, float, float]]) -> dict | None:
     ops_l20 = sum(ops[-20:]) / 20
     runs_l10 = sum(runs[-10:]) / 10
     runs_std = sum(runs) / len(runs)          # season-to-date
-    return {"ops_hot": ops_l5 - ops_l20, "runs_hot": runs_l10 - runs_std, "n": len(games)}
+    return {"ops_hot": ops_l5 - ops_l20, "runs_hot": runs_l10 - runs_std, "n": len(games),
+            # raw components so the UI can show WHAT drives the signal, not just a verdict.
+            "ops_l5": ops_l5, "ops_l20": ops_l20, "runs_l10": runs_l10, "runs_std": runs_std}
 
 
 def build_signals(season: int) -> dict[str, dict]:
@@ -105,9 +107,11 @@ def build_signals(season: int) -> dict[str, dict]:
 
 
 def game_reversion(home_team: str, away_team: str, signals: dict[str, dict]) -> dict | None:
-    """Combine both offenses -> {rev_score, tier, ops_hot, runs_hot} or None if data missing.
+    """Combine both offenses -> {rev_score, tier, teams:[away, home]} or None if data missing.
 
     tier: 'juice' (top-20% reversion, the +12.1% slice) | 'warm' (top-33%) | None.
+    Each team carries its raw trailing components (ops L5 vs L20, runs/g L10 vs season) so the UI
+    can show exactly WHICH offense is hot and on WHICH metric — not just the combined verdict.
     """
     h, a = signals.get(home_team), signals.get(away_team)
     if not h or not a:
@@ -118,11 +122,21 @@ def game_reversion(home_team: str, away_team: str, signals: dict[str, dict]) -> 
     z_runs = (game_runs - _RUNS_MEAN) / _RUNS_STD
     rev = z_ops + z_runs
     tier = "juice" if rev >= _JUICE_THRESHOLD else ("warm" if rev >= _WARM_THRESHOLD else None)
+
+    def _team(name: str, s: dict) -> dict:
+        return {
+            "name": name,
+            "ops_l5": round(s["ops_l5"], 3), "ops_l20": round(s["ops_l20"], 3),
+            "ops_hot": round(s["ops_hot"], 3),
+            "runs_l10": round(s["runs_l10"], 1), "runs_std": round(s["runs_std"], 1),
+            "runs_hot": round(s["runs_hot"], 1),
+        }
+
     return {
         "rev_score": round(rev, 2),
         "tier": tier,
-        "game_ops_hot": round(game_ops, 4),
-        "game_runs_hot": round(game_runs, 3),
+        # away first, home second — matches the "Away @ Home" card layout.
+        "teams": [_team(away_team, a), _team(home_team, h)],
     }
 
 
