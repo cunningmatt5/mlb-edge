@@ -480,20 +480,18 @@ function edgePerfSummaryHTML() {
   const pctStr = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
   const rows = edges.map(e => {
     const wins = Math.round((e.win_pct || 0) / 100 * (e.n || 0));
-    const clv = e.clv_beat_pct != null ? `${Math.round(e.clv_beat_pct)}%` : '—';
     const live = e.n ? `${wins}–${e.n - wins} <span class="${pctCls(e.roi_pct)}">${pctStr(e.roi_pct)}</span>` : '—';
     const h = edgeHistorical(e.tag);   // live-recomputed validated ROI, not a frozen constant
     return `<tr>
       <td class="ep-name">${e.label || e.tag} ${confTag(e.confidence)}</td>
       <td class="${pctCls(h ? h.roi : null)}">${pctStr(h ? h.roi : null)}</td>
       <td>${live}</td>
-      <td>${clv}</td>
     </tr>`;
   }).join('');
   return `<div class="section-heading">Edge performance <span class="scope-tag">validated + live</span></div>
-    <p class="rec-priced-note">The only bet-and-tracked edges. <b>Validated</b> = multi-season push-corrected ROI; <b>2026</b> = realized this season (small samples are noisy). CLV = % of bets that beat the closing line. Full detail in the <b>Edges</b> tab.</p>
+    <p class="rec-priced-note">The only bet-and-tracked edges. <b>Validated</b> = multi-season push-corrected ROI, graded on the closing line; <b>2026</b> = realized this season (small samples are noisy). Full detail in the <b>Edges</b> tab.</p>
     <table class="season-year-table">
-      <thead><tr><th>Edge</th><th>Validated</th><th>2026 (rec · ROI)</th><th>CLV</th></tr></thead>
+      <thead><tr><th>Edge</th><th>Validated</th><th>2026 (rec · ROI)</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
 }
