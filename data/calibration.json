@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-02T04:31:55.328233+00:00",
+  "generated_at": "2026-09-02T08:58:52.409507+00:00",
   "seasons_used": [
     2021,
     2022,
@@ -8,36 +8,36 @@
     2025,
     2026
   ],
-  "total_graded": 16169,
+  "total_graded": 16171,
   "source_breakdown": {
-    "historical_backtest": 14216,
+    "historical_backtest": 14218,
     "live_history": 1953
   },
   "platt_params": {
-    "a": 0.711231,
-    "b": 0.046481
+    "a": 0.711501,
+    "b": 0.046205
   },
   "logistic_params": {
     "midpoint": 7.5,
     "slope": 0.45
   },
   "brier_score": {
-    "raw_model": 0.246231,
-    "calibrated": 0.245456
+    "raw_model": 0.24623,
+    "calibrated": 0.245457
   },
   "overall_win_rate": 0.5553,
   "win_rates_by_confidence": {
     "50-55%": {
-      "n": 8323,
-      "win_rate": 0.5029
+      "n": 8314,
+      "win_rate": 0.5031
     },
     "55-60%": {
-      "n": 5307,
-      "win_rate": 0.535
+      "n": 5320,
+      "win_rate": 0.5342
     },
     "60-65%": {
-      "n": 2052,
-      "win_rate": 0.5965
+      "n": 2050,
+      "win_rate": 0.5971
     },
     "65%+": {
       "n": 487,
@@ -48,32 +48,32 @@
     {
       "bin": "0.20-0.30",
       "n": 3,
-      "model_prob_mean": 0.2949,
+      "model_prob_mean": 0.2948,
       "actual_win_rate": 0.3333
     },
     {
       "bin": "0.30-0.40",
-      "n": 374,
-      "model_prob_mean": 0.3761,
-      "actual_win_rate": 0.4064
+      "n": 377,
+      "model_prob_mean": 0.3762,
+      "actual_win_rate": 0.4085
     },
     {
       "bin": "0.40-0.50",
-      "n": 4882,
+      "n": 4890,
       "model_prob_mean": 0.4641,
-      "actual_win_rate": 0.465
+      "actual_win_rate": 0.4646
     },
     {
       "bin": "0.50-0.60",
-      "n": 8748,
+      "n": 8744,
       "model_prob_mean": 0.5467,
       "actual_win_rate": 0.5436
     },
     {
       "bin": "0.60-0.70",
-      "n": 2116,
-      "model_prob_mean": 0.6292,
-      "actual_win_rate": 0.6371
+      "n": 2111,
+      "model_prob_mean": 0.6293,
+      "actual_win_rate": 0.6376
     },
     {
       "bin": "0.70-0.80",
