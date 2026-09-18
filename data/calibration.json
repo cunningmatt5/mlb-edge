@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-18T04:44:11.458324+00:00",
+  "generated_at": "2026-09-18T13:49:18.528374+00:00",
   "seasons_used": [
     2021,
     2022,
@@ -14,66 +14,66 @@
     "live_history": 2148
   },
   "platt_params": {
-    "a": 0.720682,
-    "b": 0.046414
+    "a": 0.720792,
+    "b": 0.046423
   },
   "logistic_params": {
     "midpoint": 7.5,
     "slope": 0.45
   },
   "brier_score": {
-    "raw_model": 0.246092,
-    "calibrated": 0.245367
+    "raw_model": 0.24609,
+    "calibrated": 0.245365
   },
   "overall_win_rate": 0.5559,
   "win_rates_by_confidence": {
     "50-55%": {
-      "n": 8500,
-      "win_rate": 0.5026
+      "n": 8498,
+      "win_rate": 0.5027
     },
     "55-60%": {
-      "n": 5422,
-      "win_rate": 0.5343
+      "n": 5424,
+      "win_rate": 0.5341
     },
     "60-65%": {
-      "n": 2127,
-      "win_rate": 0.5999
+      "n": 2126,
+      "win_rate": 0.5997
     },
     "65%+": {
-      "n": 527,
-      "win_rate": 0.6243
+      "n": 528,
+      "win_rate": 0.625
     }
   },
   "calibration_curve": [
     {
       "bin": "0.20-0.30",
       "n": 4,
-      "model_prob_mean": 0.2941,
+      "model_prob_mean": 0.294,
       "actual_win_rate": 0.5
     },
     {
       "bin": "0.30-0.40",
-      "n": 397,
-      "model_prob_mean": 0.3754,
-      "actual_win_rate": 0.4156
+      "n": 396,
+      "model_prob_mean": 0.3753,
+      "actual_win_rate": 0.4167
     },
     {
       "bin": "0.40-0.50",
-      "n": 4988,
+      "n": 4992,
       "model_prob_mean": 0.4639,
-      "actual_win_rate": 0.4649
+      "actual_win_rate": 0.4647
     },
     {
       "bin": "0.50-0.60",
-      "n": 8934,
+      "n": 8930,
       "model_prob_mean": 0.5467,
-      "actual_win_rate": 0.5429
+      "actual_win_rate": 0.543
     },
     {
       "bin": "0.60-0.70",
-      "n": 2200,
+      "n": 2201,
       "model_prob_mean": 0.6297,
-      "actual_win_rate": 0.6377
+      "actual_win_rate": 0.6374
     },
     {
       "bin": "0.70-0.80",
